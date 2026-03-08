@@ -10,7 +10,7 @@ const background: BackgroundProps = {
 export default function LoadingApp() {
   const [state, setState] = useState<UpdateLoadingState>({
     phase: "checking",
-    message: "Procurando Atualizacao",
+    message: "Procurando Atualização",
     progressPercent: 0,
     version: null,
   });

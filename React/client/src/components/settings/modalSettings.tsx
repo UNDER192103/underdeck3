@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useUser } from "@/contexts/UserContext";
-import { Loader2, LogIn, LogOut, Pencil, Layers2, Trash2, Languages, Palette, Music2, Radio } from "lucide-react";
+import { Loader2, LogIn, LogOut, Pencil, Layers2, Trash2, Languages, Palette, Music2, Radio, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Img } from "@/components/ui/img";
 import { ModalConfirm, ModalConfirmProps } from "@/components/ModalConfirm";
@@ -16,6 +16,7 @@ import SoundPad from '@/components/dashboard/soundpad';
 import ObsStudio from '@/components/dashboard/obs';
 import { toast } from "sonner";
 import { useObserver } from "@/contexts/ObserverContext";
+import UpdatePage from '@/components/dashboard/update';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -25,7 +26,7 @@ interface UserProfileModalProps {
 export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
   const { modalLogin, logout, user } = useUser();
   const { t, locale, locales, setLocale, importLocaleFile, removeLocale } = useI18n();
-  const [currentSection, setCurrentSection] = useState<"theme" | "language" | "obs" | "soundpad" | "overlay">("theme");
+  const [currentSection, setCurrentSection] = useState<"theme" | "language" | "obs" | "soundpad" | "overlay" | "updates">("theme");
   const [isImportingLocale, setIsImportingLocale] = useState(false);
   const [removingLocale, setRemovingLocale] = useState<string | null>(null);
   const [overlayEnabled, setOverlayEnabled] = useState(false);
@@ -276,6 +277,15 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                     <Layers2 size={16} />
                     {t("settings.overlay.title", "Overlay")}
                   </Button>
+                  <Button
+                    variant={currentSection === "updates" ? "primary" : "ghost-secondary"}
+                    rounded="xl"
+                    className="w-full text-left flex justify-start"
+                    onClick={() => setCurrentSection("updates")}
+                  >
+                    <Download size={16} />
+                    {t("sidebar.updates", "Atualizações")}
+                  </Button>
                   {user && (
                     <Button
                       variant="ghost-destructive"
@@ -302,6 +312,9 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
               )}
               {currentSection === "obs" && (
                 <ObsStudio className="border-none" />
+              )}
+              {currentSection === "updates" && (
+                <UpdatePage className="border-none" />
               )}
               {currentSection === "language" && (
                 <div className="p-6 grid gap-4">

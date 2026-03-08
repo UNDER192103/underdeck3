@@ -2,13 +2,14 @@ import electron from "electron";
 const { BrowserWindow, app } = electron;
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadOverlayRenderer } from "./rendererTarget.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 export function createOverlayWindow() {
     const isDev = !app.isPackaged;
     const preloadPath = isDev
         ? path.join(process.cwd(), "src", "preload", "index.js")
-        : path.join(__dirname, "..", "preload", "index.js");
+        : path.join(__dirname, "..", "..", "preload", "index.js");
     const win = new BrowserWindow({
         show: false,
         frame: false,
@@ -35,6 +36,6 @@ export function createOverlayWindow() {
         win.show();
         win.focus();
     });
-    win.loadURL("http://localhost:3484/overlay");
+    loadOverlayRenderer(win, isDev);
     return win;
 }

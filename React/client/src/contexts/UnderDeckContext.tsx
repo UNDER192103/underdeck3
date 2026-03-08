@@ -105,7 +105,7 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
             const updated = await window.underdeck.apps.update(app);
             if (!updated) {
                 setApps(previousApps);
-                toast.error(t("underdeck.apps.not_found_edit", "App não encontrado para edicao."));
+                toast.error(t("underdeck.apps.not_found_edit", "App não encontrado para edição."));
                 return null;
             }
             setApps((prev) => upsertApp(prev, updated));
@@ -178,7 +178,7 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
         try {
             await window.underdeck.shortcuts.updateAll(payload);
         } catch {
-            toast.error(t("underdeck.shortcuts.sync_failed", "Falha ao registrar atalhos no servico."));
+            toast.error(t("underdeck.shortcuts.sync_failed", "Falha ao registrar atalhos no serviço."));
         }
     };
 
@@ -205,7 +205,7 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
             const updated = await window.underdeck.shortcuts.update(shortcut);
             if (!updated) {
                 setShortcuts(previousShortcuts);
-                toast.error(t("underdeck.shortcuts.not_found_edit", "Atalho não encontrado para edicao."));
+                toast.error(t("underdeck.shortcuts.not_found_edit", "Atalho não encontrado para edição."));
                 return null;
             }
             const finalShortcuts = upsertShortcut(previousShortcuts, updated);

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { getAssetPath } from '../../communs/commun.js';
 import { Settings } from '../services/settings.js';
 import { TranslationService } from "../services/translations.js";
+import { loadMainRenderer } from "./rendererTarget.js";
 
 // Se estiver usando ESM ("type": "module"), recrie o __dirname:
 const __filename = fileURLToPath(import.meta.url);
@@ -76,7 +77,7 @@ export function createMainWindow(AppIcon: electron.Tray, options: MainWindowOpti
 
     const preloadPath = isDev
         ? path.join(process.cwd(), 'src', 'preload', 'index.js')
-        : path.join(__dirname, '..', 'preload', 'index.js');
+        : path.join(__dirname, '..', '..', 'preload', 'index.js');
 
     const win = new BrowserWindow({
         show: false,
@@ -85,6 +86,7 @@ export function createMainWindow(AppIcon: electron.Tray, options: MainWindowOpti
         minWidth: 800,
         minHeight: 500,
         autoHideMenuBar: true,
+        frame: true,
         icon: getAssetPath(...Settings.get('assets').windowIcon),
         webPreferences: {
             preload: preloadPath,
@@ -116,7 +118,7 @@ export function createMainWindow(AppIcon: electron.Tray, options: MainWindowOpti
 
     setupTryIcon(AppIcon, win);
 
-    win.loadURL("http://localhost:3484/");
+    loadMainRenderer(win, isDev);
 
     return win;
 }

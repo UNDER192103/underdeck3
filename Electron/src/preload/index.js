@@ -40,6 +40,14 @@ const expressStatusHandler = (_event, payload) => {
   });
 };
 
+const updateLoadingStateListeners = new Set();
+let updateLoadingStateSubscribed = false;
+const updateLoadingStateHandler = (_event, payload) => {
+  updateLoadingStateListeners.forEach((listener) => {
+    listener(payload);
+  });
+};
+
 const themePreferencesListeners = new Set();
 let themePreferencesSubscribed = false;
 const themePreferencesHandler = (_event, payload) => {
@@ -119,6 +127,27 @@ const underdeckApi = {
         if (expressStatusListeners.size === 0 && expressStatusSubscribed) {
           ipcRenderer.removeListener("ExpressSV-StatusChanged", expressStatusHandler);
           expressStatusSubscribed = false;
+        }
+      };
+    },
+  },
+  updates: {
+    getState: () => ipcRenderer.invoke("UpdateSV-GetState"),
+    getLoadingState: () => ipcRenderer.invoke("UpdateSV-GetLoadingState"),
+    setAutoDownload: (enabled) => ipcRenderer.invoke("UpdateSV-SetAutoDownload", enabled),
+    check: () => ipcRenderer.invoke("UpdateSV-Check"),
+    downloadInstall: () => ipcRenderer.invoke("UpdateSV-DownloadInstall"),
+    onLoadingStateChanged: (listener) => {
+      updateLoadingStateListeners.add(listener);
+      if (!updateLoadingStateSubscribed) {
+        ipcRenderer.on("UpdatesSV-LoadingStateChanged", updateLoadingStateHandler);
+        updateLoadingStateSubscribed = true;
+      }
+      return () => {
+        updateLoadingStateListeners.delete(listener);
+        if (updateLoadingStateListeners.size === 0 && updateLoadingStateSubscribed) {
+          ipcRenderer.removeListener("UpdatesSV-LoadingStateChanged", updateLoadingStateHandler);
+          updateLoadingStateSubscribed = false;
         }
       };
     },

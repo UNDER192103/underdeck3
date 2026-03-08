@@ -63,6 +63,10 @@ function compareSemver(a: string, b: string) {
   return 0;
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class UpdaterService extends EventEmitter {
   private state: UpdateState = {
     currentVersion: app.getVersion(),
@@ -117,7 +121,78 @@ export class UpdaterService extends EventEmitter {
   }
 
   private setupAutoUpdaterEvents() {
+    autoUpdater.on("update-available", (info: { version?: string; releaseDate?: string }) => {
+      const availableVersion = normalizeVersion(info?.version || "");
+      if (!availableVersion || compareSemver(availableVersion, app.getVersion()) <= 0) return;
+
+      const releaseDateRaw = String(info?.releaseDate || "").trim();
+      const releaseDate = releaseDateRaw || null;
+
+      this.updateState({
+        checking: false,
+        updateAvailable: true,
+        downloaded: false,
+        availableVersion,
+        downloadPercent: 0,
+        lastAvailableReleaseDate: releaseDate,
+      });
+
+      Settings.set("updates", {
+        ...Settings.get("updates"),
+        lastAvailableReleaseDate: releaseDate,
+      });
+
+      NotificationService.send(
+        this.translationService.t("updates.notification.title", "Atualizacao disponivel"),
+        this.translationService.t(
+          "updates.notification.availableBody",
+          `Nova versao ${availableVersion} disponivel.`,
+          { version: availableVersion }
+        )
+      );
+
+      if (!this.getAutoDownloadSetting()) {
+        this.emit("update-available-passive", {
+          version: availableVersion,
+          releaseDate,
+        });
+      }
+    });
+
+    autoUpdater.on("update-not-available", () => {
+      this.updateState({
+        checking: false,
+        updateAvailable: false,
+        availableVersion: null,
+        downloadPercent: 0,
+      });
+      this.setLoadingState({
+        phase: "loading-app",
+        message: this.translationService.t("updates.loading.loadingApp", "Carregando Aplicativo"),
+        progressPercent: 0,
+        version: null,
+      });
+    });
+
+    autoUpdater.on("update-downloaded", () => {
+      this.updateState({
+        downloading: false,
+        downloaded: true,
+        installing: true,
+        downloadPercent: 100,
+      });
+      this.setLoadingState({
+        phase: "installing",
+        message: this.translationService.t("updates.loading.installing", "Instalando Atualizacao"),
+        progressPercent: 100,
+        version: this.state.availableVersion,
+      });
+    });
+
     autoUpdater.on("error", (error) => {
+      if (!app.isPackaged || process.env.NODE_ENV !== "production") {
+        console.error("[updates] autoUpdater error:", error);
+      }
       this.updateState({
         checking: false,
         downloading: false,
@@ -155,6 +230,18 @@ export class UpdaterService extends EventEmitter {
     autoUpdater.allowPrerelease = false;
     autoUpdater.allowDowngrade = false;
     autoUpdater.fullChangelog = false;
+
+    const token =
+      process.env.GH_TOKEN ||
+      process.env.GITHUB_TOKEN ||
+      process.env.GB_TOKEN;
+
+    if (token) {
+      autoUpdater.requestHeaders = {
+        ...autoUpdater.requestHeaders,
+        Authorization: `token ${token}`,
+      };
+    }
   }
 
   public getState() {
@@ -262,6 +349,10 @@ export class UpdaterService extends EventEmitter {
       );
 
       if (!options.installIfFound) {
+        this.emit("update-available-passive", {
+          version: availableVersion,
+          releaseDate,
+        });
         this.setLoadingState({
           phase: "loading-app",
           message: this.translationService.t("updates.loading.loadingApp", "Carregando Aplicativo"),
@@ -274,6 +365,9 @@ export class UpdaterService extends EventEmitter {
       await this.downloadAndInstall();
       return { shouldContinueAppStartup: false, updateAvailable: true, downloaded: true };
     } catch (error) {
+      if (!app.isPackaged || process.env.NODE_ENV !== "production") {
+        console.error("[updates] checkForUpdates failed:", error);
+      }
       this.updateState({
         checking: false,
         lastError: error instanceof Error ? error.message : String(error),
@@ -291,6 +385,7 @@ export class UpdaterService extends EventEmitter {
   public async downloadAndInstall() {
     const version = this.state.availableVersion || "";
     if (!version) return false;
+    this.emit("download-starting", { version });
 
     this.updateState({
       downloading: true,
@@ -341,10 +436,18 @@ export class UpdaterService extends EventEmitter {
         )
       );
 
+      // Permite renderizar "Instalando Atualizacao" na loading window antes do quit.
+      await delay(900);
+
+      const isSilent = true;
+      const isForceRunAfter = true;
       // Silencioso (sem UI do instalador) e reabre o app ao final.
-      autoUpdater.quitAndInstall(true, true);
+      autoUpdater.quitAndInstall(isSilent, isForceRunAfter);
       return true;
     } catch (error) {
+      if (!app.isPackaged || process.env.NODE_ENV !== "production") {
+        console.error("[updates] downloadAndInstall failed:", error);
+      }
       this.updateState({
         downloading: false,
         installing: false,

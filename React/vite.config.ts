@@ -11,7 +11,7 @@ const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(
 
 export default defineConfig({
   plugins,
-  base: "/",
+  base: "./",
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
@@ -26,7 +26,8 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: path.resolve(import.meta.dirname, "client", "index.html"),
+        "main/index": path.resolve(import.meta.dirname, "client", "main", "index.html"),
+        "overlay/index": path.resolve(import.meta.dirname, "client", "overlay", "index.html"),
         "webdeck/index": path.resolve(import.meta.dirname, "client", "webdeck", "index.html"),
         "loading/index": path.resolve(import.meta.dirname, "client", "loading", "index.html"),
       },
@@ -38,12 +39,12 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: `http://localhost:${process.env.SERVER_PORT || 3000}`,
+        target: `http://localhost:${process.env.SERVER_PORT || 3404}`,
         changeOrigin: true,
         secure: false,
       },
       '/socket.io': {
-        target: `http://localhost:${process.env.SERVER_PORT || 3000}`,
+        target: `http://localhost:${process.env.SERVER_PORT || 3404}`,
         ws: true,
       },
     },

@@ -5,8 +5,13 @@ import { Label } from "@/components/ui/label";
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/contexts/I18nContext";
 import type { UpdateState } from "@/types/electron";
+import { cn } from "@/lib/utils";
 
-export default function UpdatePage() {
+export default function UpdatePage({
+  className = "backdrop-blur supports-[backdrop-filter]:bg-background",
+}: {
+  className?: string;
+}) {
   const { t } = useI18n();
   const [state, setState] = useState<UpdateState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,12 +41,17 @@ export default function UpdatePage() {
 
   return (
     <div className="p-2 grid w-full max-w-full select-none">
-      <Card className="w-full min-w-0 border-border/70 bg-card/70 p-4 backdrop-blur-sm space-y-4">
+      <Card className={cn("w-full min-w-0 border-border/70 bg-card/70 p-4 backdrop-blur-sm space-y-4", className)}>
         <div>
-          <h2 className="text-lg font-semibold">{t("updates.title", "Atualizacoes")}</h2>
+          <h2 className="text-lg font-semibold">{t("updates.title", "Atualizações")}</h2>
           <p className="text-sm text-muted-foreground">
             {t("updates.current_version", "Versao atual")}: {state?.currentVersion ?? "-"}
           </p>
+          {hasAvailableUpdate ? (
+            <p className="text-sm text-cyan-300">
+              {t("updates.new_version_available", "Nova versao disponivel")}: v{state?.availableVersion}
+            </p>
+          ) : null}
           <p className="text-sm text-muted-foreground">
             {t("updates.last_release_date", "Quando saiu a ultima atualizacao")}: {lastReleaseAt}
           </p>
@@ -56,7 +66,7 @@ export default function UpdatePage() {
         <div className="flex items-center justify-between rounded-xl border border-border/70 p-3">
           <div>
             <Label htmlFor="update-auto-download">
-              {t("updates.auto_download", "Baixar atualizacoes automaticamente quando disponivel")}
+              {t("updates.auto_download", "Baixar Atualizações automaticamente quando disponivel")}
             </Label>
           </div>
           <Switch
@@ -85,7 +95,7 @@ export default function UpdatePage() {
               }
             }}
           >
-            {busy ? t("updates.searching", "Procurando atualizacao...") : t("updates.check_button", "Verificar atualizacoes")}
+            {busy ? t("updates.searching", "Procurando atualizacao...") : t("updates.check_button", "Verificar Atualizações")}
           </Button>
           <Button
             type="button"

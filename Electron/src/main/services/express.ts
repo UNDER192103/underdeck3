@@ -294,7 +294,7 @@ export class ExpressServer {
     const loadingHtmlFromDir = (dir: string) => path.join(dir, "loading.html");
     const defaultIndexFromDir = (dir: string) => path.join(dir, "index.html");
     if (!staticDir) {
-      const devPort = Number(process.env.WEB_PORT) || 3484;
+      const devPort = Number(process.env.WEB_PORT) || 3404;
       if (!electronApp.isPackaged) {
         this.app.get("/", (_req, res) => {
           res.redirect(`http://127.0.0.1:${devPort}/webdeck/`);
@@ -356,7 +356,7 @@ export class ExpressServer {
     const normalizedType = String(type || "").toLowerCase();
     const normalizedId = decodeURIComponent(String(id || "")).trim();
     if (!normalizedType || !normalizedId) {
-      return { ok: false, message: "Tipo ou id invalido." };
+      return { ok: false, message: "Tipo ou id inválido." };
     }
 
     if (normalizedType === "app") {
@@ -397,7 +397,7 @@ export class ExpressServer {
       };
       const handler = map[action];
       if (!handler) {
-        return { ok: false, message: "Acao OBS invalida." };
+        return { ok: false, message: "Ação OBS inválida." };
       }
       return handler();
     }
@@ -407,7 +407,7 @@ export class ExpressServer {
       return { ok: Boolean(ok), message: ok ? "OBS app executado." : "Falha ao executar app OBS." };
     }
 
-    return { ok: false, message: "Tipo nao suportado." };
+    return { ok: false, message: "Tipo não suportado." };
   }
 
   private configureRoutes() {
@@ -481,7 +481,7 @@ export class ExpressServer {
       } catch (error) {
         res.status(500).json({
           ok: false,
-          message: error instanceof Error ? error.message : "Falha ao listar paginas.",
+          message: error instanceof Error ? error.message : "Falha ao listar páginas.",
         });
       }
     });

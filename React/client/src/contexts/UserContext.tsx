@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { AppUser, LoginPayload, RegisterPayload } from "@/types/user";
 import { useI18n } from "@/contexts/I18nContext";
 
+const AUTH_KNOWN_KEY = "underdeck:auth:known";
+
 interface UserContextType {
     user: AppUser | null;
     loading: boolean;
@@ -44,15 +46,27 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const checkAuth = async () => {
+            const shouldCheck = window.localStorage.getItem(AUTH_KNOWN_KEY) === "1";
+            if (!shouldCheck) {
+                setUser(null);
+                setLoading(false);
+                return;
+            }
+
             try {
-                const response = await axios.get<AppUser>("/api/auth/login");
+                const response = await axios.get<AppUser>("/api/auth/login", {
+                    validateStatus: (status) => status === 200 || status === 401,
+                });
                 if (response.status === 200) {
                     setUser(response.data);
+                    window.localStorage.setItem(AUTH_KNOWN_KEY, "1");
                 } else {
                     setUser(null);
+                    window.localStorage.setItem(AUTH_KNOWN_KEY, "0");
                 }
             } catch {
                 setUser(null);
+                window.localStorage.setItem(AUTH_KNOWN_KEY, "0");
             } finally {
                 setLoading(false);
             }
@@ -70,15 +84,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             if (response.status === 200) {
                 setUser(response.data);
                 setOptions((prev) => ({ ...prev, modalLogin: false }));
+                window.localStorage.setItem(AUTH_KNOWN_KEY, "1");
                 return true;
             }
             setUser(null);
+            window.localStorage.setItem(AUTH_KNOWN_KEY, "0");
             return false;
         } catch (error: any) {
             toast.error(t("user.auth.login_error", "Erro ao fazer login"), {
                 description: error?.response?.data?.error || error?.message || "",
             });
             setUser(null);
+            window.localStorage.setItem(AUTH_KNOWN_KEY, "0");
             return false;
         }
     };
@@ -89,6 +106,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             if (response.status === 201) {
                 setUser(response.data);
                 setOptions((prev) => ({ ...prev, modalLogin: false }));
+                window.localStorage.setItem(AUTH_KNOWN_KEY, "1");
                 return true;
             }
             return false;
@@ -214,6 +232,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             // Mesmo com erro de rede, limpamos estado local.
         } finally {
             setUser(null);
+            window.localStorage.setItem(AUTH_KNOWN_KEY, "0");
             toast.success(t("user.auth.logout_success", "Deslogado com sucesso."));
         }
     };

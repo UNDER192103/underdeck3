@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { io, Socket } from "socket.io-client";
+import axios from "axios";
 import "../index.css";
 import { BackgroundComp, type BackgroundProps } from "../components/ui/background";
 import { Button } from "@/components/ui/button";
 import { WebDeckGrid } from "../components/webdeck/WebDeckGrid";
 import { I18nProvider } from "@/contexts/I18nContext";
+import { ObserverProvider } from "@/contexts/ObserverContext";
+import { SocketSettings } from "@/const";
 
 type WebDeckItem = {
   id: string;
@@ -57,6 +60,12 @@ type WebDeckViewPage = WebDeckPage & {
   isAutoSubPage?: boolean;
 };
 
+const buildApiUrl = (baseUrl: string, path: string) => {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (!baseUrl) return normalized;
+  return new URL(normalized, baseUrl).toString();
+};
+
 const AUTO_PAGE = {
   soundpad: "__auto_page_soundpad_all__",
   obsScenes: "__auto_page_obs_scenes__",
@@ -78,10 +87,9 @@ function isAutoPageRef(refId: string | null | undefined) {
   return value.startsWith("__auto_page_");
 }
 
-async function fetchConfig(): Promise<WebDeckConfig> {
-  const response = await fetch("/api/webdeck/config");
-  if (!response.ok) throw new Error("Failed to load webdeck config");
-  const payload = await response.json();
+async function fetchConfig(baseUrl: string): Promise<WebDeckConfig> {
+  const response = await axios.get(buildApiUrl(baseUrl, "/api/webdeck/config"));
+  const payload = response.data ?? {};
   return {
     pages: Array.isArray(payload.pages) ? payload.pages : [],
     apps: Array.isArray(payload.apps) ? payload.apps : [],
@@ -179,19 +187,19 @@ function buildAutoPagedPages(params: {
   return pages;
 }
 
-async function execute(type: string, id: string) {
+async function execute(type: string, id: string, baseUrl: string) {
   const encodedType = encodeURIComponent(type);
   const encodedId = encodeURIComponent(id);
-  const response = await fetch(`/api/webdeck/execute/${encodedType}/${encodedId}`, {
-    method: "POST",
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({ message: "Falha ao executar." }));
-    throw new Error(payload?.message || "Falha ao executar.");
+  try {
+    await axios.post(buildApiUrl(baseUrl, `/api/webdeck/execute/${encodedType}/${encodedId}`));
+  } catch (error: any) {
+    throw new Error(error?.response?.data?.message || "Falha ao executar.");
   }
 }
 
 function WebDeckRemoteAppContent() {
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>("");
+  const [socketUrl, setSocketUrl] = useState<string>(SocketSettings.url);
   const [config, setConfig] = useState<WebDeckConfig>({
     pages: [],
     apps: [],
@@ -288,7 +296,7 @@ function WebDeckRemoteAppContent() {
   const refresh = async () => {
     setLoading(true);
     try {
-      const next = await fetchConfig();
+      const next = await fetchConfig(apiBaseUrl);
       setConfig(next);
       setAutoPageIcons(next.autoIcons?.pages ?? {});
       setAutoItemIcons(next.autoIcons?.items ?? {});
@@ -305,8 +313,39 @@ function WebDeckRemoteAppContent() {
   };
 
   useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      if (window.underdeck?.express?.getWebDeckAccessInfo) {
+        try {
+          const info = await window.underdeck.express.getWebDeckAccessInfo();
+          const localBase = String(info?.localhostUrl || info?.localIpUrl || "").trim();
+          if (mounted && localBase) {
+            setApiBaseUrl(localBase);
+            setSocketUrl(localBase);
+            return;
+          }
+        } catch {
+          // ignore and fallback below
+        }
+      }
+      const origin = String(window.location.origin || "").trim();
+      if (mounted && origin && origin !== "null") {
+        setApiBaseUrl(origin);
+        setSocketUrl(origin);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     void refresh();
-    const socket: Socket = io("/", { path: "/socket.io" });
+    const socket: Socket = io(socketUrl, {
+      path: "/socket.io",
+      transports: ["websocket"],
+      withCredentials: true,
+    });
     socket.on("webdeck:pages-changed", (payload) => {
       const pages = Array.isArray(payload?.pages) ? payload.pages : [];
       const autoPageIcons = (payload?.autoIcons?.pages ?? {}) as Record<string, string>;
@@ -322,7 +361,7 @@ function WebDeckRemoteAppContent() {
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [apiBaseUrl, socketUrl]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -380,33 +419,33 @@ function WebDeckRemoteAppContent() {
     }
 
     if (item.type === "app") {
-      await execute("app", item.refId);
+      await execute("app", item.refId, apiBaseUrl);
       return;
     }
 
     if (item.type === "soundpad") {
       if (item.refId.startsWith("soundpad-audio:")) {
-        await execute("soundpad-audio", item.refId.replace("soundpad-audio:", ""));
+        await execute("soundpad-audio", item.refId.replace("soundpad-audio:", ""), apiBaseUrl);
         return;
       }
-      await execute("soundpad-app", item.refId);
+      await execute("soundpad-app", item.refId, apiBaseUrl);
       return;
     }
 
     if (item.type === "obs") {
       if (item.refId.startsWith("obs-scene:")) {
-        await execute("obs-scene", item.refId.replace("obs-scene:", ""));
+        await execute("obs-scene", item.refId.replace("obs-scene:", ""), apiBaseUrl);
         return;
       }
       if (item.refId.startsWith("obs-audio:")) {
-        await execute("obs-audio", item.refId.replace("obs-audio:", ""));
+        await execute("obs-audio", item.refId.replace("obs-audio:", ""), apiBaseUrl);
         return;
       }
       if (item.refId.startsWith("obs-action:")) {
-        await execute("obs-action", item.refId.replace("obs-action:", ""));
+        await execute("obs-action", item.refId.replace("obs-action:", ""), apiBaseUrl);
         return;
       }
-      await execute("obs-app", item.refId);
+      await execute("obs-app", item.refId, apiBaseUrl);
     }
   };
 
@@ -431,7 +470,7 @@ function WebDeckRemoteAppContent() {
     if (!item) return "";
     if (item.label) return item.label;
     if (item.type === "back") return "Voltar";
-    if (item.type === "page" || isAutoPageRef(item.refId)) return pageMap.get(item.refId)?.name || "Pagina";
+    if (item.type === "page" || isAutoPageRef(item.refId)) return pageMap.get(item.refId)?.name || "Página";
     if (item.type === "obs" && item.refId.startsWith("obs-")) {
       return item.refId.replace(/^obs-(scene|audio|action):/, "");
     }
@@ -452,7 +491,7 @@ function WebDeckRemoteAppContent() {
   if (!currentPage) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-black text-white">
-        Nenhuma pagina disponivel.
+        Nenhuma página disponível.
       </div>
     );
   }
@@ -500,8 +539,10 @@ function WebDeckRemoteAppContent() {
 
 export default function WebDeckRemoteApp() {
   return (
-    <I18nProvider>
-      <WebDeckRemoteAppContent />
-    </I18nProvider>
+    <ObserverProvider sourceId="WEBDECK_REMOTE" mode="express">
+      <I18nProvider>
+        <WebDeckRemoteAppContent />
+      </I18nProvider>
+    </ObserverProvider>
   );
 }

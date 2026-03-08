@@ -31,7 +31,7 @@ export const getDb = (dbName: string = 'main') => {
 
     // 4. Cria a nova conexão e guarda no cache
     const db = new Database(dbPath, {
-        verbose: logger.log,
+        //verbose: logger.log,
     });
 
     connections[dbName] = db;

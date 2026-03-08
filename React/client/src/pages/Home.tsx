@@ -1,7 +1,5 @@
-import React, { useState } from 'react';
-import { Route, Switch, useLocation } from 'wouter';
-import { useTheme } from "@/contexts/ThemeContext";
-import NotFound from "@/components/dashboard/NotFound";
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigation } from "@/contexts/NavigationContext";
 
 import { Sidebar } from '@/components/Sidebar';
 import { Navbar } from '@/components/Navbar';
@@ -16,9 +14,39 @@ import WebDeck from '@/components/dashboard/webdeck';
 import UpdatePage from '@/components/dashboard/update';
 
 export default function Home() {
-  const [location, setLocation] = useLocation();
+  const { get, set } = useNavigation();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const CurrentTab = `/${location.split('/')[1] || ''}`;
+  const currentTab = get("homePages") || "apps";
+
+  useEffect(() => {
+    if ((get("pages") || "home") !== "home") {
+      set("pages", "home");
+    }
+    if (!get("homePages")) {
+      set("homePages", "apps");
+    }
+  }, [get, set]);
+
+  const content = useMemo(() => {
+    switch (currentTab) {
+      case "shortcuts":
+        return <Shortcuts />;
+      case "theme":
+        return <Theme />;
+      case "soundpad":
+        return <SoundPad />;
+      case "obs":
+        return <ObsStudio />;
+      case "deck":
+        return <WebDeck />;
+      case "updates":
+        return <UpdatePage />;
+      case "app":
+      case "apps":
+      default:
+        return <Apps />;
+    }
+  }, [currentTab]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -44,17 +72,7 @@ export default function Home() {
           <div className="flex-1 flex flex-col transition-sidebar min-w-0 overflow-x-hidden">
 
             <main className="flex-1 pt-15 min-w-0 overflow-x-hidden">
-              <Switch location={CurrentTab}>
-                <Route path="/">{() => <Apps />}</Route>
-                <Route path="/app">{() => <Apps />}</Route>
-                <Route path="/shortcuts">{() => <Shortcuts />}</Route>
-                <Route path="/theme">{() => <Theme />}</Route>
-                <Route path="/soundpad">{() => <SoundPad />}</Route>
-                <Route path="/obs">{() => <ObsStudio />}</Route>
-                <Route path="/deck">{() => <WebDeck />}</Route>
-                <Route path="/updates">{() => <UpdatePage />}</Route>
-                <Route component={NotFound} />
-              </Switch>
+              {content}
             </main>
 
             {/*

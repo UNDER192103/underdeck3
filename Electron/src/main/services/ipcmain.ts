@@ -514,7 +514,7 @@ export class IpcmainService {
             return this.updaterService.setAutoDownloadWhenAvailable(Boolean(enabled));
         });
         ipcMain.handle("UpdateSV-Check", async () => {
-            await this.updaterService.checkAndInstallIfAvailable();
+            await this.updaterService.checkForStartupUpdates();
             return this.updaterService.getState();
         });
         ipcMain.handle("UpdateSV-DownloadInstall", async () => {

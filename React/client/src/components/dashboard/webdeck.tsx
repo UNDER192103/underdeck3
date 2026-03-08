@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/contexts/I18nContext";
@@ -203,6 +203,8 @@ export default function WebDeck({
   const [autoItemIcons, setAutoItemIcons] = useState<Record<string, string>>({});
   const [autoPageIcons, setAutoPageIcons] = useState<Record<string, string>>({});
   const [editingAutoItemKey, setEditingAutoItemKey] = useState<string | null>(null);
+  const supportListsLoadedRef = useRef(false);
+  const supportListsLoadingRef = useRef(false);
   
   const autoPageRoots = useMemo<WebDeckViewPage[]>(() => {
     const firstCommonPage = [...pages].sort((a, b) => a.position - b.position)[0];
@@ -345,12 +347,19 @@ export default function WebDeck({
   }, [currentPage, pages]);
 
   const loadSupportLists = async () => {
-    const [audios] = await Promise.all([window.underdeck.soundpad.listAudios()]);
-    setSoundpadAudios(Array.isArray(audios) ? audios : []);
-    await window.underdeck.obs.connect();
-    const [scenes, inputs] = await Promise.all([window.underdeck.obs.listScenes(), window.underdeck.obs.listAudioInputs()]);
-    setObsScenes(Array.isArray(scenes) ? scenes : []);
-    setObsAudioInputs(Array.isArray(inputs) ? inputs : []);
+    if (supportListsLoadingRef.current) return;
+    supportListsLoadingRef.current = true;
+    try {
+      const [audios] = await Promise.all([window.underdeck.soundpad.listAudios()]);
+      setSoundpadAudios(Array.isArray(audios) ? audios : []);
+      await window.underdeck.obs.connect();
+      const [scenes, inputs] = await Promise.all([window.underdeck.obs.listScenes(), window.underdeck.obs.listAudioInputs()]);
+      setObsScenes(Array.isArray(scenes) ? scenes : []);
+      setObsAudioInputs(Array.isArray(inputs) ? inputs : []);
+      supportListsLoadedRef.current = true;
+    } finally {
+      supportListsLoadingRef.current = false;
+    }
   };
 
   const loadPages = async (focusPageId?: string) => {
@@ -419,10 +428,12 @@ export default function WebDeck({
     void loadSupportLists();
     const unsubscribeSoundPad = window.underdeck.soundpad.onAudiosChanged((audios) => {
       setSoundpadAudios(Array.isArray(audios) ? audios : []);
+      supportListsLoadedRef.current = true;
     });
     const unsubscribeObs = window.underdeck.obs.onStateChanged((state) => {
       setObsScenes(Array.isArray(state?.scenes) ? state.scenes : []);
       setObsAudioInputs(Array.isArray(state?.audioInputs) ? state.audioInputs : []);
+      supportListsLoadedRef.current = true;
     });
     return () => {
       unsubscribeSoundPad();
@@ -619,8 +630,8 @@ export default function WebDeck({
 
   const openItemEditor = async (slotIndex: number) => {
     if (!currentPage) return;
-    if (!currentPage.isAutoPage) {
-      await loadSupportLists();
+    if (!currentPage.isAutoPage && !supportListsLoadedRef.current) {
+      void loadSupportLists();
     }
     const existing = currentPage.items[slotIndex];
     if (currentPage.isAutoPage) {

@@ -1,5 +1,5 @@
 import electron from 'electron';
-const { app, BrowserWindow, Tray, protocol } = electron;
+const { app, BrowserWindow, Tray, protocol, session } = electron;
 import dotenv from "dotenv";
 import path from "path";
 import { getAssetPath } from '../communs/commun.js';
@@ -18,6 +18,7 @@ import { ObsService } from "./services/obs.js";
 import { WebDeckService } from "./services/webdeck.js";
 import { TranslationService } from "./services/translations.js";
 import { UpdaterService } from "./services/updater.js";
+import { CookiePersistenceService } from "./services/cookie-persistence.js";
 const soundPadService = new SoundPadService();
 const obsService = new ObsService();
 const webDeckService = new WebDeckService();
@@ -27,6 +28,7 @@ const hortcutService = new Shortcutkey();
 const themeService = new ThemeService(AppService);
 const translationService = new TranslationService();
 const updaterService = new UpdaterService(translationService);
+const cookiePersistenceService = new CookiePersistenceService();
 const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
 let mainWindow = null;
 let loadingWindow = null;
@@ -34,11 +36,55 @@ let overlayWindow = null;
 let trayIcon = null;
 let overlayTransitioning = false;
 let updateRuntimeStopped = false;
+let lastUpdateNotificationVersion = "";
 const OVERLAY_SHORTCUT_ID = "overlay-toggle";
+app.commandLine.appendSwitch('disable-features', 'SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure');
+app.commandLine.appendSwitch('disable-site-isolation-trials');
+app.commandLine.appendSwitch('enable-features', 'SameSiteDefaultChecksMethodRigorously');
+const patchSetCookieHeaders = () => {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        const responseHeaders = details.responseHeaders ?? {};
+        const headerKey = Object.keys(responseHeaders).find((key) => key.toLowerCase() === "set-cookie");
+        const rawSetCookies = headerKey ? responseHeaders[headerKey] : null;
+        if (Array.isArray(rawSetCookies)) {
+            responseHeaders[headerKey] = rawSetCookies.map((cookie) => {
+                let normalized = String(cookie).replace(/;\s*SameSite=\w+/gi, "");
+                if (!/;\s*SameSite=/i.test(normalized)) {
+                    normalized += "; SameSite=None";
+                }
+                if (!/;\s*Secure/i.test(normalized)) {
+                    normalized += "; Secure";
+                }
+                return normalized;
+            });
+        }
+        callback({ responseHeaders });
+    });
+};
 const emitLoadingState = (state) => {
     if (!loadingWindow || loadingWindow.isDestroyed())
         return;
     loadingWindow.webContents.send("UpdatesSV-LoadingStateChanged", state);
+};
+const publishObserverToAllWindows = (channel, id, data) => {
+    const payload = {
+        id,
+        channel,
+        data,
+        sourceId: "APP_ELECTRON",
+        timestamp: Date.now(),
+    };
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach((win) => {
+        if (win.isDestroyed())
+            return;
+        try {
+            win.webContents.send("ObserverSV-Event", payload);
+        }
+        catch {
+            // ignore
+        }
+    });
 };
 const stopRuntimeServicesForUpdate = async () => {
     if (updateRuntimeStopped)
@@ -147,6 +193,69 @@ const hideLoadingWindow = () => {
     loadingWindow.close();
     loadingWindow = null;
 };
+const waitForRendererCssReady = async (win, timeoutMs = 6000) => {
+    if (win.isDestroyed())
+        return false;
+    try {
+        const result = await win.webContents.executeJavaScript(`
+            new Promise((resolve) => {
+                const timeoutId = setTimeout(() => resolve(false), ${timeoutMs});
+
+                const complete = (value) => {
+                    clearTimeout(timeoutId);
+                    resolve(value);
+                };
+
+                const waitFonts = () => {
+                    const fonts = document.fonts;
+                    if (!fonts || !fonts.ready) {
+                        checkDomReady();
+                        return;
+                    }
+                    fonts.ready.then(() => checkDomReady()).catch(() => checkDomReady());
+                };
+
+                const checkDomReady = () => {
+                    const root = document.getElementById("root");
+                    if (!root || root.childElementCount === 0) {
+                        setTimeout(checkDomReady, 50);
+                        return;
+                    }
+                    // Aguarda dois frames para garantir primeira pintura util.
+                    requestAnimationFrame(() => requestAnimationFrame(() => complete(true)));
+                };
+
+                const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
+                if (links.length === 0) {
+                    waitFonts();
+                    return;
+                }
+
+                let remaining = links.length;
+                const done = () => {
+                    remaining -= 1;
+                    if (remaining <= 0) {
+                        waitFonts();
+                    }
+                };
+
+                links.forEach((node) => {
+                    const link = node;
+                    if (link.sheet) {
+                        done();
+                        return;
+                    }
+                    link.addEventListener("load", done, { once: true });
+                    link.addEventListener("error", done, { once: true });
+                });
+            });
+        `, true);
+        return Boolean(result);
+    }
+    catch {
+        return false;
+    }
+};
 const createMainWithLoading = (AppIcon) => {
     if (!loadingWindow || loadingWindow.isDestroyed()) {
         loadingWindow = createLoadingWindow();
@@ -165,10 +274,33 @@ const createMainWithLoading = (AppIcon) => {
         win.show();
         win.focus();
     };
-    win.webContents.once("did-finish-load", showMainWindow);
-    win.webContents.once("did-fail-load", () => {
+    let readyToShow = false;
+    let cssReady = false;
+    let didShow = false;
+    const tryShowMainWindow = () => {
+        if (didShow)
+            return;
+        if (!readyToShow || !cssReady)
+            return;
+        didShow = true;
         showMainWindow();
+    };
+    win.once("ready-to-show", () => {
+        readyToShow = true;
+        tryShowMainWindow();
     });
+    win.webContents.once("did-finish-load", () => {
+        void waitForRendererCssReady(win).then(() => {
+            cssReady = true;
+            tryShowMainWindow();
+        });
+    });
+    setTimeout(() => {
+        if (didShow || win.isDestroyed())
+            return;
+        cssReady = true;
+        tryShowMainWindow();
+    }, 7000);
     win.on("closed", () => {
         hideLoadingWindow();
         mainWindow = null;
@@ -205,14 +337,47 @@ protocol.registerSchemesAsPrivileged([
 ]);
 if (gotSingleInstanceLock)
     app.whenReady().then(async () => {
+        patchSetCookieHeaders();
+        await cookiePersistenceService.init();
         const envPath = isDev ? path.join(process.cwd(), '.env') : path.join(process.resourcesPath, '.env');
         dotenv.config({ path: envPath });
+        if (!process.env.GH_TOKEN && process.env.GB_TOKEN) {
+            process.env.GH_TOKEN = process.env.GB_TOKEN;
+        }
+        ipcmainService.start();
         loadingWindow = createLoadingWindow();
         loadingWindow.webContents.once("did-finish-load", () => {
             emitLoadingState(updaterService.getLoadingState());
         });
         updaterService.on("loading-state-changed", (state) => {
             emitLoadingState(state);
+        });
+        updaterService.on("update-available-passive", (payload) => {
+            const version = String(payload?.version || "").trim();
+            if (!version)
+                return;
+            if (lastUpdateNotificationVersion === version)
+                return;
+            lastUpdateNotificationVersion = version;
+            publishObserverToAllWindows("updates", "updates.available", {
+                version,
+                releaseDate: payload?.releaseDate ?? null,
+            });
+        });
+        updaterService.on("download-starting", async () => {
+            await stopRuntimeServicesForUpdate();
+            if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+                mainWindow.hide();
+            }
+            if (!loadingWindow || loadingWindow.isDestroyed()) {
+                loadingWindow = createLoadingWindow();
+                loadingWindow.webContents.once("did-finish-load", () => {
+                    emitLoadingState(updaterService.getLoadingState());
+                });
+            }
+            else if (!loadingWindow.isVisible()) {
+                loadingWindow.show();
+            }
         });
         updaterService.on("state-changed", async (state) => {
             const downloadingForReal = Boolean(state?.downloading && Number(state?.downloadPercent || 0) > 0);
@@ -261,7 +426,6 @@ if (gotSingleInstanceLock)
             toggleOverlayWindow();
         });
         AppService.registerMediaProtocol();
-        ipcmainService.start();
         const AppIcon = new Tray(getAssetPath(...Settings.get('assets').tryIcon));
         trayIcon = AppIcon;
         createMainWithLoading(AppIcon);
@@ -282,4 +446,7 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();
     }
+});
+app.on("before-quit", () => {
+    void cookiePersistenceService.dispose();
 });

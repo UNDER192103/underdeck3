@@ -2,7 +2,6 @@ import Database from 'better-sqlite3';
 import electron from 'electron';
 import path from 'path';
 import fs from 'fs';
-import logger from '../../communs/logger.js';
 const { app } = electron;
 // Objeto para armazenar as conexões abertas (cache)
 const connections = {};
@@ -25,7 +24,7 @@ export const getDb = (dbName = 'main') => {
     }
     // 4. Cria a nova conexão e guarda no cache
     const db = new Database(dbPath, {
-        verbose: logger.log,
+    //verbose: logger.log,
     });
     connections[dbName] = db;
     return db;

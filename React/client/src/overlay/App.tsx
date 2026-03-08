@@ -9,6 +9,7 @@ import { ObserverProvider } from "@/contexts/ObserverContext";
 import { UserModalLogin } from "@/components/user/UserModalLogin";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { NavigationProvider } from "@/contexts/NavigationContext";
 import OverlayDashboard from "./OverlayDashboard";
 import "../index.css";
 
@@ -39,7 +40,7 @@ export default function OverlayApp() {
 
   return (
     <ErrorBoundary>
-      <ObserverProvider>
+      <ObserverProvider sourceId="OVERLAY">
         <I18nProvider>
           <UserProvider>
             <ThemeProvider defaultTheme="dark" switchable={true}>
@@ -48,7 +49,9 @@ export default function OverlayApp() {
                   <TooltipProvider>
                     <Toaster />
                     <UserModalLogin />
-                    <OverlayDashboard />
+                    <NavigationProvider>
+                      <OverlayDashboard />
+                    </NavigationProvider>
                   </TooltipProvider>
                 </UnderDeckProvider>
               </SocketProvider>

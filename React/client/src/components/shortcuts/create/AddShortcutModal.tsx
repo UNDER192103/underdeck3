@@ -73,7 +73,7 @@ export function AddShortcutModal({
 
   const handleCaptureCombo = async () => {
     if (!isShortcutsEnabled) {
-      toast.error(t("shortcuts.capture.enable_service", "Ative o servico de atalhos para capturar teclas."));
+      toast.error(t("shortcuts.capture.enable_service", "Ative o serviço de atalhos para capturar teclas."));
       return;
     }
     setIsCapturingCombo(true);
@@ -103,7 +103,7 @@ export function AddShortcutModal({
 
     const relatedApp = appMap.get(appId);
     if (!relatedApp) {
-      toast.error(t("shortcuts.app.not_found", "Aplicativo selecionado nao encontrado."));
+      toast.error(t("shortcuts.app.not_found", "Aplicativo selecionado não encontrado."));
       return;
     }
 
@@ -248,4 +248,3 @@ export function AddShortcutModal({
     </Dialog>
   );
 }
-

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Apps from "@/components/dashboard/apps";
 import Shortcuts from "@/components/dashboard/shortcuts";
 import SoundPad from "@/components/dashboard/soundpad";
@@ -9,10 +9,17 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X } from "lucide-react";
+import { useNavigation } from "@/contexts/NavigationContext";
 
 export default function OverlayDashboard() {
-  const [mainTab, setMainTab] = useState("webdeck");
-  const [webdeckTab, setWebdeckTab] = useState("deck");
+  const { get, set } = useNavigation();
+  const [mainTab, setMainTab] = useState(() => get("overlayPages") || "webdeck");
+  const [webdeckTab, setWebdeckTab] = useState(() => get("overlayWebdeckPages") || "deck");
+
+  useEffect(() => {
+    if (!get("overlayPages")) set("overlayPages", "webdeck");
+    if (!get("overlayWebdeckPages")) set("overlayWebdeckPages", "deck");
+  }, [get, set]);
 
   return (
     <div className="min-h-screen h-screen w-screen overflow-hidden flex flex-col bg-transparent">
@@ -30,7 +37,18 @@ export default function OverlayDashboard() {
         </Button>
 
         <Card className="h-full w-full p-3 bg-black/30 backdrop-blur-lg border-white/20 shadow-2xl">
-          <Tabs value={mainTab} onValueChange={setMainTab} className="h-full">
+          <Tabs
+            value={mainTab}
+            onValueChange={(value) => {
+              setMainTab(value);
+              set("overlayPages", value);
+              if (value === "webdeck") {
+                set("overlayWebdeckPages", "deck");
+                setWebdeckTab("deck");
+              }
+            }}
+            className="h-full"
+          >
             <TabsList className="w-full h-10 flex flex-wrap gap-1 p-1 rounded-xl">
               <TabsTrigger value="webdeck" className="rounded-xl" asChild unstyled>
                 <Button rounded="xl" variant={mainTab == "webdeck" ? "primary" : "secondary"} className="w-full">
@@ -60,7 +78,14 @@ export default function OverlayDashboard() {
             </TabsList>
 
             <TabsContent value="webdeck" className="h-[calc(100%-56px)] min-h-0">
-              <Tabs value={webdeckTab} onValueChange={setWebdeckTab} className="h-full">
+              <Tabs
+                value={webdeckTab}
+                onValueChange={(value) => {
+                  setWebdeckTab(value);
+                  set("overlayWebdeckPages", value);
+                }}
+                className="h-full"
+              >
                 <TabsList className="w-full grid gap-1 grid-cols-2 h-10 rounded-xl">
                   <TabsTrigger value="deck" className="rounded-xl" asChild unstyled>
                     <Button rounded="xl" variant={webdeckTab === "deck" ? "primary" : "secondary"} className="w-full">

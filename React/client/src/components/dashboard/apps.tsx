@@ -3,7 +3,7 @@ import { useUnderDeck } from '@/contexts/UnderDeckContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { Loader2, Search, Settings2 } from "lucide-react";
 import { toast } from "sonner";
-import { useLocation } from "wouter";
+import { useNavigation } from "@/contexts/NavigationContext";
 import { AddAppModal } from '@/components/apps/create/AddAppModal';
 import { BackgroundComp } from '@/components/ui/background';
 import { Card } from '@/components/ui/card';
@@ -18,7 +18,7 @@ const PENDING_EDIT_SHORTCUT_KEY = "underdeck:shortcut-edit-id";
 export default function Apps() {
     const { apps, shortcuts, loading, executeApp, deleteApp, repositionApp, createShortcut } = useUnderDeck();
     const { t } = useI18n();
-    const [, setLocation] = useLocation();
+    const { set } = useNavigation();
     const [search, setSearch] = useState("");
     const [draggingAppId, setDraggingAppId] = useState<string | null>(null);
     const [confirmDeleteAppId, setConfirmDeleteAppId] = useState<string | null>(null);
@@ -58,7 +58,8 @@ export default function Apps() {
         if (existingShortcut) {
             window.sessionStorage.setItem(PENDING_EDIT_SHORTCUT_KEY, existingShortcut.id);
             toast.info(t("apps.shortcut.exists_capture", "Atalho ja existe. Abra e capture as teclas."));
-            setLocation('/shortcuts');
+            set("pages", "home");
+            set("homePages", "shortcuts");
             return;
         }
 
@@ -77,7 +78,8 @@ export default function Apps() {
         const created = await createShortcut(shortcut);
         if (!created) return;
         window.sessionStorage.setItem(PENDING_EDIT_SHORTCUT_KEY, created.id);
-        setLocation('/shortcuts');
+        set("pages", "home");
+        set("homePages", "shortcuts");
     };
 
     if (loading) {

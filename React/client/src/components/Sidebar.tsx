@@ -18,11 +18,13 @@ import {
   AudioLines,
   Video,
   Globe,
-  Download
+  Download,
+  Radio,
+  Music2
 } from 'lucide-react';
 import { useUser } from "@/contexts/UserContext";
 import { useI18n } from "@/contexts/I18nContext";
-import { useLocation } from 'wouter';
+import { useNavigation } from "@/contexts/NavigationContext";
 import { ProfilePreviewCard } from '@/components/user/ProfilePreviewCard';
 import { UserProfileEditorModal } from '@/components/user/UserProfileEditorModal';
 import { AppUser } from '@/types/user';
@@ -46,7 +48,7 @@ interface BuildSidebarOptionProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
-  const [location, setLocation] = useLocation();
+  const { get, set } = useNavigation();
   const { t } = useI18n();
   const { user, getAvatar, modalLogin, updateProfile, logout } = useUser();
   const [showProfileEditor, setShowProfileEditor] = useState(false);
@@ -54,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
   const [showMoreProfile, setShowMoreProfile] = useState(false);
   const [profileNote, setProfileNote] = useState("");
   const [lastSavedNote, setLastSavedNote] = useState("");
-  const CurrentTab = `/${location.split('/')[1] || ''}`;
+  const CurrentTab = get("homePages") || "apps";
 
   useEffect(() => {
     if (!user) return;
@@ -152,64 +154,64 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
             <BuildSidebarOption
               icon={<PanelsTopLeft size={14} />}
               title={t("sidebar.apps", "Aplicativos")}
-              focusing={CurrentTab === '/'}
-              onClick={(e) => {
-                e.preventDefault();
-                setLocation('/');
+              focusing={CurrentTab === "apps"}
+              onClick={() => {
+                set("pages", "home");
+                set("homePages", "apps");
               }}
             />
             <BuildSidebarOption
               icon={<Globe size={14} />}
               title={t("sidebar.deck", "Deck")}
-              focusing={CurrentTab === '/deck'}
-              onClick={(e) => {
-                e.preventDefault();
-                setLocation('/deck');
+              focusing={CurrentTab === "deck"}
+              onClick={() => {
+                set("pages", "home");
+                set("homePages", "deck");
               }}
             />
             <BuildSidebarOption
               icon={<Layers2 size={14} />}
               title={t("sidebar.shortcuts", "Teclas De Atalhos")}
-              focusing={CurrentTab === '/shortcuts'}
-              onClick={(e) => {
-                e.preventDefault();
-                setLocation('/shortcuts');
+              focusing={CurrentTab === "shortcuts"}
+              onClick={() => {
+                set("pages", "home");
+                set("homePages", "shortcuts");
               }}
             />
             <BuildSidebarOption
-              icon={<AudioLines size={14} />}
+              icon={<Music2 size={14} />}
               title={t("sidebar.soudpad", "Sound Pad")}
-              focusing={CurrentTab === '/soundpad'}
-              onClick={(e) => {
-                e.preventDefault();
-                setLocation('/soundpad');
+              focusing={CurrentTab === "soundpad"}
+              onClick={() => {
+                set("pages", "home");
+                set("homePages", "soundpad");
               }}
             />
             <BuildSidebarOption
-              icon={<Video size={14} />}
+              icon={<Radio size={14} />}
               title={t("sidebar.obsstudio", "Obs Studio")}
-              focusing={CurrentTab === '/obs'}
-              onClick={(e) => {
-                e.preventDefault();
-                setLocation('/obs');
+              focusing={CurrentTab === "obs"}
+              onClick={() => {
+                set("pages", "home");
+                set("homePages", "obs");
               }}
             />
             <BuildSidebarOption
               icon={<Palette size={14} />}
               title={t("sidebar.theme", "Tema")}
-              focusing={CurrentTab === '/theme'}
-              onClick={(e) => {
-                e.preventDefault();
-                setLocation('/theme');
+              focusing={CurrentTab === "theme"}
+              onClick={() => {
+                set("pages", "home");
+                set("homePages", "theme");
               }}
             />
             <BuildSidebarOption
               icon={<Download size={14} />}
-              title={t("sidebar.updates", "Atualizacoes")}
-              focusing={CurrentTab === '/updates'}
-              onClick={(e) => {
-                e.preventDefault();
-                setLocation('/updates');
+              title={t("sidebar.updates", "Atualizações")}
+              focusing={CurrentTab === "updates"}
+              onClick={() => {
+                set("pages", "home");
+                set("homePages", "updates");
               }}
             />
             <BuildSidebarOption

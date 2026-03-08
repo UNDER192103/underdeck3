@@ -1,3 +1,10 @@
+export type RendererSourceMode = "auto" | "local" | "url";
+
+export const RendererTargetConfig = {
+    sourceMode: "local" as RendererSourceMode,
+    devBaseUrl: "http://localhost:3404",
+};
+
 export const BaseConfig = {
     express: {
         enabled: true,
@@ -8,7 +15,7 @@ export const BaseConfig = {
         enableNotifications: true
     },
     updates: {
-        autoDownloadWhenAvailable: false,
+        autoDownloadWhenAvailable: true,
     },
     electron: {
         startMinimized: true,      // Inicia sem mostrar a janela principal
