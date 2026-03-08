@@ -279,6 +279,7 @@ export const enUSMessages: Record<string, string> = {
   "updates.download_progress": "Download progress",
   "updates.last_release_date": "When the last update was released",
   "updates.last_updated_at": "When it was last updated",
+  "updates.none_yet": "Not available yet",
   "updates.auto_download": "Download updates automatically when available",
   "updates.searching": "Searching for update...",
   "updates.check_button": "Check for updates",

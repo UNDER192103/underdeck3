@@ -59,4 +59,5 @@ publish:
   provider: "github"
   owner: "${env.GH_OWNER}"
   repo: "${env.GH_REPO}"
+  private: true
   releaseType: "release"

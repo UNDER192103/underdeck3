@@ -279,6 +279,7 @@ export const ptBRMessages: Record<string, string> = {
   "updates.download_progress": "Progresso de download",
   "updates.last_release_date": "Quando saiu a ultima atualizacao",
   "updates.last_updated_at": "Quando foi atualizado",
+  "updates.none_yet": "Ainda nao possui",
   "updates.auto_download": "Baixar atualizacoes automaticamente quando disponivel",
   "updates.searching": "Procurando atualizacao...",
   "updates.check_button": "Verificar atualizacoes",

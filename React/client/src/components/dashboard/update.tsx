@@ -21,19 +21,18 @@ export default function UpdatePage() {
   }, []);
 
   const hasAvailableUpdate = Boolean(state?.updateAvailable && state?.availableVersion);
-  const versionLabel = useMemo(() => state?.availableVersion ?? "-", [state?.availableVersion]);
   const lastReleaseAt = useMemo(() => {
-    if (!state?.lastAvailableReleaseDate) return "-";
+    if (!state?.lastAvailableReleaseDate) return t("updates.none_yet", "Ainda nao possui");
     const d = new Date(state.lastAvailableReleaseDate);
-    if (Number.isNaN(d.getTime())) return "-";
+    if (Number.isNaN(d.getTime())) return t("updates.none_yet", "Ainda nao possui");
     return d.toLocaleString();
-  }, [state?.lastAvailableReleaseDate]);
+  }, [state?.lastAvailableReleaseDate, t]);
   const lastUpdatedAt = useMemo(() => {
-    if (!state?.lastUpdatedAt) return "-";
+    if (!state?.lastUpdatedAt) return t("updates.none_yet", "Ainda nao possui");
     const d = new Date(state.lastUpdatedAt);
-    if (Number.isNaN(d.getTime())) return "-";
+    if (Number.isNaN(d.getTime())) return t("updates.none_yet", "Ainda nao possui");
     return d.toLocaleString();
-  }, [state?.lastUpdatedAt]);
+  }, [state?.lastUpdatedAt, t]);
 
   return (
     <div className="p-2 grid w-full max-w-full select-none">
@@ -42,12 +41,6 @@ export default function UpdatePage() {
           <h2 className="text-lg font-semibold">{t("updates.title", "Atualizacoes")}</h2>
           <p className="text-sm text-muted-foreground">
             {t("updates.current_version", "Versao atual")}: {state?.currentVersion ?? "-"}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {t("updates.available_version", "Versao disponivel")}: {versionLabel}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {t("updates.download_progress", "Progresso de download")}: {Math.round(state?.downloadPercent ?? 0)}%
           </p>
           <p className="text-sm text-muted-foreground">
             {t("updates.last_release_date", "Quando saiu a ultima atualizacao")}: {lastReleaseAt}
