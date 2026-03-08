@@ -53,6 +53,8 @@ const getLocalIndexPath = (isDev: boolean, page: RendererPage) => {
             ...legacyCandidates.map((file) => path.join(process.cwd(), "src", "renderer", file)),
         ]
         : [
+            path.join(app.getAppPath(), "renderer", pageIndex),
+            ...legacyCandidates.map((file) => path.join(app.getAppPath(), "renderer", file)),
             path.join(process.resourcesPath, "renderer", pageIndex),
             ...legacyCandidates.map((file) => path.join(process.resourcesPath, "renderer", file)),
             path.join(app.getAppPath(), "src", "renderer", pageIndex),

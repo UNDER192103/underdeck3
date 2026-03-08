@@ -1,22 +1,20 @@
-import { app } from 'electron';
+﻿import { app } from 'electron';
+import fs from 'node:fs';
 import path from 'path';
 
-/**
- * Retorna o caminho correto para arquivos na pasta /assets/
- * Funciona tanto em Desenvolvimento (tsx) quanto em Produção (app.asar.unpacked)
- */
 export const getAssetPath = (...paths: string[]) => {
   const isDev = !app.isPackaged;
 
   if (isDev) {
-    // Em desenvolvimento: Raiz do projeto/assets/...
     return path.join(process.cwd(), 'assets', ...paths);
   }
 
-  // Em produção: O Electron Builder coloca os arquivos descompactados em:
-  // resources/app.asar.unpacked/assets/...
-  return path.join(process.resourcesPath, 'assets', ...paths);
-};
+  const candidates = [
+    path.join(app.getAppPath(), 'assets', ...paths),
+    path.join(process.resourcesPath, 'assets', ...paths),
+    path.join(process.resourcesPath, 'app.asar.unpacked', 'assets', ...paths),
+  ];
 
-// Exemplo de uso para o ícone no seu MainWindow.ts:
-// const icon = getAssetPath('img', 'UDIx256.ico');
+  const existing = candidates.find((candidate) => fs.existsSync(candidate));
+  return existing || candidates[0];
+};

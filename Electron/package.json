@@ -14,6 +14,7 @@
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "compile": "tsc",
     "predist": "npm run clean && npm run compile",
+    "postinstall": "electron-rebuild",
     "dist": "dotenv -e .env -- electron-builder --config electron-builder.yml"
   },
   "dependencies": {
@@ -21,6 +22,7 @@
     "auto-launch": "^5.0.6",
     "axios": "^1.13.6",
     "better-sqlite3": "^12.6.2",
+    "call-bind-apply-helpers": "^1.0.2",
     "cli-color": "^2.0.4",
     "decompress": "^4.2.1",
     "discord-rpc": "^4.0.1",
