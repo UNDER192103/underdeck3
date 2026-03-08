@@ -31,7 +31,7 @@ export function createLoadingWindow() {
             preload: preloadPath,
             contextIsolation: true,
             nodeIntegration: false,
-            devTools: !app.isPackaged,
+            devTools: true,
         },
     });
     loadLoadingRenderer(win, isDev);

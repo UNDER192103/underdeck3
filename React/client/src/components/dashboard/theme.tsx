@@ -71,7 +71,7 @@ function getFileNameFromPath(value: string) {
 }
 
 export default function ThemePage({
-  className = "backdrop-blur supports-[backdrop-filter]:bg-background",
+  className = "backdrop-blur",
 }: {
   className?: string;
 }) {

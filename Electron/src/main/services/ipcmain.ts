@@ -1,5 +1,5 @@
 import electron from "electron";
-const { ipcMain, shell, BrowserWindow } = electron;
+const { app, ipcMain, shell, BrowserWindow } = electron;
 import { MainAppService } from "./main-app.js";
 import { ExpressServer } from "./express.js";
 import { Shortcutkey } from "./shortcutkeys.js";
@@ -19,6 +19,13 @@ import { UpdaterService } from "./updater.js";
 type WebDeckChangedPayload = { sourceId: string; timestamp: number };
 type ExpressStatusChangedPayload = { sourceId: string; enabled: boolean; port: number; timestamp: number };
 type ThemePreferencesChangedPayload = { sourceId: string; timestamp: number };
+type DevToolsChangedPayload = { enabled: boolean; timestamp: number };
+type WindowsSettingsPayload = { autoStart: boolean; enableNotifications: boolean };
+type ElectronSettingsPayload = {
+    startMinimized: boolean;
+    closeToTray: boolean;
+    devTools: boolean;
+};
 type ObserverPayload = {
     id: string;
     channel: string;
@@ -40,8 +47,10 @@ export class IpcmainService {
     private updaterService: UpdaterService;
     private onOverlaySettingsChanged?: () => Promise<void> | void;
     private onLocaleChanged?: () => Promise<void> | void;
+    private onWindowsSettingsChanged?: (settings: WindowsSettingsPayload) => Promise<void> | void;
     private soundPadSubscriptions = new Map<number, () => void>();
     private obsSubscriptions = new Map<number, () => void>();
+    private devToolsGuards = new Set<number>();
 
     constructor(
         AppService: MainAppService,
@@ -54,7 +63,8 @@ export class IpcmainService {
         webDeckService: WebDeckService,
         updaterService: UpdaterService,
         onOverlaySettingsChanged?: () => Promise<void> | void,
-        onLocaleChanged?: () => Promise<void> | void
+        onLocaleChanged?: () => Promise<void> | void,
+        onWindowsSettingsChanged?: (settings: WindowsSettingsPayload) => Promise<void> | void
     ) {
         this.AppService = AppService;
         this.express = express;
@@ -68,6 +78,7 @@ export class IpcmainService {
         this.updaterService = updaterService;
         this.onOverlaySettingsChanged = onOverlaySettingsChanged;
         this.onLocaleChanged = onLocaleChanged;
+        this.onWindowsSettingsChanged = onWindowsSettingsChanged;
     }
 
     private unsubscribeSoundPadAudiosChangedBySenderId(senderId: number) {
@@ -203,7 +214,88 @@ export class IpcmainService {
         });
     }
 
+    private isDevToolsShortcut(input: Electron.Input) {
+        const key = String(input?.key || "").toLowerCase();
+        const withCtrlOrCmd = Boolean(input?.control || input?.meta);
+        if (key === "f12") return true;
+        if (withCtrlOrCmd && input?.shift && (key === "i" || key === "j")) return true;
+        return false;
+    }
+
+    private attachDevToolsGuard(win: Electron.BrowserWindow) {
+        if (win.isDestroyed()) return;
+        const webContents = win.webContents;
+        const id = webContents.id;
+        if (this.devToolsGuards.has(id)) return;
+        this.devToolsGuards.add(id);
+
+        webContents.on("before-input-event", (event, input) => {
+            if (this.getElectronSettings().devTools) return;
+            if (!this.isDevToolsShortcut(input)) return;
+            event.preventDefault();
+        });
+
+        webContents.on("devtools-opened", () => {
+            if (this.getElectronSettings().devTools) return;
+            if (webContents.isDestroyed()) return;
+            webContents.closeDevTools();
+        });
+
+        webContents.once("destroyed", () => {
+            this.devToolsGuards.delete(id);
+        });
+    }
+
+    private applyDevToolsPolicy(win: Electron.BrowserWindow, enabled: boolean) {
+        if (win.isDestroyed()) return;
+        this.attachDevToolsGuard(win);
+        if (!enabled && win.webContents.isDevToolsOpened()) {
+            win.webContents.closeDevTools();
+        }
+    }
+
+    private notifyDevToolsChangedClients(enabled: boolean) {
+        const payload: DevToolsChangedPayload = {
+            enabled: Boolean(enabled),
+            timestamp: Date.now(),
+        };
+        const windows = BrowserWindow.getAllWindows();
+        windows.forEach((win) => {
+            if (win.isDestroyed()) return;
+            this.applyDevToolsPolicy(win, payload.enabled);
+            try {
+                win.webContents.send("AppSettingsSV-DevToolsChanged", payload);
+            } catch {
+                // ignore broadcast errors
+            }
+        });
+    }
+
+    private getWindowsSettings(): WindowsSettingsPayload {
+        const current = Settings.get("windows");
+        return {
+            autoStart: Boolean(current?.autoStart),
+            enableNotifications: Boolean(current?.enableNotifications),
+        };
+    }
+
+    private getElectronSettings(): ElectronSettingsPayload {
+        const current = Settings.get("electron");
+        return {
+            startMinimized: Boolean(current?.startMinimized),
+            closeToTray: Boolean(current?.closeToTray),
+            devTools: Boolean(current?.devTools),
+        };
+    }
+
     start() {
+        app.on("browser-window-created", (_event, win) => {
+            this.applyDevToolsPolicy(win, this.getElectronSettings().devTools);
+        });
+        BrowserWindow.getAllWindows().forEach((win) => {
+            this.applyDevToolsPolicy(win, this.getElectronSettings().devTools);
+        });
+
         ipcMain.on("ObserverSV-Publish", (event, raw: Partial<ObserverPayload>) => {
             const payload: ObserverPayload = {
                 id: String(raw?.id || "unknown"),
@@ -519,6 +611,42 @@ export class IpcmainService {
         });
         ipcMain.handle("UpdateSV-DownloadInstall", async () => {
             return this.updaterService.downloadAndInstall();
+        });
+
+        ipcMain.handle("AppSettingsSV-GetWindows", async (): Promise<WindowsSettingsPayload> => {
+            return this.getWindowsSettings();
+        });
+        ipcMain.handle("AppSettingsSV-SetWindows", async (_event, patch: Partial<WindowsSettingsPayload>) => {
+            const current = this.getWindowsSettings();
+            const next: WindowsSettingsPayload = {
+                autoStart: typeof patch?.autoStart === "boolean" ? patch.autoStart : current.autoStart,
+                enableNotifications: typeof patch?.enableNotifications === "boolean" ? patch.enableNotifications : current.enableNotifications,
+            };
+            if (this.onWindowsSettingsChanged) {
+                await this.onWindowsSettingsChanged(next);
+            }
+            Settings.set("windows", next);
+            return next;
+        });
+
+        ipcMain.handle("AppSettingsSV-GetElectron", async (): Promise<ElectronSettingsPayload> => {
+            return this.getElectronSettings();
+        });
+        ipcMain.handle("AppSettingsSV-SetElectron", async (_event, patch: Partial<ElectronSettingsPayload>) => {
+            const current = this.getElectronSettings();
+            const next: ElectronSettingsPayload = {
+                startMinimized: typeof patch?.startMinimized === "boolean" ? patch.startMinimized : current.startMinimized,
+                closeToTray: typeof patch?.closeToTray === "boolean" ? patch.closeToTray : current.closeToTray,
+                devTools: typeof patch?.devTools === "boolean" ? patch.devTools : current.devTools,
+            };
+            Settings.set("electron", {
+                ...Settings.get("electron"),
+                ...next,
+            });
+            if (current.devTools !== next.devTools) {
+                this.notifyDevToolsChangedClients(next.devTools);
+            }
+            return next;
         });
     }
 }

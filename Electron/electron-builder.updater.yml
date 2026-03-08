@@ -1,6 +1,6 @@
 appId: "com.udr.underdeck"
 productName: "Under Deck"
-copyright: "Copyright © 2024 ${author}"
+copyright: "Copyright (c) 2024 ${author}"
 
 electronVersion: "40.8.0"
 nodeGypRebuild: false
@@ -37,13 +37,13 @@ win:
   icon: "assets/img/icon.ico"
 
 nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
+  oneClick: true
+  allowToChangeInstallationDirectory: false
   installerIcon: "assets/img/icon.ico"
   uninstallerIcon: "assets/img/icon.ico"
   installerHeaderIcon: "assets/img/icon.ico"
   license: "LICENSE.md"
-  artifactName: "${productName} Installer ${version}.${ext}"
+  artifactName: "${productName}_Setup_${version}.${ext}"
 
 directories:
   output: "build"
@@ -54,4 +54,4 @@ publish:
   repo: "${env.GH_REPO}"
   token: "${env.GH_TOKEN}"
   private: true
-  releaseType: "release"
+  releaseType: "prerelease"

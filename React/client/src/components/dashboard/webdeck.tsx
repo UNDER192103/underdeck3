@@ -164,7 +164,7 @@ function buildAutoPagedPages(params: {
 }
 
 export default function WebDeck({
-  className = "backdrop-blur supports-[backdrop-filter]:bg-background",
+  className = "backdrop-blur",
   sourceId = "APP_ELECTRON",
 }: {
   className?: string;

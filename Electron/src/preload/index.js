@@ -48,6 +48,14 @@ const updateLoadingStateHandler = (_event, payload) => {
   });
 };
 
+const devToolsChangedListeners = new Set();
+let devToolsChangedSubscribed = false;
+const devToolsChangedHandler = (_event, payload) => {
+  devToolsChangedListeners.forEach((listener) => {
+    listener(payload);
+  });
+};
+
 const themePreferencesListeners = new Set();
 let themePreferencesSubscribed = false;
 const themePreferencesHandler = (_event, payload) => {
@@ -148,6 +156,26 @@ const underdeckApi = {
         if (updateLoadingStateListeners.size === 0 && updateLoadingStateSubscribed) {
           ipcRenderer.removeListener("UpdatesSV-LoadingStateChanged", updateLoadingStateHandler);
           updateLoadingStateSubscribed = false;
+        }
+      };
+    },
+  },
+  appSettings: {
+    getWindows: () => ipcRenderer.invoke("AppSettingsSV-GetWindows"),
+    setWindows: (patch) => ipcRenderer.invoke("AppSettingsSV-SetWindows", patch),
+    getElectron: () => ipcRenderer.invoke("AppSettingsSV-GetElectron"),
+    setElectron: (patch) => ipcRenderer.invoke("AppSettingsSV-SetElectron", patch),
+    onDevToolsChanged: (listener) => {
+      devToolsChangedListeners.add(listener);
+      if (!devToolsChangedSubscribed) {
+        ipcRenderer.on("AppSettingsSV-DevToolsChanged", devToolsChangedHandler);
+        devToolsChangedSubscribed = true;
+      }
+      return () => {
+        devToolsChangedListeners.delete(listener);
+        if (devToolsChangedListeners.size === 0 && devToolsChangedSubscribed) {
+          ipcRenderer.removeListener("AppSettingsSV-DevToolsChanged", devToolsChangedHandler);
+          devToolsChangedSubscribed = false;
         }
       };
     },

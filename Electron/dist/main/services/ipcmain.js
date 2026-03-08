@@ -1,5 +1,5 @@
 import electron from "electron";
-const { ipcMain, shell, BrowserWindow } = electron;
+const { app, ipcMain, shell, BrowserWindow } = electron;
 import { TranslationService } from "./translations.js";
 import { Settings } from "./settings.js";
 export class IpcmainService {
@@ -15,9 +15,11 @@ export class IpcmainService {
     updaterService;
     onOverlaySettingsChanged;
     onLocaleChanged;
+    onWindowsSettingsChanged;
     soundPadSubscriptions = new Map();
     obsSubscriptions = new Map();
-    constructor(AppService, express, hortcutService, fileDialog, themeService, soundPadService, obsService, webDeckService, updaterService, onOverlaySettingsChanged, onLocaleChanged) {
+    devToolsGuards = new Set();
+    constructor(AppService, express, hortcutService, fileDialog, themeService, soundPadService, obsService, webDeckService, updaterService, onOverlaySettingsChanged, onLocaleChanged, onWindowsSettingsChanged) {
         this.AppService = AppService;
         this.express = express;
         this.hortcutService = hortcutService;
@@ -30,6 +32,7 @@ export class IpcmainService {
         this.updaterService = updaterService;
         this.onOverlaySettingsChanged = onOverlaySettingsChanged;
         this.onLocaleChanged = onLocaleChanged;
+        this.onWindowsSettingsChanged = onWindowsSettingsChanged;
     }
     unsubscribeSoundPadAudiosChangedBySenderId(senderId) {
         const unsubscribe = this.soundPadSubscriptions.get(senderId);
@@ -159,7 +162,89 @@ export class IpcmainService {
             }
         });
     }
+    isDevToolsShortcut(input) {
+        const key = String(input?.key || "").toLowerCase();
+        const withCtrlOrCmd = Boolean(input?.control || input?.meta);
+        if (key === "f12")
+            return true;
+        if (withCtrlOrCmd && input?.shift && (key === "i" || key === "j"))
+            return true;
+        return false;
+    }
+    attachDevToolsGuard(win) {
+        if (win.isDestroyed())
+            return;
+        const webContents = win.webContents;
+        const id = webContents.id;
+        if (this.devToolsGuards.has(id))
+            return;
+        this.devToolsGuards.add(id);
+        webContents.on("before-input-event", (event, input) => {
+            if (this.getElectronSettings().devTools)
+                return;
+            if (!this.isDevToolsShortcut(input))
+                return;
+            event.preventDefault();
+        });
+        webContents.on("devtools-opened", () => {
+            if (this.getElectronSettings().devTools)
+                return;
+            if (webContents.isDestroyed())
+                return;
+            webContents.closeDevTools();
+        });
+        webContents.once("destroyed", () => {
+            this.devToolsGuards.delete(id);
+        });
+    }
+    applyDevToolsPolicy(win, enabled) {
+        if (win.isDestroyed())
+            return;
+        this.attachDevToolsGuard(win);
+        if (!enabled && win.webContents.isDevToolsOpened()) {
+            win.webContents.closeDevTools();
+        }
+    }
+    notifyDevToolsChangedClients(enabled) {
+        const payload = {
+            enabled: Boolean(enabled),
+            timestamp: Date.now(),
+        };
+        const windows = BrowserWindow.getAllWindows();
+        windows.forEach((win) => {
+            if (win.isDestroyed())
+                return;
+            this.applyDevToolsPolicy(win, payload.enabled);
+            try {
+                win.webContents.send("AppSettingsSV-DevToolsChanged", payload);
+            }
+            catch {
+                // ignore broadcast errors
+            }
+        });
+    }
+    getWindowsSettings() {
+        const current = Settings.get("windows");
+        return {
+            autoStart: Boolean(current?.autoStart),
+            enableNotifications: Boolean(current?.enableNotifications),
+        };
+    }
+    getElectronSettings() {
+        const current = Settings.get("electron");
+        return {
+            startMinimized: Boolean(current?.startMinimized),
+            closeToTray: Boolean(current?.closeToTray),
+            devTools: Boolean(current?.devTools),
+        };
+    }
     start() {
+        app.on("browser-window-created", (_event, win) => {
+            this.applyDevToolsPolicy(win, this.getElectronSettings().devTools);
+        });
+        BrowserWindow.getAllWindows().forEach((win) => {
+            this.applyDevToolsPolicy(win, this.getElectronSettings().devTools);
+        });
         ipcMain.on("ObserverSV-Publish", (event, raw) => {
             const payload = {
                 id: String(raw?.id || "unknown"),
@@ -454,6 +539,40 @@ export class IpcmainService {
         });
         ipcMain.handle("UpdateSV-DownloadInstall", async () => {
             return this.updaterService.downloadAndInstall();
+        });
+        ipcMain.handle("AppSettingsSV-GetWindows", async () => {
+            return this.getWindowsSettings();
+        });
+        ipcMain.handle("AppSettingsSV-SetWindows", async (_event, patch) => {
+            const current = this.getWindowsSettings();
+            const next = {
+                autoStart: typeof patch?.autoStart === "boolean" ? patch.autoStart : current.autoStart,
+                enableNotifications: typeof patch?.enableNotifications === "boolean" ? patch.enableNotifications : current.enableNotifications,
+            };
+            if (this.onWindowsSettingsChanged) {
+                await this.onWindowsSettingsChanged(next);
+            }
+            Settings.set("windows", next);
+            return next;
+        });
+        ipcMain.handle("AppSettingsSV-GetElectron", async () => {
+            return this.getElectronSettings();
+        });
+        ipcMain.handle("AppSettingsSV-SetElectron", async (_event, patch) => {
+            const current = this.getElectronSettings();
+            const next = {
+                startMinimized: typeof patch?.startMinimized === "boolean" ? patch.startMinimized : current.startMinimized,
+                closeToTray: typeof patch?.closeToTray === "boolean" ? patch.closeToTray : current.closeToTray,
+                devTools: typeof patch?.devTools === "boolean" ? patch.devTools : current.devTools,
+            };
+            Settings.set("electron", {
+                ...Settings.get("electron"),
+                ...next,
+            });
+            if (current.devTools !== next.devTools) {
+                this.notifyDevToolsChangedClients(next.devTools);
+            }
+            return next;
         });
     }
 }

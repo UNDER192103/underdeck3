@@ -27,7 +27,7 @@ export function createOverlayWindow() {
             preload: preloadPath,
             contextIsolation: true,
             nodeIntegration: false,
-            devTools: isDev,
+            devTools: true,
         },
     });
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });

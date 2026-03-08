@@ -1,62 +1,14 @@
 import electron from 'electron';
-const { BrowserWindow, Menu, app, ipcMain } = electron;
+const { BrowserWindow, app } = electron;
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getAssetPath } from '../../communs/commun.js';
 import { Settings } from '../services/settings.js';
-import { TranslationService } from "../services/translations.js";
 import { loadMainRenderer } from "./rendererTarget.js";
 // Se estiver usando ESM ("type": "module"), recrie o __dirname:
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-let isQuitting = false;
-app.on("before-quit", () => {
-    isQuitting = true;
-});
-const CloseAllWindows = () => {
-    isQuitting = true;
-    ipcMain.removeAllListeners();
-    app.quit();
-};
-export function setupTryIcon(icon, win, translationService = new TranslationService()) {
-    const menu = Menu.buildFromTemplate([
-        {
-            label: app.getName(), type: 'normal', click: () => {
-                win.show();
-                win.maximize();
-            }
-        },
-        { type: 'separator' },
-        {
-            label: translationService.t("tray.apps", "Aplicativos"), type: 'normal', click: () => {
-                win.show();
-                win.maximize();
-            }
-        },
-        { type: 'separator' },
-        {
-            label: translationService.t("tray.reopen", "Reabrir"), type: 'normal', click: () => {
-                app.relaunch();
-                app.exit();
-            }
-        },
-        {
-            label: translationService.t("tray.reload", "Recarregar"), type: 'normal', click: () => {
-                win.show();
-                win.maximize();
-                win.reload();
-            }
-        },
-        {
-            label: translationService.t("tray.exit", "Sair"), type: 'normal', click: async () => {
-                CloseAllWindows();
-            }
-        }
-    ]);
-    icon.setToolTip(app.getName());
-    icon.setContextMenu(menu);
-}
-export function createMainWindow(AppIcon, options = {}) {
+export function createMainWindow(options = {}) {
     const isDev = !app.isPackaged;
     const preloadPath = isDev
         ? path.join(process.cwd(), 'src', 'preload', 'index.js')
@@ -67,6 +19,9 @@ export function createMainWindow(AppIcon, options = {}) {
         height: 800,
         minWidth: 800,
         minHeight: 500,
+        maximizable: true,
+        fullscreenable: true,
+        fullscreen: false,
         autoHideMenuBar: true,
         frame: true,
         icon: getAssetPath(...Settings.get('assets').windowIcon),
@@ -74,7 +29,7 @@ export function createMainWindow(AppIcon, options = {}) {
             preload: preloadPath,
             contextIsolation: true,
             nodeIntegration: false,
-            devTools: isDev ? true : Settings.get('electron').devTools
+            devTools: true
         }
     });
     if (isDev ? true : Settings.get('electron').devTools) {
@@ -84,21 +39,8 @@ export function createMainWindow(AppIcon, options = {}) {
     win.once("ready-to-show", () => {
         if (options.showOnReady !== false) {
             win.show();
-            if (Settings.get('electron').startMinimized)
-                win.maximize();
         }
     });
-    win.on("close", async (event) => {
-        if (isQuitting)
-            return;
-        if (!Settings.get('electron').minimizeToTray)
-            return;
-        event.preventDefault();
-        win.hide();
-    });
-    if (Settings.get('electron').startMinimized)
-        win.maximize();
-    setupTryIcon(AppIcon, win);
     loadMainRenderer(win, isDev);
     return win;
 }

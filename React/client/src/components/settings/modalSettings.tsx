@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useUser } from "@/contexts/UserContext";
-import { Loader2, LogIn, LogOut, Pencil, Layers2, Trash2, Languages, Palette, Music2, Radio, Download } from "lucide-react";
+import { Loader2, LogIn, LogOut, Pencil, Layers2, Trash2, Languages, Palette, Music2, Radio, Download, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Img } from "@/components/ui/img";
 import { ModalConfirm, ModalConfirmProps } from "@/components/ModalConfirm";
@@ -26,7 +26,7 @@ interface UserProfileModalProps {
 export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
   const { modalLogin, logout, user } = useUser();
   const { t, locale, locales, setLocale, importLocaleFile, removeLocale } = useI18n();
-  const [currentSection, setCurrentSection] = useState<"theme" | "language" | "obs" | "soundpad" | "overlay" | "updates">("theme");
+  const [currentSection, setCurrentSection] = useState<"theme" | "language" | "obs" | "soundpad" | "overlay" | "updates" | "advanced">("theme");
   const [isImportingLocale, setIsImportingLocale] = useState(false);
   const [removingLocale, setRemovingLocale] = useState<string | null>(null);
   const [overlayEnabled, setOverlayEnabled] = useState(false);
@@ -42,6 +42,17 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
   });
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const { publish, subscribe } = useObserver();
+  const [windowsSettings, setWindowsSettings] = useState({
+    autoStart: true,
+    enableNotifications: true,
+  });
+  const [electronSettings, setElectronSettings] = useState({
+    startMinimized: true,
+    closeToTray: true,
+    devTools: false,
+  });
+  const [updatesAutoDownload, setUpdatesAutoDownload] = useState(true);
+  const [obsStartOnStartup, setObsStartOnStartup] = useState(false);
 
   const modalLogout = () => {
     setModalConfirm({
@@ -126,9 +137,37 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
     }
   };
 
+  const refreshAdvancedSettings = async () => {
+    try {
+      const [windows, electron, updatesState, obsSettings] = await Promise.all([
+        window.underdeck.appSettings.getWindows(),
+        window.underdeck.appSettings.getElectron(),
+        window.underdeck.updates.getState(),
+        window.underdeck.obs.getSettings(),
+      ]);
+
+      setWindowsSettings({
+        autoStart: Boolean(windows?.autoStart),
+        enableNotifications: Boolean(windows?.enableNotifications),
+      });
+
+      setElectronSettings({
+        startMinimized: Boolean(electron?.startMinimized),
+        closeToTray: Boolean(electron?.closeToTray),
+        devTools: Boolean(electron?.devTools),
+      });
+
+      setUpdatesAutoDownload(Boolean(updatesState?.autoDownloadEnabled));
+      setObsStartOnStartup(Boolean(obsSettings?.connectOnStartup));
+    } catch {
+      // ignore refresh errors and keep current UI state
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) return;
     void refreshOverlaySettings();
+    void refreshAdvancedSettings();
   }, [isOpen]);
 
   useEffect(() => {
@@ -190,6 +229,74 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
     }
   };
 
+  const handleWindowsSettings = async (patch: Partial<typeof windowsSettings>) => {
+    const previous = windowsSettings;
+    setWindowsSettings({ ...windowsSettings, ...patch });
+    try {
+      const next = await window.underdeck.appSettings.setWindows(patch);
+      setWindowsSettings({
+        autoStart: Boolean(next?.autoStart),
+        enableNotifications: Boolean(next?.enableNotifications),
+      });
+    } catch {
+      setWindowsSettings(previous);
+      toast.error(t("settings.advanced.save_error", "Falha ao salvar configuracao."));
+    }
+  };
+
+  const handleElectronSettings = async (patch: Partial<typeof electronSettings>) => {
+    const previous = electronSettings;
+    setElectronSettings({ ...electronSettings, ...patch });
+    try {
+      const next = await window.underdeck.appSettings.setElectron(patch);
+      setElectronSettings({
+        startMinimized: Boolean(next?.startMinimized),
+        closeToTray: Boolean(next?.closeToTray),
+        devTools: Boolean(next?.devTools),
+      });
+    } catch {
+      setElectronSettings(previous);
+      toast.error(t("settings.advanced.save_error", "Falha ao salvar configuracao."));
+    }
+  };
+
+  const handleUpdatesAutoDownload = async (enabled: boolean) => {
+    const previous = updatesAutoDownload;
+    setUpdatesAutoDownload(enabled);
+    try {
+      const next = await window.underdeck.updates.setAutoDownload(enabled);
+      setUpdatesAutoDownload(Boolean(next?.autoDownloadEnabled));
+    } catch {
+      setUpdatesAutoDownload(previous);
+      toast.error(t("settings.advanced.save_error", "Falha ao salvar configuracao."));
+    }
+  };
+
+  const handleShortcutsService = async (enabled: boolean) => {
+    const previous = isShortcutsEnabled;
+    setIsShortcutsEnabled(enabled);
+    try {
+      const started = await window.underdeck.shortcuts.setEnabled(enabled);
+      setIsShortcutsEnabled(Boolean(started));
+    } catch {
+      setIsShortcutsEnabled(previous);
+      toast.error(t("settings.advanced.save_error", "Falha ao salvar configuracao."));
+    }
+  };
+
+  const handleObsService = async (enabled: boolean) => {
+    const previous = obsStartOnStartup;
+    setObsStartOnStartup(enabled);
+    try {
+      const result = await window.underdeck.obs.updateSettings({ connectOnStartup: enabled });
+      if (!result?.ok) throw new Error(result?.message || "obs settings failed");
+      setObsStartOnStartup(enabled);
+    } catch {
+      setObsStartOnStartup(previous);
+      toast.error(t("settings.advanced.save_error", "Falha ao salvar configuracao."));
+    }
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -233,31 +340,22 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                 <span className="p-5">{t("settings.title", "Configurações")}</span>
                 <div className="p-2 space-y-1 transition-colors overflow-y-auto">
                   <Button
-                    variant={currentSection === "theme" ? "primary" : "ghost-secondary"}
+                    variant={currentSection === "updates" ? "primary" : "ghost-secondary"}
                     rounded="xl"
                     className="w-full text-left flex justify-start"
-                    onClick={() => setCurrentSection("theme")}
+                    onClick={() => setCurrentSection("updates")}
                   >
-                    <Palette size={16} />
-                    {t("theme.label", "Tema")}
+                    <Download size={16} />
+                    {t("sidebar.updates", "Atualizações")}
                   </Button>
                   <Button
-                    variant={currentSection === "soundpad" ? "primary" : "ghost-secondary"}
+                    variant={currentSection === "advanced" ? "primary" : "ghost-secondary"}
                     rounded="xl"
                     className="w-full text-left flex justify-start"
-                    onClick={() => setCurrentSection("soundpad")}
+                    onClick={() => setCurrentSection("advanced")}
                   >
-                    <Music2 size={16} />
-                    {t("sidebar.soudpad", "Sound Pad")}
-                  </Button>
-                  <Button
-                    variant={currentSection === "obs" ? "primary" : "ghost-secondary"}
-                    rounded="xl"
-                    className="w-full text-left flex justify-start"
-                    onClick={() => setCurrentSection("obs")}
-                  >
-                    <Radio size={16} />
-                    {t("sidebar.obsstudio", "Obs Studio")}
+                    <SlidersHorizontal size={16} />
+                    {t("settings.advanced.title", "Avancado")}
                   </Button>
                   <Button
                     variant={currentSection === "language" ? "primary" : "ghost-secondary"}
@@ -269,6 +367,15 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                     {t("settings.section.language", "Idioma")}
                   </Button>
                   <Button
+                    variant={currentSection === "obs" ? "primary" : "ghost-secondary"}
+                    rounded="xl"
+                    className="w-full text-left flex justify-start"
+                    onClick={() => setCurrentSection("obs")}
+                  >
+                    <Radio size={16} />
+                    {t("sidebar.obsstudio", "Obs Studio")}
+                  </Button>
+                  <Button
                     variant={currentSection === "overlay" ? "primary" : "ghost-secondary"}
                     rounded="xl"
                     className="w-full text-left flex justify-start"
@@ -278,13 +385,22 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                     {t("settings.overlay.title", "Overlay")}
                   </Button>
                   <Button
-                    variant={currentSection === "updates" ? "primary" : "ghost-secondary"}
+                    variant={currentSection === "soundpad" ? "primary" : "ghost-secondary"}
                     rounded="xl"
                     className="w-full text-left flex justify-start"
-                    onClick={() => setCurrentSection("updates")}
+                    onClick={() => setCurrentSection("soundpad")}
                   >
-                    <Download size={16} />
-                    {t("sidebar.updates", "Atualizações")}
+                    <Music2 size={16} />
+                    {t("sidebar.soudpad", "Sound Pad")}
+                  </Button>
+                  <Button
+                    variant={currentSection === "theme" ? "primary" : "ghost-secondary"}
+                    rounded="xl"
+                    className="w-full text-left flex justify-start"
+                    onClick={() => setCurrentSection("theme")}
+                  >
+                    <Palette size={16} />
+                    {t("theme.label", "Tema")}
                   </Button>
                   {user && (
                     <Button
@@ -482,6 +598,133 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                   </div>
                 </div>
               )}
+              {currentSection === "advanced" && (
+                <div className="p-6 grid gap-4">
+                  <h3 className="text-lg font-semibold">{t("settings.advanced.title", "Avancado")}</h3>
+
+                  <div className="grid gap-2 rounded-xl border border-border/70 bg-card/70 p-4">
+                    <h4 className="text-sm font-semibold">{t("settings.advanced.services", "Serviços")}</h4>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label htmlFor="advanced-service-obs">{t("settings.advanced.service_obs", "OBS")}</Label>
+                        <p className="text-xs text-muted-foreground">
+                          {t("settings.advanced.service_obs_desc", "Inicia conexão com OBS automaticamente")}
+                        </p>
+                      </div>
+                      <Switch
+                        id="advanced-service-obs"
+                        checked={obsStartOnStartup}
+                        onCheckedChange={(checked) => {
+                          void handleObsService(Boolean(checked));
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label htmlFor="advanced-service-shortcuts">{t("settings.advanced.service_shortcuts", "Teclas de atalho")}</Label>
+                        <p className="text-xs text-muted-foreground">
+                          {t("settings.advanced.service_shortcuts_desc", "Habilita captura e execução de atalhos globais")}
+                        </p>
+                      </div>
+                      <Switch
+                        id="advanced-service-shortcuts"
+                        checked={isShortcutsEnabled}
+                        onCheckedChange={(checked) => {
+                          void handleShortcutsService(Boolean(checked));
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label htmlFor="advanced-service-overlay">{t("settings.advanced.service_overlay", "Overlay")}</Label>
+                        <p className="text-xs text-muted-foreground">
+                          {t("settings.advanced.service_overlay_desc", "Ativa o serviço de janela overlay")}
+                        </p>
+                      </div>
+                      <Switch
+                        id="advanced-service-overlay"
+                        checked={overlayEnabled}
+                        onCheckedChange={(checked) => {
+                          void handleOverlayEnabled(Boolean(checked));
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 rounded-xl border border-border/70 bg-card/70 p-4">
+                    <h4 className="text-sm font-semibold">{t("settings.advanced.section", "Avancado")}</h4>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="advanced-start-minimized">{t("settings.advanced.start_minimized", "Iniciar minimizado")}</Label>
+                      <Switch
+                        id="advanced-start-minimized"
+                        checked={electronSettings.startMinimized}
+                        onCheckedChange={(checked) => {
+                          void handleElectronSettings({ startMinimized: Boolean(checked) });
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="advanced-close-to-tray">{t("settings.advanced.close_to_tray", "Fechar para bandeja")}</Label>
+                      <Switch
+                        id="advanced-close-to-tray"
+                        checked={electronSettings.closeToTray}
+                        onCheckedChange={(checked) => {
+                          void handleElectronSettings({ closeToTray: Boolean(checked) });
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="advanced-devtools">{t("settings.advanced.devtools", "DevTools")}</Label>
+                      <Switch
+                        id="advanced-devtools"
+                        checked={electronSettings.devTools}
+                        onCheckedChange={(checked) => {
+                          void handleElectronSettings({ devTools: Boolean(checked) });
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="advanced-auto-start">{t("settings.advanced.auto_start", "Iniciar com sistema operacional")}</Label>
+                      <Switch
+                        id="advanced-auto-start"
+                        checked={windowsSettings.autoStart}
+                        onCheckedChange={(checked) => {
+                          void handleWindowsSettings({ autoStart: Boolean(checked) });
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="advanced-enable-notifications">{t("settings.advanced.notifications", "Notificações")}</Label>
+                      <Switch
+                        id="advanced-enable-notifications"
+                        checked={windowsSettings.enableNotifications}
+                        onCheckedChange={(checked) => {
+                          void handleWindowsSettings({ enableNotifications: Boolean(checked) });
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="advanced-auto-download-updates">{t("settings.advanced.auto_download_updates", "Baixar atualizações automaticamente")}</Label>
+                      <Switch
+                        id="advanced-auto-download-updates"
+                        checked={updatesAutoDownload}
+                        onCheckedChange={(checked) => {
+                          void handleUpdatesAutoDownload(Boolean(checked));
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </DialogContent>
@@ -503,4 +746,3 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
     </>
   );
 }
-

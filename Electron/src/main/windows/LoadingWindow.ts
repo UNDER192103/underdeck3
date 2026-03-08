@@ -2,7 +2,7 @@ import electron from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import { loadLoadingRenderer } from "./rendererTarget.js";
-
+import { Settings } from '../services/settings.js';
 const { BrowserWindow, app } = electron;
 
 const __filename = fileURLToPath(import.meta.url);
@@ -35,7 +35,7 @@ export function createLoadingWindow() {
             preload: preloadPath,
             contextIsolation: true,
             nodeIntegration: false,
-            devTools: !app.isPackaged,
+            devTools: true,
         },
     });
 

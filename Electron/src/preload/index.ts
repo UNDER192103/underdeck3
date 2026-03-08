@@ -45,6 +45,19 @@ type UpdateLoadingState = {
   progressPercent?: number;
   version?: string | null;
 };
+type DevToolsChangedPayload = {
+  enabled: boolean;
+  timestamp: number;
+};
+type WindowsSettings = {
+  autoStart: boolean;
+  enableNotifications: boolean;
+};
+type ElectronSettings = {
+  startMinimized: boolean;
+  closeToTray: boolean;
+  devTools: boolean;
+};
 type ObserverEventPayload = {
   id: string;
   channel: string;
@@ -113,6 +126,13 @@ interface UnderDeckApi {
     check: () => Promise<UpdateState>;
     downloadInstall: () => Promise<boolean>;
     onLoadingStateChanged: (listener: (payload: UpdateLoadingState) => void) => () => void;
+  };
+  appSettings: {
+    getWindows: () => Promise<WindowsSettings>;
+    setWindows: (patch: Partial<WindowsSettings>) => Promise<WindowsSettings>;
+    getElectron: () => Promise<ElectronSettings>;
+    setElectron: (patch: Partial<ElectronSettings>) => Promise<ElectronSettings>;
+    onDevToolsChanged: (listener: (payload: DevToolsChangedPayload) => void) => () => void;
   };
   dialog: {
     selectFile: (options?: SelectFileOptions) => Promise<string | string[] | null>;
@@ -251,6 +271,14 @@ const updateLoadingStateHandler = (_event: unknown, payload: UpdateLoadingState)
   });
 };
 
+const devToolsChangedListeners = new Set<(payload: DevToolsChangedPayload) => void>();
+let devToolsChangedSubscribed = false;
+const devToolsChangedHandler = (_event: unknown, payload: DevToolsChangedPayload) => {
+  devToolsChangedListeners.forEach((listener) => {
+    listener(payload);
+  });
+};
+
 const underdeckApi: UnderDeckApi = {
   i18n: {
     getCurrentLocale: () => ipcRenderer.invoke("I18nSV-GetCurrentLocale"),
@@ -343,6 +371,26 @@ const underdeckApi: UnderDeckApi = {
         if (updateLoadingStateListeners.size === 0 && updateLoadingStateSubscribed) {
           ipcRenderer.removeListener("UpdatesSV-LoadingStateChanged", updateLoadingStateHandler);
           updateLoadingStateSubscribed = false;
+        }
+      };
+    },
+  },
+  appSettings: {
+    getWindows: () => ipcRenderer.invoke("AppSettingsSV-GetWindows"),
+    setWindows: (patch) => ipcRenderer.invoke("AppSettingsSV-SetWindows", patch),
+    getElectron: () => ipcRenderer.invoke("AppSettingsSV-GetElectron"),
+    setElectron: (patch) => ipcRenderer.invoke("AppSettingsSV-SetElectron", patch),
+    onDevToolsChanged: (listener) => {
+      devToolsChangedListeners.add(listener);
+      if (!devToolsChangedSubscribed) {
+        ipcRenderer.on("AppSettingsSV-DevToolsChanged", devToolsChangedHandler);
+        devToolsChangedSubscribed = true;
+      }
+      return () => {
+        devToolsChangedListeners.delete(listener);
+        if (devToolsChangedListeners.size === 0 && devToolsChangedSubscribed) {
+          ipcRenderer.removeListener("AppSettingsSV-DevToolsChanged", devToolsChangedHandler);
+          devToolsChangedSubscribed = false;
         }
       };
     },

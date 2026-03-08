@@ -82,8 +82,8 @@ export const Navbar: React.FC<NavbarProps> = ({ isCollapsed }) => {
 
       <div className="flex items-center gap-2">
         <Select value="" onOpenChange={(open) => setOpenNotifications(open)}>
-          <SelectTrigger hideIcon={true} size="sm" className="relative border-neon-magenta p-2 rounded-full">
-            <Bell size={20} />
+          <SelectTrigger hideIcon={true} size="sm" className="relative border-neon-magenta p-2 rounded-full backdrop-blur-sm">
+            <Bell size={20} className='text-foreground' />
             {hasUnread && !openNotifications ? (
               <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500" />
             ) : null}
@@ -112,8 +112,8 @@ export const Navbar: React.FC<NavbarProps> = ({ isCollapsed }) => {
             setTheme(value);
           }}
         >
-          <SelectTrigger hideIcon={true} size="sm" className="border-neon-magenta p-2 rounded-full">
-            {theme === 'ligth' ? <Sun size={20} /> : <Moon size={20} />}
+          <SelectTrigger hideIcon={true} size="sm" className="border-neon-magenta p-2 rounded-full backdrop-blur-sm">
+            {theme === 'ligth' ? <Sun size={20} className='text-foreground' /> : <Moon className='text-foreground' size={20} />}
           </SelectTrigger>
           <SelectContent className="more-dark" rounded="xl">
             <SelectItem value="transparent">

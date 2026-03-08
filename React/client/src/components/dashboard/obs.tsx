@@ -27,7 +27,7 @@ function formatListLabel(value: string, fallback: string) {
 }
 
 export default function ObsStudio({
-  className = "backdrop-blur supports-[backdrop-filter]:bg-background",
+  className = "backdrop-blur",
 }: {
   className?: string;
 }) {

@@ -77,7 +77,7 @@ type CategoryItem = {
 };
 
 export default function SoundPad({
-  className = "backdrop-blur supports-[backdrop-filter]:bg-background",
+  className = "backdrop-blur",
 }: {
   className?: string;
 }) {

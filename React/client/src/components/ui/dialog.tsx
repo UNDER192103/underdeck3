@@ -93,12 +93,33 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  a11yTitle = "Dialog",
   onEscapeKeyDown,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
+  a11yTitle?: string;
 }) {
   const { isComposing } = useDialogComposition();
+
+  const hasDialogTitle = React.useMemo(() => {
+    const walk = (node: React.ReactNode): boolean => {
+      let found = false;
+      React.Children.forEach(node, (child) => {
+        if (found || !React.isValidElement(child)) return;
+        const props = child.props as Record<string, unknown>;
+        if (props["data-slot"] === "dialog-title") {
+          found = true;
+          return;
+        }
+        if (props.children) {
+          found = walk(props.children as React.ReactNode);
+        }
+      });
+      return found;
+    };
+    return walk(children);
+  }, [children]);
 
   const handleEscapeKeyDown = React.useCallback(
     (e: KeyboardEvent) => {
@@ -130,6 +151,9 @@ function DialogContent({
         onEscapeKeyDown={handleEscapeKeyDown}
         {...props}
       >
+        {!hasDialogTitle && (
+          <DialogPrimitive.Title className="sr-only">{a11yTitle}</DialogPrimitive.Title>
+        )}
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close
@@ -206,4 +230,3 @@ export {
   DialogTitle,
   DialogTrigger
 };
-

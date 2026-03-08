@@ -11,11 +11,16 @@
     "start": "set NODE_OPTIONS=--import tsx && electron src/main/main.ts",
     "nodemon": "nodemon --watch src --ext ts --exec \"cls && npm start\" --delay 1",
     "clean": "rimraf dist build",
-    "rebuild": "electron-rebuild -f -w better-sqlite3",
     "compile": "tsc",
-    "predist": "npm run clean && npm run compile",
+    "build:prepare": "npm run clean && npm run compile",
+    "rebuild:native": "electron-rebuild -f -w robotjs,better-sqlite3",
     "postinstall": "electron-rebuild",
-    "dist": "dotenv -e .env -- electron-builder --config electron-builder.yml"
+    "dist": "npm run build:prepare && npm run dist:installer:only",
+    "dist:updater": "npm run build:prepare && npm run dist:updater:only",
+    "dist:installer:only": "dotenv -e .env -- electron-builder --config electron-builder.yml --publish never",
+    "dist:updater:only": "dotenv -e .env -- electron-builder --config electron-builder.updater.yml --publish never",
+    "dist:updater:publish": "dotenv -e .env -- electron-builder --config electron-builder.updater.yml --publish always",
+    "dist:prod": "npm run build:prepare && npm run dist:installer:only && npm run dist:updater:publish"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.6",
@@ -57,7 +62,7 @@
     "@types/node": "^25.3.3",
     "@types/ws": "^8.18.1",
     "dotenv-cli": "^11.0.0",
-    "electron": "^40.6.1",
+    "electron": "^40.8.0",
     "electron-builder": "^25.1.8",
     "node-gyp": "^12.2.0",
     "nodemon": "^3.1.14",

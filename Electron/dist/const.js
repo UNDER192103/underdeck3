@@ -15,16 +15,14 @@ export const BaseConfig = {
         autoDownloadWhenAvailable: true,
     },
     electron: {
-        startMinimized: true, // Inicia sem mostrar a janela principal
-        minimizeToTray: true, // Minimiza para a bandeja em vez da barra de tarefas
-        closeToTray: true, // Se fechar a janela, o app continua rodando no ícone
-        showOnStartup: false, // Se deve focar a janela ao abrir
+        startMinimized: false,
+        closeToTray: true,
         devTools: false,
         startOpenDevTools: false,
     },
     assets: {
-        tryIcon: ['img', 'UDIx256.ico'],
-        windowIcon: ['img', 'UDIx256.ico']
+        tryIcon: ['img', 'icon.ico'],
+        windowIcon: ['img', 'icon.ico']
     },
     storage: {
         baseFolder: 'underdeck',
@@ -49,8 +47,8 @@ export const BaseConfig = {
         password: "",
     },
     overlay: {
-        enabled: false,
-        keys: [],
+        enabled: true,
+        keys: ["LEFT CTRL", "LEFT SHIFT", "SECTION"],
         closeOnBlur: true,
     }
 };

@@ -217,6 +217,22 @@ export interface OverlaySettings {
   closeOnBlur: boolean;
 }
 
+export interface AppWindowsSettings {
+  autoStart: boolean;
+  enableNotifications: boolean;
+}
+
+export interface AppElectronSettings {
+  startMinimized: boolean;
+  closeToTray: boolean;
+  devTools: boolean;
+}
+
+export interface AppDevToolsChangedPayload {
+  enabled: boolean;
+  timestamp: number;
+}
+
 declare global {
   interface Window {
     underdeck: {
@@ -279,6 +295,13 @@ declare global {
         check: () => Promise<UpdateState>;
         downloadInstall: () => Promise<boolean>;
         onLoadingStateChanged: (listener: (payload: UpdateLoadingState) => void) => () => void;
+      };
+      appSettings: {
+        getWindows: () => Promise<AppWindowsSettings>;
+        setWindows: (patch: Partial<AppWindowsSettings>) => Promise<AppWindowsSettings>;
+        getElectron: () => Promise<AppElectronSettings>;
+        setElectron: (patch: Partial<AppElectronSettings>) => Promise<AppElectronSettings>;
+        onDevToolsChanged: (listener: (payload: AppDevToolsChangedPayload) => void) => () => void;
       };
       dialog: {
         selectFile: (options?: SelectFileOptions) => Promise<string | string[] | null>;

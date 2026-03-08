@@ -8,7 +8,7 @@ import type { UpdateState } from "@/types/electron";
 import { cn } from "@/lib/utils";
 
 export default function UpdatePage({
-  className = "backdrop-blur supports-[backdrop-filter]:bg-background",
+  className = "backdrop-blur",
 }: {
   className?: string;
 }) {

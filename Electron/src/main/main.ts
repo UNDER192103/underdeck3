@@ -1,6 +1,5 @@
-import logger from "../communs/logger.js";
 import electron from 'electron';
-const { app, BrowserWindow, Tray, protocol, session } = electron;
+const { app, BrowserWindow, protocol, session } = electron;
 import dotenv from "dotenv";
 import path from "path";
 import { getAssetPath } from '../communs/commun.js';
@@ -8,7 +7,7 @@ import { Settings } from './services/settings.js';
 import { MainAppService } from './services/main-app.js';
 import { Shortcutkey } from './services/shortcutkeys.js';
 import { ExpressServer } from './services/express.js';
-import { createMainWindow, setupTryIcon } from './windows/MainWindow.js';
+import { createMainWindow } from './windows/MainWindow.js';
 import { createLoadingWindow } from "./windows/LoadingWindow.js";
 import { createOverlayWindow } from "./windows/OverlayWindow.js";
 import { IpcmainService } from './services/ipcmain.js';
@@ -21,6 +20,9 @@ import { AlternativeShortcut } from "../types/shortcuts.js";
 import { TranslationService } from "./services/translations.js";
 import { LoadingState, UpdaterService } from "./services/updater.js";
 import { CookiePersistenceService } from "./services/cookie-persistence.js";
+import { WindowManagerService } from "./services/window-manager.js";
+import { TrayService } from "./services/tray.js";
+import { SystemStartupService } from "./services/system-startup.js";
 
 const soundPadService = new SoundPadService();
 const obsService = new ObsService();
@@ -38,15 +40,34 @@ const themeService = new ThemeService(AppService);
 const translationService = new TranslationService();
 const updaterService = new UpdaterService(translationService);
 const cookiePersistenceService = new CookiePersistenceService();
+const systemStartupService = new SystemStartupService();
 
 const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
 let mainWindow: InstanceType<typeof BrowserWindow> | null = null;
 let loadingWindow: InstanceType<typeof BrowserWindow> | null = null;
 let overlayWindow: InstanceType<typeof BrowserWindow> | null = null;
-let trayIcon: InstanceType<typeof Tray> | null = null;
 let overlayTransitioning = false;
 let updateRuntimeStopped = false;
 let lastUpdateNotificationVersion = "";
+const windowManager = new WindowManagerService();
+let isShuttingDown = false;
+
+const requestAppShutdown = async () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    windowManager.prepareForQuit();
+    await stopRuntimeServicesForUpdate();
+    trayService.destroy();
+    windowManager.closeAllAndQuit();
+    setTimeout(() => {
+        app.exit(0);
+        process.exit(0);
+    }, 1500);
+};
+
+const trayService = new TrayService(windowManager, translationService, () => {
+    void requestAppShutdown();
+});
 
 const OVERLAY_SHORTCUT_ID = "overlay-toggle";
 
@@ -128,6 +149,7 @@ const stopRuntimeServicesForUpdate = async () => {
 const hideOverlayWindow = () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) {
         overlayWindow = null;
+        windowManager.setWindow("overlay", null);
         return;
     }
     overlayWindow.hide();
@@ -142,8 +164,10 @@ const openOverlayWindow = () => {
         return;
     }
     overlayWindow = createOverlayWindow();
+    windowManager.setWindow("overlay", overlayWindow);
     overlayWindow.on("closed", () => {
         overlayWindow = null;
+        windowManager.setWindow("overlay", null);
         overlayTransitioning = false;
     });
     overlayWindow.webContents.on("did-fail-load", () => {
@@ -200,19 +224,23 @@ const ipcmainService = new IpcmainService(
         await syncOverlayShortcut();
     },
     () => {
-        if (!trayIcon || !mainWindow || mainWindow.isDestroyed()) return;
-        setupTryIcon(trayIcon, mainWindow, translationService);
+        trayService.refreshMenu();
+    },
+    async (windowsSettings) => {
+        await systemStartupService.syncWithSettings(Boolean(windowsSettings.autoStart));
     }
 );
 
 const hideLoadingWindow = () => {
     if (!loadingWindow || loadingWindow.isDestroyed()) {
         loadingWindow = null;
+        windowManager.setWindow("loading", null);
         return;
     }
     loadingWindow.hide();
     loadingWindow.close();
     loadingWindow = null;
+    windowManager.setWindow("loading", null);
 };
 
 const waitForRendererCssReady = async (win: electron.BrowserWindow, timeoutMs = 6000) => {
@@ -278,23 +306,32 @@ const waitForRendererCssReady = async (win: electron.BrowserWindow, timeoutMs = 
     }
 };
 
-const createMainWithLoading = (AppIcon: electron.Tray) => {
+const createMainWithLoading = () => {
+    trayService.setMode("loading");
     if (!loadingWindow || loadingWindow.isDestroyed()) {
         loadingWindow = createLoadingWindow();
+        windowManager.setWindow("loading", loadingWindow);
         loadingWindow.webContents.once("did-finish-load", () => {
             emitLoadingState(updaterService.getLoadingState());
         });
     }
 
-    const win = createMainWindow(AppIcon, { showOnReady: false });
+    const win = createMainWindow({ showOnReady: false });
     mainWindow = win;
+    windowManager.setWindow("main", win);
 
     const showMainWindow = () => {
         if (win.isDestroyed()) return;
         hideLoadingWindow();
+        if (Settings.get("electron").startMinimized) {
+            trayService.setMode("ready");
+            return;
+        }
         if (win.isMinimized()) win.restore();
+        win.maximize();
         win.show();
         win.focus();
+        trayService.setMode("ready");
     };
 
     let readyToShow = false;
@@ -329,22 +366,17 @@ const createMainWithLoading = (AppIcon: electron.Tray) => {
     win.on("closed", () => {
         hideLoadingWindow();
         mainWindow = null;
+        windowManager.setWindow("main", null);
     });
 };
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
-    app.quit();
+    void requestAppShutdown();
 } else {
     app.on("second-instance", () => {
         if (!mainWindow) return;
-        if (mainWindow.isMinimized()) {
-            mainWindow.restore();
-        }
-        if (!mainWindow.isVisible()) {
-            mainWindow.show();
-        }
-        mainWindow.focus();
+        windowManager.showWindow("main");
     });
 }
 
@@ -371,8 +403,14 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
         process.env.GH_TOKEN = process.env.GB_TOKEN;
     }
     ipcmainService.start();
+    await systemStartupService.syncWithSettings(Boolean(Settings.get("windows")?.autoStart));
+
+    const trayIconPath = getAssetPath(...Settings.get('assets').tryIcon);
+    trayService.init(trayIconPath);
+    trayService.setMode("loading");
 
     loadingWindow = createLoadingWindow();
+    windowManager.setWindow("loading", loadingWindow);
     loadingWindow.webContents.once("did-finish-load", () => {
         emitLoadingState(updaterService.getLoadingState());
     });
@@ -391,12 +429,14 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
         });
     });
     updaterService.on("download-starting", async () => {
+        trayService.setMode("loading");
         await stopRuntimeServicesForUpdate();
         if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
             mainWindow.hide();
         }
         if (!loadingWindow || loadingWindow.isDestroyed()) {
             loadingWindow = createLoadingWindow();
+            windowManager.setWindow("loading", loadingWindow);
             loadingWindow.webContents.once("did-finish-load", () => {
                 emitLoadingState(updaterService.getLoadingState());
             });
@@ -408,12 +448,14 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
         const downloadingForReal = Boolean(state?.downloading && Number(state?.downloadPercent || 0) > 0);
         const isUpdating = Boolean(downloadingForReal || state?.installing);
         if (!isUpdating) return;
+        trayService.setMode("loading");
         await stopRuntimeServicesForUpdate();
         if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
             mainWindow.hide();
         }
         if (!loadingWindow || loadingWindow.isDestroyed()) {
             loadingWindow = createLoadingWindow();
+            windowManager.setWindow("loading", loadingWindow);
             loadingWindow.webContents.once("did-finish-load", () => {
                 emitLoadingState(updaterService.getLoadingState());
             });
@@ -447,31 +489,28 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
         toggleOverlayWindow();
     });
     AppService.registerMediaProtocol();
-
-    const AppIcon = new Tray(getAssetPath(...Settings.get('assets').tryIcon));
-    trayIcon = AppIcon;
-
-    createMainWithLoading(AppIcon);
+    createMainWithLoading();
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
-            createMainWithLoading(AppIcon);
+            createMainWithLoading();
             return;
         }
         if (mainWindow) {
-            if (mainWindow.isMinimized()) mainWindow.restore();
-            mainWindow.show();
-            mainWindow.focus();
+            windowManager.showWindow("main");
         }
     });
 });
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
-        app.quit();
+        void requestAppShutdown();
     }
 });
 
 app.on("before-quit", () => {
+    windowManager.prepareForQuit();
+    trayService.destroy();
+    void stopRuntimeServicesForUpdate();
     void cookiePersistenceService.dispose();
 });
