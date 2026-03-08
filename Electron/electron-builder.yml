@@ -31,12 +31,12 @@ extraResources:
     to: ".env"
 
 # --- COMPRESSÃO E UNPACK ---
-asar: true
-asarUnpack:
-  - "**/node_modules/better-sqlite3/**/*"
-  - "**/node_modules/bindings/**/*"
-  - "**/node_modules/robotjs/**/*"       # Adicionei robotjs aqui pois é nativo
-  - "**/assets/**/*"
+asar: false
+#asarUnpack:
+#  - "**/node_modules/better-sqlite3/**/*"
+#  - "**/node_modules/bindings/**/*"
+#  - "**/node_modules/robotjs/**/*"       # Adicionei robotjs aqui pois é nativo
+#  - "**/assets/**/*"
 
 # --- CONFIGURAÇÕES WINDOWS (NSIS) ---
 win:
