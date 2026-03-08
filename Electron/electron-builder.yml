@@ -1,0 +1,62 @@
+appId: "com.udr.underdeck"
+productName: "Under Deck"
+copyright: "Copyright © 2024 ${author}"
+
+# --- CONFIGURAÇÃO DE NÚCLEO ---
+electronVersion: "40.6.1"
+nodeGypRebuild: true
+buildDependenciesFromSource: true
+npmRebuild: true
+
+# --- CONTROLE DE ARQUIVOS (O que vai no .exe) ---
+files:
+  - "dist/**/*"          # Seu código JS compilado
+  - "package.json"       # Necessário para o runtime
+  - "!src/**/*"          # EXCLUI o código TS (segurança e leveza)
+  - "!tsconfig.json"     # EXCLUI config de dev
+  - "!electron-builder.yml"
+
+# --- RECURSOS EXTERNOS ---
+# Isso coloca a pasta assets fora do ASAR para o SQLite e imagens funcionarem
+extraResources:
+  - from: "assets"
+    to: "assets"
+    filter:
+      - "**/*"
+  - from: ".env"
+    to: ".env"
+
+# --- COMPRESSÃO E UNPACK ---
+asar: true
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**/*"
+  - "**/node_modules/bindings/**/*"
+  - "**/node_modules/robotjs/**/*"       # Adicionei robotjs aqui pois é nativo
+  - "**/assets/**/*"
+
+# --- CONFIGURAÇÕES WINDOWS (NSIS) ---
+win:
+  target: 
+    - target: "nsis"
+      arch: ["x64"]
+  requestedExecutionLevel: "asInvoker"
+  icon: "assets/img/UDIx256.ico"
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: "assets/img/UDIx256.ico"
+  uninstallerIcon: "assets/img/UDIx256.ico"
+  installerHeaderIcon: "assets/img/UDIx256.ico"
+  license: "LICENSE.md"
+  artifactName: "${productName}_Setup_${version}.${ext}"
+
+directories: 
+  output: "build"
+
+# --- PUBLICAÇÃO DE UPDATE (GitHub Releases) ---
+publish:
+  provider: "github"
+  owner: "${env.GH_OWNER}"
+  repo: "${env.GH_REPO}"
+  releaseType: "release"
