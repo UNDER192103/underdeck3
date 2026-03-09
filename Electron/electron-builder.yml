@@ -1,0 +1,41 @@
+appId: "com.udr.underdeck"
+productName: "Under Deck"
+copyright: "Copyright (c) 2024 ${author}"
+
+electronVersion: "40.8.0"
+nodeGypRebuild: false
+buildDependenciesFromSource: true
+npmRebuild: false
+
+files:
+  - "dist/**/*"
+  - "package.json"
+  - from: "node_modules/call-bind-apply-helpers"
+    to: "node_modules/call-bind-apply-helpers"
+    filter:
+      - "**/*"
+  - "node_modules/**/*"
+  - from: "assets"
+    to: "assets"
+    filter:
+      - "**/*"
+  - from: "src/renderer"
+    to: "renderer"
+    filter:
+      - "**/*"
+  - "!src/**/*"
+  - "!tsconfig.json"
+  - "!electron-builder*.yml"
+
+asar: false
+
+win:
+  target:
+    - target: "dir"
+      arch: ["x64"]
+  requestedExecutionLevel: "asInvoker"
+  icon: "assets/img/icon.ico"
+  executableName: "Under Deck"
+
+directories:
+  output: "build"

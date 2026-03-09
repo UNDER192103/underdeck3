@@ -1,0 +1,425 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant black (&:is(.black *));
+@custom-variant transparent (&:is(.transparent *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  /* Neon accents */
+  --neon-cyan: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --neon-magenta: #ff006e;
+  --neon-lime: #39ff14;
+
+  /* Light theme */
+  --primary: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --primary-foreground: #06141a;
+  --sidebar-primary: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --sidebar-primary-foreground: #06141a;
+  --chart-1: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --chart-2: #ff006e;
+  --chart-3: #39ff14;
+  --chart-4: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --chart-5: #ff006e;
+  --radius: 0.25rem;
+
+  --background: #f7fbfd;
+  --foreground: #0f1720;
+  --card: #ffffff;
+  --card-foreground: #0f1720;
+  --popover: #ffffff;
+  --popover-foreground: #0f1720;
+  --secondary: #e8f2f7;
+  --secondary-foreground: #1d3340;
+  --muted: #edf4f8;
+  --muted-foreground: #5f7280;
+  --accent: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --accent-foreground: #06141a;
+  --destructive: #ff006e;
+  --destructive-foreground: #ffffff;
+  --border: #2a2a2a;
+  --input: #d6e6ee;
+  --ring: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f1720;
+  --sidebar-accent: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --sidebar-accent-foreground: #06141a;
+  --sidebar-border: #d6e6ee;
+  --sidebar-ring: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --switch-thumb: #1b1c1d;
+
+  --brand: #5865f2;
+  --brand-overlay-end: #1f1d5d;
+  --brand-overlay-transition: 0.3s ease;
+  --brand-overlay-gradient: linear-gradient(180deg, transparent 0, var(--brand-overlay-end) 130%);
+  --brand-gradient: linear-gradient(90deg, #8ea1e1, #7289da);
+  --greyple: #99aab5;
+  --dark-not-black: #2c2f33;
+  --focus-border: #00b0f4;
+  --status-green: #43b581;
+  --text-link: #00b0f4;
+  --off-white: #f6f6f6;
+  --white: #fff;
+  --not-quite-black: #23272a;
+  --not-quite-black-rgb: 35, 39, 42;
+  --black: #000;
+  --ekko-red: #de2761;
+}
+
+.dark {
+  /* Dark mode uses same neon theme */
+  --neon-cyan: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --neon-magenta: #ff006e;
+  --neon-lime: #39ff14;
+
+  --primary: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --primary-foreground: #0f0f0f;
+  --sidebar-primary: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --sidebar-primary-foreground: #0f0f0f;
+  --background: #0f0f0f;
+  --foreground: #e0e0e0;
+  --card: #1a1a1a;
+  --card-foreground: #e0e0e0;
+  --popover: #1a1a1a;
+  --popover-foreground: #e0e0e0;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #b0b0b0;
+  --muted: #3a3a3a;
+  --muted-foreground: #808080;
+  --accent: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --accent-foreground: #0f0f0f;
+  --destructive: #ff006e;
+  --destructive-foreground: #0f0f0f;
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --chart-1: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --chart-2: #ff006e;
+  --chart-3: #39ff14;
+  --chart-4: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --chart-5: #ff006e;
+  --sidebar: #1a1a1a;
+  --sidebar-foreground: #e0e0e0;
+  --sidebar-accent: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --sidebar-accent-foreground: #0f0f0f;
+  --sidebar-border: #2a2a2a;
+  --sidebar-ring: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --switch-thumb: #f5f7fa;
+}
+
+.black {
+  /* Black mode uses same neon theme */
+  --neon-cyan: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --neon-magenta: #ff006e;
+  --neon-lime: #39ff14;
+
+  --primary: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --primary-foreground: #000000;
+  --sidebar-primary: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --sidebar-primary-foreground: #000000;
+  --background: #000000;
+  --foreground: #e0e0e0;
+  --card: #000000;
+  --card-foreground: #e0e0e0;
+  --popover: #1a1a1a;
+  --popover-foreground: #e0e0e0;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #b0b0b0;
+  --muted: #3a3a3a;
+  --muted-foreground: #808080;
+  --accent: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --accent-foreground: #000000;
+  --destructive: #ff006e;
+  --destructive-foreground: #000000;
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --chart-1: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --chart-2: #ff006e;
+  --chart-3: #39ff14;
+  --chart-4: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --chart-5: #ff006e;
+  --sidebar: #1a1a1a;
+  --sidebar-foreground: #e0e0e0;
+  --sidebar-accent: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --sidebar-accent-foreground: #000000;
+  --sidebar-border: #2a2a2a;
+  --sidebar-ring: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --switch-thumb: #f5f7fa;
+}
+
+.transparent {
+  /* Transparent mode uses same neon theme */
+  --neon-cyan: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --neon-magenta: #ff006e;
+  --neon-lime: #39ff14;
+
+  --primary: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --primary-foreground: #ffffff;
+  --sidebar-primary: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --sidebar-primary-foreground: #ffffff;
+  --background: #0f0f0f00;
+  --foreground: #e0e0e0;
+  --card: #0f0f0f00;
+  --card-foreground: #e0e0e0;
+  --popover: #00000069;
+  --popover-foreground: #e0e0e0;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #b0b0b0;
+  --muted: #3a3a3a;
+  --muted-foreground: #808080;
+  --accent: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --accent-foreground: #ffffff;
+  --destructive: #ff006e;
+  --destructive-foreground: #ffffff;
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --chart-1: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --chart-2: #ff006e;
+  --chart-3: #39ff14;
+  --chart-4: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --chart-5: #ff006e;
+  --sidebar: #0f0f0f00;
+  --sidebar-foreground: #e0e0e0;
+  --sidebar-accent: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2a2a2a;
+  --sidebar-ring: hsl(234.935 calc(1*85.556%) 64.706% /1);
+  --switch-thumb: #f5f7fa;
+  --toast-bg: #00000080;
+  --toast-foreground: #ffffff;
+  --toast-border: #ffffff33;
+}
+
+.buttonBrand {
+  /*font-size: 18px;*/
+  font-weight: 400;
+  line-height: 24px;
+  -webkit-transition-property: none;
+  transition-property: none;
+  background-color: var(--brand);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.buttonBrand:hover:after {
+  opacity: 1;
+}
+
+.buttonBrand:after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100%;
+    background: -webkit-gradient(linear, left top, left bottom, from(transparent), color-stop(130%, var(--brand-overlay-end)));
+    background: var(--brand-overlay-gradient);
+    opacity: 0;
+    -webkit-transition: opacity var(--brand-overlay-transition);
+    transition: opacity var(--brand-overlay-transition);
+    z-index: -1;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Custom scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.623 0.214 259.815);
+    border-radius: 4px;
+    transition: background 0.2s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.7 0.25 259.815);
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.623 0.214 259.815) transparent;
+  }
+
+  body {
+    font-family: var(--font-body);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    font-weight: 700;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+
+  /* Smooth transitions for layout changes */
+  .transition-layout {
+    transition: margin-left 0.3s ease-in-out, width 0.3s ease-in-out;
+  }
+
+  .transition-sidebar {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /**
+   * Custom container utility that centers content and adds responsive padding.
+   *
+   * This overrides Tailwind's default container behavior to:
+   * - Auto-center content (mx-auto)
+   * - Add responsive horizontal padding
+   * - Set max-width for large screens
+   *
+   * Usage: <div className="container">...</div>
+   *
+   * For custom widths, use max-w-* utilities directly:
+   * <div className="max-w-6xl mx-auto px-4">...</div>
+   */
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    /* 16px - mobile padding */
+    padding-right: 1rem;
+  }
+
+  .flex {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  /* Neon Glow Effects */
+  .neon-glow-cyan {
+    box-shadow: 0 0 10px rgba(0, 217, 255, 0.5), inset 0 0 10px rgba(0, 217, 255, 0.1);
+  }
+
+  .neon-glow-magenta {
+    box-shadow: 0 0 10px rgba(255, 0, 110, 0.5), inset 0 0 10px rgba(255, 0, 110, 0.1);
+  }
+
+  .neon-border-cyan {
+    border-color: hsl(234.935 calc(1*85.556%) 64.706% /1);
+    box-shadow: inset 0 0 8px rgba(0, 217, 255, 0.2);
+  }
+
+  .neon-border-magenta {
+    border-color: #ff006e;
+    box-shadow: inset 0 0 8px rgba(255, 0, 110, 0.2);
+  }
+
+  /* Drag feedback */
+  .dragging {
+    opacity: 0.7;
+    box-shadow: 0 0 20px rgba(0, 217, 255, 0.8);
+  }
+
+  .drag-over {
+    border-color: hsl(234.935 calc(1*85.556%) 64.706% /1);
+    background-color: rgba(0, 217, 255, 0.05);
+  }
+
+  .transparent [data-slot="dialog-content"].app-create-modal-content {
+    background-color: rgba(0, 0, 0, 0.85) !important;
+    border-color: rgba(148, 163, 184, 0.45) !important;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+  }
+
+  .transparent .more-dark {
+    background-color: rgba(0, 0, 0, 0.75) !important;
+    border-color: rgba(148, 163, 184, 0.35) !important;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem;
+      /* 24px - tablet padding */
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 2rem;
+      /* 32px - desktop padding */
+      padding-right: 2rem;
+      max-width: 1280px;
+      /* Standard content width */
+    }
+  }
+}
