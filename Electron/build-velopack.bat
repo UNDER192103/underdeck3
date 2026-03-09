@@ -6,16 +6,30 @@ cd /d "%~dp0"
 
 :: --- CONFIGURAÇÕES ---
 set "MAIN_EXE=Under Deck.exe"
-:: Define os nomes de usuário e repositório manualmente se não estiverem no ambiente
 set "GH_OWNER=UNDER192103"
 set "GH_REPO=underdeck3"
 
-:: --- VALIDAÇÃO DO TOKEN ---
-if not exist "..\GH_TOKEN" (
-    echo [ERRO] Arquivo GH_TOKEN nao encontrado em ..\GH_TOKEN
+:: --- CARREGAR TOKEN DO .ENV (AO LADO DO .BAT) ---
+if not exist ".env" (
+    echo [ERRO] Arquivo .env nao encontrado na pasta atual.
     exit /b 1
 )
-set /p GH_TOKEN=<..\GH_TOKEN
+
+:: Procura pela linha que começa com GH_TOKEN no .env
+for /f "tokens=1,2 delims==" %%A in (.env) do (
+    if "%%A"=="GH_TOKEN" set "GH_TOKEN=%%B"
+)
+
+:: Remove espaços em branco extras, se houver
+set "GH_TOKEN=%GH_TOKEN: =%"
+
+if "%GH_TOKEN%"=="" (
+    echo [ERRO] GH_TOKEN nao definido dentro do arquivo .env
+    exit /b 1
+)
+
+echo [OK] Token carregado com sucesso.
+:: Resto do seu script...
 
 :: --- PEGAR VERSÃO DO PACKAGE.JSON ---
 :: Extrai a versão do package.json para a variável APP_VERSION

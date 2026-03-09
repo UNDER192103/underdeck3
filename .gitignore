@@ -1,4 +1,4 @@
 node_modules/
 build/
-dist/GH_TOKEN 
+dist/ 
 Electron/.env 
