@@ -2,6 +2,7 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { fileURLToPath } from "node:url";
 import electron from "electron";
 import { Server as HttpServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
@@ -14,6 +15,8 @@ import { Settings } from "./settings.js";
 import { getDb } from "./database.js";
 
 const { app: electronApp } = electron;
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDirPath = path.dirname(currentFilePath);
 
 export class ExpressServer {
   private app: express.Application;
@@ -258,19 +261,39 @@ export class ExpressServer {
 
   private getStaticCandidates() {
     const userDefined = process.env.WEBDECK_STATIC_DIR?.trim();
-    const resourceDir = process.resourcesPath
-      ? path.join(process.resourcesPath, "webdeck-client")
-      : "";
+    const appRoots = new Set<string>();
+    const pushRoot = (target: string | null | undefined) => {
+      if (!target) return;
+      appRoots.add(path.resolve(target));
+    };
+
+    pushRoot(process.cwd());
+    pushRoot(currentDirPath);
+    for (let i = 0; i < 6; i += 1) {
+      pushRoot(path.resolve(currentDirPath, ...Array(i).fill("..")));
+    }
+
+    if (process.resourcesPath) {
+      pushRoot(process.resourcesPath);
+      pushRoot(path.join(process.resourcesPath, "app"));
+      pushRoot(path.join(process.resourcesPath, "app.asar"));
+    }
+
     const candidates = [
       userDefined || "",
-      path.join(process.cwd(), "src", "renderer"),
-      resourceDir,
-      path.join(process.cwd(), "webdeck-client"),
-      path.join(process.cwd(), "..", "React", "dist", "public"),
-      path.join(process.cwd(), "React", "dist", "public"),
+      ...Array.from(appRoots).flatMap((root) => [
+        path.join(root, "renderer"),
+        path.join(root, "src", "renderer"),
+        path.join(root, "dist", "renderer"),
+        path.join(root, "webdeck-client"),
+        path.join(root, "resources", "webdeck-client"),
+        path.join(root, "React", "dist", "public"),
+        path.join(root, "React", "dist"),
+      ]),
       path.join(electronApp.getPath("userData"), "webdeck-client"),
     ].filter(Boolean);
-    return candidates;
+
+    return [...new Set(candidates)];
   }
 
   private resolveStaticDir() {

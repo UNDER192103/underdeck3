@@ -2,7 +2,7 @@
   "name": "underdeck",
   "description": "UnderDeck Application",
   "productName": "Under Deck",
-  "version": "3.0.12",
+  "version": "3.0.13",
   "main": "dist/main/main.js",
   "type": "module",
   "author": "Under",
