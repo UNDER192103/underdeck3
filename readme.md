@@ -1,4 +1,4 @@
-<h2>Under Deck 3.0.1 - Major Update</h2>
+<h2>Under Deck 3.0.12 - Major Update</h2>
 
 <h3>English</h3>
 <p>This major release focuses on stability, quality, and core experience improvements.</p>
@@ -25,5 +25,3 @@
   <li>Melhorias de confiabilidade no auto-update e empacotamento</li>
   <li>Refatorações internas para serviços mais limpos e manutenção mais fácil</li>
 </ul>
-
-**Full Changelog**: https://github.com/UNDER192103/underdeck3/compare/v3.0.0...v3.0.1
