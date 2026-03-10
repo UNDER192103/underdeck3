@@ -1,7 +1,7 @@
 export type RendererSourceMode = "auto" | "local" | "url";
 
 export const RendererTargetConfig = {
-    sourceMode: "local" as RendererSourceMode,
+    sourceMode: "auto" as RendererSourceMode,
     devBaseUrl: "http://localhost:3404",
 };
 

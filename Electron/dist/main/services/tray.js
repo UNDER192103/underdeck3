@@ -17,6 +17,9 @@ export class TrayService {
             return this.tray;
         this.tray = new Tray(iconPath);
         this.tray.setToolTip(app.getName());
+        this.tray.on("click", () => {
+            this.openMainWindow();
+        });
         this.refreshMenu();
         return this.tray;
     }
@@ -36,7 +39,7 @@ export class TrayService {
                 enabled: canUseMain,
                 type: "normal",
                 click: () => {
-                    this.windowManager.showWindow("main");
+                    this.openMainWindow();
                 },
             },
             { type: "separator" },
@@ -45,7 +48,7 @@ export class TrayService {
                 enabled: canUseMain,
                 type: "normal",
                 click: () => {
-                    this.windowManager.showWindow("main");
+                    this.openMainWindow();
                 },
             },
             { type: "separator" },
@@ -86,6 +89,13 @@ export class TrayService {
     }
     getTray() {
         return this.tray;
+    }
+    openMainWindow() {
+        const mainWindow = this.windowManager.getWindow("main");
+        const canUseMain = this.mode === "ready" && Boolean(mainWindow && !mainWindow.isDestroyed());
+        if (!canUseMain)
+            return;
+        this.windowManager.showWindow("main");
     }
     destroy() {
         if (!this.tray || this.tray.isDestroyed())

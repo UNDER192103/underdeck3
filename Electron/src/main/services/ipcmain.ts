@@ -26,6 +26,11 @@ type ElectronSettingsPayload = {
     closeToTray: boolean;
     devTools: boolean;
 };
+type WindowControlState = {
+    maximized: boolean;
+    minimized: boolean;
+    fullscreen: boolean;
+};
 type ObserverPayload = {
     id: string;
     channel: string;
@@ -116,6 +121,22 @@ export class IpcmainService {
         });
 
         void listener();
+    }
+
+    private getWindowControlState(win: Electron.BrowserWindow | null): WindowControlState {
+        if (!win || win.isDestroyed()) {
+            return {
+                maximized: false,
+                minimized: false,
+                fullscreen: false,
+            };
+        }
+
+        return {
+            maximized: win.isMaximized(),
+            minimized: win.isMinimized(),
+            fullscreen: win.isFullScreen(),
+        };
     }
 
     private unsubscribeObsStateChangedBySenderId(senderId: number) {
@@ -308,6 +329,61 @@ export class IpcmainService {
                 timestamp: Number(raw?.timestamp || Date.now()),
             };
             this.publishObserverEvent(payload, event.sender.id);
+        });
+
+        ipcMain.handle("WindowSV-GetState", async (event): Promise<WindowControlState> => {
+            const win = BrowserWindow.fromWebContents(event.sender);
+            return this.getWindowControlState(win);
+        });
+        ipcMain.handle("WindowSV-Minimize", async (event): Promise<WindowControlState> => {
+            const win = BrowserWindow.fromWebContents(event.sender);
+            if (win && !win.isDestroyed()) {
+                win.minimize();
+            }
+            return this.getWindowControlState(win);
+        });
+        ipcMain.handle("WindowSV-ToggleMaximize", async (event): Promise<WindowControlState> => {
+            const win = BrowserWindow.fromWebContents(event.sender);
+            if (win && !win.isDestroyed()) {
+                if (win.isMaximized()) {
+                    win.unmaximize();
+                } else {
+                    win.maximize();
+                }
+            }
+            return this.getWindowControlState(win);
+        });
+        ipcMain.handle("WindowSV-Close", async (event): Promise<boolean> => {
+            const win = BrowserWindow.fromWebContents(event.sender);
+            if (!win || win.isDestroyed()) return false;
+            win.close();
+            return true;
+        });
+        ipcMain.on("WindowSV-SubscribeStateChanged", (event) => {
+            const sender = event.sender;
+            const win = BrowserWindow.fromWebContents(sender);
+            if (!win || win.isDestroyed()) return;
+
+            const publish = () => {
+                if (sender.isDestroyed()) return;
+                sender.send("WindowSV-StateChanged", this.getWindowControlState(win));
+            };
+
+            const events = [
+                "maximize",
+                "unmaximize",
+                "minimize",
+                "restore",
+                "enter-full-screen",
+                "leave-full-screen",
+            ];
+
+            events.forEach((eventName) => (win as any).on(eventName, publish));
+            sender.once("destroyed", () => {
+                events.forEach((eventName) => (win as any).removeListener(eventName, publish));
+            });
+
+            publish();
         });
 
         ipcMain.handle("AppsSV-List", async () => await this.AppService.listApps());

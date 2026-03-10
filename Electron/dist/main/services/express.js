@@ -21,6 +21,12 @@ export class ExpressServer {
     soundPadService;
     obsService;
     unsubscribers = [];
+    isDevMode() {
+        return !electronApp.isPackaged && process.env.NODE_ENV !== "production";
+    }
+    isAllowedDevOrigin(origin) {
+        return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+    }
     getLocalIpv4Address() {
         const interfaces = os.networkInterfaces();
         const virtualNamePattern = /(hamachi|tailscale|zerotier|wireguard|tun|tap|vpn|virtual|vbox|vmware)/i;
@@ -89,9 +95,15 @@ export class ExpressServer {
     configureMiddleware() {
         this.app.use(express.json({ limit: "2mb" }));
         this.app.use((req, res, next) => {
-            res.header("Access-Control-Allow-Origin", "*");
+            const requestOrigin = String(req.headers.origin || "").trim();
+            const isDevCorsOrigin = this.isDevMode() && this.isAllowedDevOrigin(requestOrigin);
+            res.header("Access-Control-Allow-Origin", isDevCorsOrigin ? requestOrigin : "*");
             res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-            res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+            res.header("Access-Control-Allow-Headers", String(req.headers["access-control-request-headers"] || "Content-Type, Authorization"));
+            if (isDevCorsOrigin) {
+                res.header("Access-Control-Allow-Credentials", "true");
+                res.header("Vary", "Origin");
+            }
             if (req.method === "OPTIONS") {
                 res.sendStatus(204);
                 return;
@@ -531,9 +543,19 @@ export class ExpressServer {
         this.server = this.app.listen(this.port, () => {
             console.log(`Server is running on port ${this.port}`);
         });
+        const isDevMode = this.isDevMode();
         this.io = new SocketIOServer(this.server, {
             cors: {
-                origin: "*",
+                origin: isDevMode
+                    ? (origin, callback) => {
+                        if (!origin || this.isAllowedDevOrigin(origin)) {
+                            callback(null, true);
+                            return;
+                        }
+                        callback(new Error("Origin nao permitida."));
+                    }
+                    : "*",
+                credentials: isDevMode,
             },
             path: "/socket.io",
         });

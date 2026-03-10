@@ -242,6 +242,12 @@ export interface AppDevToolsChangedPayload {
   timestamp: number;
 }
 
+export interface WindowControlState {
+  maximized: boolean;
+  minimized: boolean;
+  fullscreen: boolean;
+}
+
 declare global {
   interface Window {
     underdeck: {
@@ -312,6 +318,13 @@ declare global {
         getElectron: () => Promise<AppElectronSettings>;
         setElectron: (patch: Partial<AppElectronSettings>) => Promise<AppElectronSettings>;
         onDevToolsChanged: (listener: (payload: AppDevToolsChangedPayload) => void) => () => void;
+      };
+      windowControls: {
+        getState: () => Promise<WindowControlState>;
+        minimize: () => Promise<WindowControlState>;
+        toggleMaximize: () => Promise<WindowControlState>;
+        close: () => Promise<boolean>;
+        onStateChanged: (listener: (payload: WindowControlState) => void) => () => void;
       };
       dialog: {
         selectFile: (options?: SelectFileOptions) => Promise<string | string[] | null>;

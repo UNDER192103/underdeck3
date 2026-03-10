@@ -1,52 +1,55 @@
 import axios from "axios";
-import { ApiSettings } from "@/const";
+import { ApiSettings, RuntimeSettings } from "@/const";
 
-axios.defaults.baseURL = ApiSettings.url === "/" ? "" : ApiSettings.url;
+axios.defaults.baseURL = ApiSettings.url;
 axios.defaults.withCredentials = true;
 
-let resolvedElectronApiBaseURL: string | null = null;
-let resolvingElectronApiBaseURL: Promise<string | null> | null = null;
+let resolvedWebDeckApiBaseURL: string | null = null;
+let resolvingWebDeckApiBaseURL: Promise<string | null> | null = null;
 
 const isApiPath = (url?: string) => {
   if (!url) return false;
   return url === "/api" || url.startsWith("/api/");
 };
 
-const resolveElectronApiBaseURL = async (): Promise<string | null> => {
-  if (resolvedElectronApiBaseURL !== null) {
-    return resolvedElectronApiBaseURL;
+const resolveWebDeckApiBaseURL = async (): Promise<string | null> => {
+  if (resolvedWebDeckApiBaseURL !== null) {
+    return resolvedWebDeckApiBaseURL;
   }
 
-  if (resolvingElectronApiBaseURL) {
-    return resolvingElectronApiBaseURL;
+  if (resolvingWebDeckApiBaseURL) {
+    return resolvingWebDeckApiBaseURL;
   }
 
-  resolvingElectronApiBaseURL = (async () => {
+  resolvingWebDeckApiBaseURL = (async () => {
     try {
       const info = await window.underdeck?.express?.getWebDeckAccessInfo?.();
       const base = String(info?.localhostUrl || info?.localIpUrl || "").trim();
-      if (!base) {
-        resolvedElectronApiBaseURL = null;
-        return null;
+      if (base) {
+        resolvedWebDeckApiBaseURL = new URL(base).origin;
+        return resolvedWebDeckApiBaseURL;
       }
-
-      const origin = new URL(base).origin;
-      resolvedElectronApiBaseURL = origin;
-      axios.defaults.baseURL = origin;
-      return origin;
     } catch {
-      resolvedElectronApiBaseURL = null;
+      // ignore
+    }
+
+    try {
+      const origin = String(window.location.origin || "").trim();
+      resolvedWebDeckApiBaseURL = origin && origin !== "null" ? origin : null;
+      return resolvedWebDeckApiBaseURL;
+    } catch {
+      resolvedWebDeckApiBaseURL = null;
       return null;
     } finally {
-      resolvingElectronApiBaseURL = null;
+      resolvingWebDeckApiBaseURL = null;
     }
   })();
 
-  return resolvingElectronApiBaseURL;
+  return resolvingWebDeckApiBaseURL;
 };
 
 axios.interceptors.request.use(async (config) => {
-  if (config.baseURL) {
+  if (!RuntimeSettings.isWebDeck) {
     return config;
   }
 
@@ -55,7 +58,7 @@ axios.interceptors.request.use(async (config) => {
     return config;
   }
 
-  const resolved = await resolveElectronApiBaseURL();
+  const resolved = await resolveWebDeckApiBaseURL();
   if (resolved) {
     config.baseURL = resolved;
   }

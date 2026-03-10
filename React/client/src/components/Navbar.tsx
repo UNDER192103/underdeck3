@@ -4,6 +4,7 @@ import { Moon, Sun, Bell, Layers, Circle } from 'lucide-react';
 import { Theme, useTheme } from "@/contexts/ThemeContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { useObserver } from "@/contexts/ObserverContext";
+import { TITLE_BAR_HEIGHT } from "./WindowTitleBar";
 
 interface NavbarProps {
   isCollapsed: boolean;
@@ -72,8 +73,9 @@ export const Navbar: React.FC<NavbarProps> = ({ isCollapsed }) => {
 
   return (
     <div
-      className="fixed top-0 z-40 flex items-center justify-between gap-2 p-3 h-15 border-b border-border bg-background backdrop-blur supports-[backdrop-filter]:bg-background select-none"
+      className="fixed top-0 z-40 flex items-center justify-between gap-2 p-3 h-13 border-b border-border bg-background backdrop-blur supports-[backdrop-filter]:bg-background select-none"
       style={{
+        top: `${TITLE_BAR_HEIGHT}px`,
         left: isCollapsed ? '60px' : '256px',
         width: isCollapsed ? 'calc(100% - 60px)' : 'calc(100% - 256px)',
       }}

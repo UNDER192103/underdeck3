@@ -4,10 +4,20 @@ export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 // - false: usa URL fixa abaixo
 // - true: usa mesma origem ("/")
 const FRONTEND_USE_LOCAL_SOCKET_SOURCE = false;
-const FRONTEND_USE_LOCAL_API_SOURCE = true;
 const DEV_SOCKET_URL = `http://localhost:3404`;
 const PROD_SOCKET_URL = "https://io.undernouzen.shop";
 const PROD_API_URL = "https://io.undernouzen.shop";
+
+const getRuntimeMode = () => {
+  if (typeof window === "undefined") return "";
+  const queryMode = new URLSearchParams(window.location.search).get("mode")?.toLowerCase();
+  if (queryMode) return queryMode;
+
+  const pathname = String(window.location.pathname || "").toLowerCase();
+  if (pathname.includes("/webdeck")) return "webdeck";
+  if (pathname.includes("/overlay")) return "overlay";
+  return "";
+};
 
 const resolveSocketUrl = () => {
   if (FRONTEND_USE_LOCAL_SOCKET_SOURCE) {
@@ -22,14 +32,11 @@ const resolveApiUrl = () => {
     typeof window.location?.protocol === "string" &&
     window.location.protocol.toLowerCase() === "file:";
 
-  if (isFileProtocol) {
+  if (isFileProtocol || !import.meta.env.DEV) {
     return PROD_API_URL;
   }
 
-  if (import.meta.env.DEV && FRONTEND_USE_LOCAL_API_SOURCE) {
-    return "/";
-  }
-  return PROD_API_URL;
+  return DEV_SOCKET_URL;
 };
 
 const normalizePath = (path: string) => {
@@ -44,6 +51,11 @@ export const SocketSettings = {
 
 export const ApiSettings = {
   url: resolveApiUrl(),
+};
+
+export const RuntimeSettings = {
+  mode: getRuntimeMode(),
+  isWebDeck: getRuntimeMode() === "webdeck",
 };
 
 export const apiUrl = (path: string) => {

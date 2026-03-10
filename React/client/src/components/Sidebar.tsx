@@ -31,6 +31,8 @@ import { AppUser } from '@/types/user';
 import { DropdownUp, DropdownUpContent, DropdownUpTrigger } from '@/components/ui/dropdown-up';
 import { ModalSettings } from '@/components/settings/modalSettings';
 import { UserProfileModal } from './user/UserProfileModal';
+import { TITLE_BAR_HEIGHT } from './WindowTitleBar';
+import { Img } from './ui/img';
 
 interface SidebarProps {
   onCollapsedChange?: (isCollapsed: boolean) => void;
@@ -127,17 +129,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
       <div
         className={`
         bg-background backdrop-blur supports-[backdrop-filter]:bg-background
-        fixed left-0 top-0 h-screen border-r border-sidebar-border
+        fixed left-0 border-r border-sidebar-border
         transition-all duration-300 ease-out z-40
         ${isCollapsed ? "w-[60px]" : "w-64"}
         flex flex-col select-none
       `}
+        style={{
+          top: `${TITLE_BAR_HEIGHT}px`,
+          height: `calc(100vh - ${TITLE_BAR_HEIGHT}px)`,
+        }}
       >
-        <div className="flex items-center justify-between p-2 border-b border-sidebar-border h-15">
+        <div className="flex items-center justify-between p-2 border-b border-sidebar-border h-13">
           {!isCollapsed && (
-            <div className='flex items-center gap-2'>
-              {/* <img className="w-12 h-12 rounded-full" src="/favicon.png" /> */}
-              <h2 className="text-xl font-bold text-sidebar-foreground">Under Deck</h2>
+            <div className='flex items-center w-full text-center gap-2'>
+              <h2 className="text-xl font-bold w-full text-sidebar-foreground">Under Deck</h2>
             </div>
           )}
           <button

@@ -49,6 +49,11 @@ type DevToolsChangedPayload = {
   enabled: boolean;
   timestamp: number;
 };
+type WindowControlState = {
+  maximized: boolean;
+  minimized: boolean;
+  fullscreen: boolean;
+};
 type WindowsSettings = {
   autoStart: boolean;
   enableNotifications: boolean;
@@ -135,6 +140,13 @@ interface UnderDeckApi {
     setElectron: (patch: Partial<ElectronSettings>) => Promise<ElectronSettings>;
     onDevToolsChanged: (listener: (payload: DevToolsChangedPayload) => void) => () => void;
   };
+  windowControls: {
+    getState: () => Promise<WindowControlState>;
+    minimize: () => Promise<WindowControlState>;
+    toggleMaximize: () => Promise<WindowControlState>;
+    close: () => Promise<boolean>;
+    onStateChanged: (listener: (payload: WindowControlState) => void) => () => void;
+  };
   dialog: {
     selectFile: (options?: SelectFileOptions) => Promise<string | string[] | null>;
     selectSaveFile: (options?: SaveFileOptions) => Promise<string | null>;
@@ -218,6 +230,8 @@ interface UnderDeckApi {
 
 const soundPadListeners = new Set<(audios: SoundPadAudio[]) => void>();
 let soundPadSubscribed = false;
+const windowStateListeners = new Set<(payload: WindowControlState) => void>();
+let windowStateSubscribed = false;
 const soundPadEventHandler = (_event: unknown, audios: SoundPadAudio[]) => {
   soundPadListeners.forEach((listener) => {
     listener(audios);
@@ -430,6 +444,25 @@ const underdeckApi: UnderDeckApi = {
           ipcRenderer.removeListener("AppSettingsSV-DevToolsChanged", devToolsChangedHandler);
           devToolsChangedSubscribed = false;
         }
+        };
+      },
+  },
+  windowControls: {
+    getState: () => ipcRenderer.invoke("WindowSV-GetState"),
+    minimize: () => ipcRenderer.invoke("WindowSV-Minimize"),
+    toggleMaximize: () => ipcRenderer.invoke("WindowSV-ToggleMaximize"),
+    close: () => ipcRenderer.invoke("WindowSV-Close"),
+    onStateChanged: (listener) => {
+      windowStateListeners.add(listener);
+      if (!windowStateSubscribed) {
+        windowStateSubscribed = true;
+        ipcRenderer.on("WindowSV-StateChanged", (_event: unknown, payload: WindowControlState) => {
+          windowStateListeners.forEach((entry) => entry(payload));
+        });
+        ipcRenderer.send("WindowSV-SubscribeStateChanged");
+      }
+      return () => {
+        windowStateListeners.delete(listener);
       };
     },
   },

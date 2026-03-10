@@ -2,6 +2,8 @@
 const { contextBridge, ipcRenderer } = require("electron");
 const soundPadListeners = new Set();
 let soundPadSubscribed = false;
+const windowStateListeners = new Set();
+let windowStateSubscribed = false;
 const soundPadEventHandler = (_event, audios) => {
     soundPadListeners.forEach((listener) => {
         listener(audios);
@@ -205,6 +207,25 @@ const underdeckApi = {
                     ipcRenderer.removeListener("AppSettingsSV-DevToolsChanged", devToolsChangedHandler);
                     devToolsChangedSubscribed = false;
                 }
+            };
+        },
+    },
+    windowControls: {
+        getState: () => ipcRenderer.invoke("WindowSV-GetState"),
+        minimize: () => ipcRenderer.invoke("WindowSV-Minimize"),
+        toggleMaximize: () => ipcRenderer.invoke("WindowSV-ToggleMaximize"),
+        close: () => ipcRenderer.invoke("WindowSV-Close"),
+        onStateChanged: (listener) => {
+            windowStateListeners.add(listener);
+            if (!windowStateSubscribed) {
+                windowStateSubscribed = true;
+                ipcRenderer.on("WindowSV-StateChanged", (_event, payload) => {
+                    windowStateListeners.forEach((entry) => entry(payload));
+                });
+                ipcRenderer.send("WindowSV-SubscribeStateChanged");
+            }
+            return () => {
+                windowStateListeners.delete(listener);
             };
         },
     },

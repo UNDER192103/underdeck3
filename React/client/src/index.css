@@ -279,17 +279,24 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 
   ::-webkit-scrollbar-thumb {
     background: oklch(0.623 0.214 259.815);
     border-radius: 4px;
     transition: background 0.2s ease;
+    border: 2px solid transparent;
+    background-clip: content-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
     background: oklch(0.7 0.25 259.815);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent !important;
   }
 
   /* Firefox scrollbar */

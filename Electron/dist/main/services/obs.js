@@ -59,8 +59,20 @@ export class ObsService extends EventEmitter {
     getSettings() {
         return this.getSettingsFromStorage();
     }
+    isPrivateIpv4(address) {
+        if (/^10\./.test(address))
+            return true;
+        if (/^192\.168\./.test(address))
+            return true;
+        const match = address.match(/^172\.(\d{1,3})\./);
+        if (!match)
+            return false;
+        const secondOctet = Number(match[1]);
+        return secondOctet >= 16 && secondOctet <= 31;
+    }
     getLocalIpAddress() {
         const interfaces = os.networkInterfaces();
+        let fallbackAddress = null;
         for (const net of Object.values(interfaces)) {
             if (!net)
                 continue;
@@ -69,10 +81,13 @@ export class ObsService extends EventEmitter {
                     continue;
                 if (details.internal)
                     continue;
-                return details.address;
+                if (this.isPrivateIpv4(details.address)) {
+                    return details.address;
+                }
+                fallbackAddress ??= details.address;
             }
         }
-        return OBS_DEFAULT_SETTINGS.host;
+        return fallbackAddress ?? OBS_DEFAULT_SETTINGS.host;
     }
     readAutoDetectedConfig() {
         try {
@@ -83,9 +98,10 @@ export class ObsService extends EventEmitter {
             const raw = fs.readFileSync(configPath, "utf8");
             const config = JSON.parse(raw);
             const bindAddress = String(config.bind_address ?? "").trim();
-            const host = bindAddress && bindAddress !== "0.0.0.0"
-                ? bindAddress
-                : this.getLocalIpAddress();
+            const shouldUseBindAddress = Boolean(bindAddress) &&
+                bindAddress !== "0.0.0.0" &&
+                this.isPrivateIpv4(bindAddress);
+            const host = shouldUseBindAddress ? bindAddress : this.getLocalIpAddress();
             return {
                 host: this.normalizeHost(host),
                 port: this.normalizePort(config.server_port),

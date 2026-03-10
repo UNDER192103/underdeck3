@@ -3,6 +3,7 @@ import { useNavigation } from "@/contexts/NavigationContext";
 
 import { Sidebar } from '@/components/Sidebar';
 import { Navbar } from '@/components/Navbar';
+import { TITLE_BAR_HEIGHT } from '@/components/WindowTitleBar';
 
 import RenderBackground from '@/components/RenderBackground';
 import Apps from '@/components/dashboard/apps';
@@ -49,19 +50,20 @@ export default function Home() {
   }, [currentTab]);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen overflow-hidden flex flex-col">
       <RenderBackground />
 
-      <div className="flex w-full min-h-screen text-foreground overflow-x-hidden">
+      <div className="flex h-full w-full text-foreground overflow-hidden">
 
         <Sidebar onCollapsedChange={setIsCollapsed} />
 
         {/* Main Content */}
         <div
-          className="flex flex-col transition-layout min-h-screen min-w-0"
+          className="flex h-full flex-col transition-layout min-w-0 overflow-hidden"
           style={{
             marginLeft: isCollapsed ? '60px' : '256px',
             width: isCollapsed ? 'calc(100% - 60px)' : 'calc(100% - 256px)',
+            paddingTop: `${TITLE_BAR_HEIGHT}px`,
           }}
         >
 
@@ -69,17 +71,11 @@ export default function Home() {
           <Navbar isCollapsed={isCollapsed} />
 
           {/* Main Area */}
-          <div className="flex-1 flex flex-col transition-sidebar min-w-0 overflow-x-hidden">
+          <div className="flex-1 flex flex-col transition-sidebar min-w-0 overflow-hidden">
 
-            <main className="flex-1 pt-15 min-w-0 overflow-x-hidden">
+            <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden mt-13">
               {content}
             </main>
-
-            {/*
-            <footer className="border-t py-4 text-center text-muted-foreground mt-auto">
-              
-            </footer>
-            */}
           </div>
         </div>
 

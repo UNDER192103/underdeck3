@@ -114,17 +114,36 @@ export class ObsService extends EventEmitter {
         return this.getSettingsFromStorage();
     }
 
+    private isPrivateIpv4(address: string) {
+        if (/^10\./.test(address)) return true;
+        if (/^192\.168\./.test(address)) return true;
+
+        const match = address.match(/^172\.(\d{1,3})\./);
+        if (!match) return false;
+
+        const secondOctet = Number(match[1]);
+        return secondOctet >= 16 && secondOctet <= 31;
+    }
+
     private getLocalIpAddress() {
         const interfaces = os.networkInterfaces();
+        let fallbackAddress: string | null = null;
+
         for (const net of Object.values(interfaces)) {
             if (!net) continue;
             for (const details of net) {
                 if (details.family !== "IPv4") continue;
                 if (details.internal) continue;
-                return details.address;
+
+                if (this.isPrivateIpv4(details.address)) {
+                    return details.address;
+                }
+
+                fallbackAddress ??= details.address;
             }
         }
-        return OBS_DEFAULT_SETTINGS.host;
+
+        return fallbackAddress ?? OBS_DEFAULT_SETTINGS.host;
     }
 
     private readAutoDetectedConfig() {
@@ -141,9 +160,11 @@ export class ObsService extends EventEmitter {
             };
 
             const bindAddress = String(config.bind_address ?? "").trim();
-            const host = bindAddress && bindAddress !== "0.0.0.0"
-                ? bindAddress
-                : this.getLocalIpAddress();
+            const shouldUseBindAddress =
+                Boolean(bindAddress) &&
+                bindAddress !== "0.0.0.0" &&
+                this.isPrivateIpv4(bindAddress);
+            const host = shouldUseBindAddress ? bindAddress : this.getLocalIpAddress();
 
             return {
                 host: this.normalizeHost(host),

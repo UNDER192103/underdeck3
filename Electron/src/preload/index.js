@@ -79,6 +79,14 @@ const devToolsChangedHandler = (_event, payload) => {
   });
 };
 
+const windowStateListeners = new Set();
+let windowStateSubscribed = false;
+const windowStateHandler = (_event, payload) => {
+  windowStateListeners.forEach((listener) => {
+    listener(payload);
+  });
+};
+
 const themePreferencesListeners = new Set();
 let themePreferencesSubscribed = false;
 const themePreferencesHandler = (_event, payload) => {
@@ -214,6 +222,23 @@ const underdeckApi = {
           ipcRenderer.removeListener("AppSettingsSV-DevToolsChanged", devToolsChangedHandler);
           devToolsChangedSubscribed = false;
         }
+      };
+    },
+  },
+  windowControls: {
+    getState: () => ipcRenderer.invoke("WindowSV-GetState"),
+    minimize: () => ipcRenderer.invoke("WindowSV-Minimize"),
+    toggleMaximize: () => ipcRenderer.invoke("WindowSV-ToggleMaximize"),
+    close: () => ipcRenderer.invoke("WindowSV-Close"),
+    onStateChanged: (listener) => {
+      windowStateListeners.add(listener);
+      if (!windowStateSubscribed) {
+        ipcRenderer.on("WindowSV-StateChanged", windowStateHandler);
+        ipcRenderer.send("WindowSV-SubscribeStateChanged");
+        windowStateSubscribed = true;
+      }
+      return () => {
+        windowStateListeners.delete(listener);
       };
     },
   },

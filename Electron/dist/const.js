@@ -1,5 +1,5 @@
 export const RendererTargetConfig = {
-    sourceMode: "local",
+    sourceMode: "auto",
     devBaseUrl: "http://localhost:3404",
 };
 export const BaseConfig = {

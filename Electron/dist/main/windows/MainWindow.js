@@ -23,7 +23,7 @@ export function createMainWindow(options = {}) {
         fullscreenable: true,
         fullscreen: false,
         autoHideMenuBar: true,
-        frame: true,
+        frame: false,
         icon: getAssetPath(...Settings.get('assets').windowIcon),
         webPreferences: {
             preload: preloadPath,
