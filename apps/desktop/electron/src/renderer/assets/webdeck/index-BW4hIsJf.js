@@ -1,0 +1,1 @@
+import{f as e,j as t}from"../http-DK-0syKU.js";import{W as o}from"../App-Bmtnq9gb.js";import"../WebDeckGrid-CR8m3kj8.js";e.createRoot(document.getElementById("root")).render(t.jsx(o,{"data-loc":"client\\src\\webdeck\\main.tsx:5"}));
