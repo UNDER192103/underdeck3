@@ -1,4 +1,4 @@
-<h2>Under Deck 3.0.13 - Major Update</h2>
+<h2>Under Deck 3.0.15 - Major Update</h2>
 
 <h3>English</h3>
 <p>This major release focuses on stability, quality, and core experience improvements.</p>
