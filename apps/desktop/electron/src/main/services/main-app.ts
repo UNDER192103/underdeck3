@@ -462,6 +462,13 @@ export class MainAppService extends EventEmitter {
             return null;
         }
         logsService.log("app", "execute.start", { id: app.id, type: app.type, name: app.name });
+        const shouldLogApp = logsService.isEnabled("app");
+        const truncateOutput = (value: unknown, limit = 4000) => {
+            if (value === undefined || value === null) return undefined;
+            const text = String(value);
+            if (text.length <= limit) return text;
+            return `${text.slice(0, limit)}...`;
+        };
         switch (app.type) {
             case 1: {
                 if (!("path" in app.meta_data) || !app.meta_data.path) {
@@ -470,13 +477,46 @@ export class MainAppService extends EventEmitter {
                 }
                 const args = Array.isArray(app.meta_data.args) ? app.meta_data.args : [];
                 const fallbackCwd = path.dirname(app.meta_data.path);
-                spawn(app.meta_data.path, args, {
+                const child = spawn(app.meta_data.path, args, {
                     detached: true,
-                    stdio: "ignore",
+                    stdio: shouldLogApp ? ["ignore", "pipe", "pipe"] : "ignore",
                     cwd: app.meta_data.cwd || fallbackCwd,
                     env: app.meta_data.env ? { ...process.env, ...app.meta_data.env } : process.env,
-                }).unref();
+                    windowsHide: true,
+                });
+                child.unref();
                 logsService.log("app", "execute.spawn", { id: app.id, path: app.meta_data.path, args });
+                if (shouldLogApp) {
+                    let stdout = "";
+                    let stderr = "";
+                    child.stdout?.on("data", (chunk) => {
+                        stdout += chunk.toString();
+                    });
+                    child.stderr?.on("data", (chunk) => {
+                        stderr += chunk.toString();
+                    });
+                    child.on("error", (error) => {
+                        logsService.log("app", "execute.spawn.error", {
+                            id: app.id,
+                            path: app.meta_data.path,
+                            args,
+                            error: String(error),
+                            stdout: truncateOutput(stdout),
+                            stderr: truncateOutput(stderr),
+                        }, "error");
+                    });
+                    child.on("close", (code, signal) => {
+                        logsService.log("app", "execute.spawn.exit", {
+                            id: app.id,
+                            path: app.meta_data.path,
+                            args,
+                            code,
+                            signal,
+                            stdout: truncateOutput(stdout),
+                            stderr: truncateOutput(stderr),
+                        });
+                    });
+                }
                 return true;
             }
             case 2: {
@@ -552,11 +592,11 @@ export class MainAppService extends EventEmitter {
                 const url = app.meta_data.url;
                 try {
                     const _url = new URL(url);
-                    exec(`start "" "${url}"`, () => { });
-                    logsService.log("app", "execute.url", { id: app.id, url });
+                    await electron.shell.openExternal(_url.toString());
+                    logsService.log("app", "execute.url", { id: app.id, url: _url.toString() });
                     return true;
                 } catch (error) {
-                    logsService.log("app", "execute.url.error", { id: app.id, url }, "error");
+                    logsService.log("app", "execute.url.error", { id: app.id, url, error: String(error) }, "error");
                     return false;
                 }
             }
@@ -627,16 +667,38 @@ export class MainAppService extends EventEmitter {
                     return false;
                 }
                 if (process.platform !== "win32") return false;
+                const commandBase = String(app.meta_data.command);
                 const args = Array.isArray(app.meta_data.args) ? app.meta_data.args : [];
                 const quoteArg = (value: string) => {
                     if (value.length === 0) return "\"\"";
-                    if (!/[\s"]/g.test(value)) return value;
-                    return `"${value.replace(/"/g, '\\"')}"`;
+                    if (/[\s"]/g.test(value)) {
+                        return `"${value.replace(/"/g, "\"\"")}"`;
+                    }
+                    return value;
                 };
                 const argsString = args.map((arg: unknown) => quoteArg(String(arg))).join(" ");
-                const command = `${app.meta_data.command}${argsString ? ` ${argsString}` : ""}`;
-                exec(command, { env: process.env, windowsHide: true }, () => { });
-                logsService.log("app", "execute.command", { id: app.id, command, args });
+                const fullCommand = `"${commandBase}" ${argsString}`.trim();
+                logsService.log("app", "execute.command", { id: app.id, command: fullCommand, args });
+                exec(
+                    fullCommand,
+                    { env: process.env, windowsHide: true, shell: process.env.ComSpec ?? "cmd.exe" },
+                    (error, stdout, stderr) => {
+                        if (!shouldLogApp) return;
+                        logsService.log(
+                            "app",
+                            error ? "execute.command.error" : "execute.command.result",
+                            {
+                            id: app.id,
+                            command: fullCommand,
+                            args,
+                            error: error ? String(error) : undefined,
+                            stdout: truncateOutput(stdout),
+                            stderr: truncateOutput(stderr),
+                        },
+                        error ? "error" : "info"
+                    );
+                    }
+                );
                 return true;
             }
             default: {

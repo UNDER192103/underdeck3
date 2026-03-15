@@ -145,13 +145,22 @@ export class SoundPadService extends EventEmitter {
             return Promise.resolve({ ok: false, message: "Caminho invalido do SoundPad." });
         }
         return new Promise((resolve) => {
-            exec(`"${savedPath}" -v`, (error) => {
+            exec(`"${savedPath}" -v`, (error, stdout, stderr) => {
                 if (error == null) {
-                    logsService.log("soundpad", "verify.success", { path: savedPath });
+                    logsService.log("soundpad", "verify.success", {
+                        path: savedPath,
+                        stdout: stdout?.toString(),
+                        stderr: stderr?.toString(),
+                    });
                     resolve({ ok: true, message: "SoundPad validado com sucesso." });
                     return;
                 }
-                logsService.log("soundpad", "verify.error", { path: savedPath }, "error");
+                logsService.log("soundpad", "verify.error", {
+                    path: savedPath,
+                    error: String(error),
+                    stdout: stdout?.toString(),
+                    stderr: stderr?.toString(),
+                }, "error");
                 resolve({ ok: false, message: "Falha ao validar SoundPad com -v." });
             });
         });
@@ -198,13 +207,22 @@ export class SoundPadService extends EventEmitter {
             return Promise.resolve({ ok: false, message: "Caminho invalido do SoundPad." });
         }
         return new Promise((resolve) => {
-            exec(`"${savedPath}" -rc ${command}`, (error) => {
+            exec(`"${savedPath}" -rc ${command}`, (error, stdout, stderr) => {
                 if (error == null) {
-                    logsService.log("soundpad", "command.success", { command });
+                    logsService.log("soundpad", "command.success", {
+                        command,
+                        stdout: stdout?.toString(),
+                        stderr: stderr?.toString(),
+                    });
                     resolve({ ok: true, message: "Comando executado com sucesso." });
                     return;
                 }
-                logsService.log("soundpad", "command.error", { command }, "error");
+                logsService.log("soundpad", "command.error", {
+                    command,
+                    error: String(error),
+                    stdout: stdout?.toString(),
+                    stderr: stderr?.toString(),
+                }, "error");
                 resolve({ ok: false, message: "Falha ao executar comando do SoundPad." });
             });
         });
