@@ -155,6 +155,18 @@ const publishObserverToAllWindows = (channel: string, id: string, data?: unknown
   });
 };
 
+const publishGlobalObserverToAllWindows = (channel: string, id: string, data?: unknown) => {
+  const payload = { id, channel, data, sourceId: "APP_ELECTRON", timestamp: Date.now() };
+  BrowserWindow.getAllWindows().forEach((win) => {
+    if (win.isDestroyed()) return;
+    try {
+      win.webContents.send("GlobalObserverSV-Event", payload);
+    } catch {
+      // ignore
+    }
+  });
+};
+
 const stopRuntimeServicesForUpdate = async () => {
   if (updateRuntimeStopped) return;
   updateRuntimeStopped = true;
@@ -387,7 +399,7 @@ const registerUpdateLifecycle = () => {
     if (!version) return;
     if (lastUpdateNotificationVersion === version) return;
     lastUpdateNotificationVersion = version;
-    publishObserverToAllWindows("updates", "updates.available", {
+    publishGlobalObserverToAllWindows("updates", "updates.available", {
       version,
       releaseDate: payload?.releaseDate ?? null,
     });
@@ -448,6 +460,12 @@ protocol.registerSchemesAsPrivileged([
 if (gotSingleInstanceLock) app.whenReady().then(async () => {
   logsService.log("app", "ready");
   ipcMain.on("ObserverSV-Publish", (_event, payload: { id?: string; channel?: string }) => {
+    if (String(payload?.id || "") !== "main.ready") return;
+    mainRendererReady = true;
+    notifyMainRendererReady?.();
+  });
+
+  ipcMain.on("GlobalObserverSV-Publish", (_event, payload: { id?: string; channel?: string }) => {
     if (String(payload?.id || "") === "loading.ready") {
       loadingRendererReady = true;
       notifyLoadingRendererReady?.();

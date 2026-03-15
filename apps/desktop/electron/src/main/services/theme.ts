@@ -7,6 +7,7 @@ import axios from "axios";
 import { getDb } from "./database.js";
 import { MainAppService } from "./main-app.js";
 import { Settings } from "./settings.js";
+import { observerService, ObserverChannels } from "./observer.js";
 import type {
   SavedThemeWallpaper,
   ThemePreferences,
@@ -247,13 +248,43 @@ export class ThemeService {
     };
   }
 
-  public setTheme(theme: StoredThemeName) {
+  public setTheme(theme: StoredThemeName, sourceId?: string) {
     this.setPreference("theme", theme);
+
+    // Publish to observer
+    observerService.publish(
+      ObserverChannels.THEME_CHANGED,
+      { theme },
+      sourceId || "THEME_SERVICE"
+    );
+
+    // Also publish preferences changed
+    observerService.publish(
+      ObserverChannels.THEME_PREFERENCES_CHANGED,
+      { theme },
+      sourceId || "THEME_SERVICE"
+    );
+
     return true;
   }
 
-  public setBackground(background: StoredThemeBackground) {
+  public setBackground(background: StoredThemeBackground, sourceId?: string) {
     this.setPreference("background", background);
+
+    // Publish to observer
+    observerService.publish(
+      ObserverChannels.THEME_BACKGROUND_CHANGED,
+      { background },
+      sourceId || "THEME_SERVICE"
+    );
+
+    // Also publish preferences changed
+    observerService.publish(
+      ObserverChannels.THEME_PREFERENCES_CHANGED,
+      { background },
+      sourceId || "THEME_SERVICE"
+    );
+
     return true;
   }
 

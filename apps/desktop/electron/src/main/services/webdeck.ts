@@ -6,6 +6,7 @@ import EventEmitter from "node:events";
 import { getDb } from "./database.js";
 import { Settings } from "./settings.js";
 import { logsService } from "./logs.js";
+import { observerService, ObserverChannels } from "./observer.js";
 
 const { app: electronApp } = electron;
 
@@ -50,7 +51,19 @@ export class WebDeckService extends EventEmitter {
     }
 
     private notifyChange(type: string, data?: unknown) {
+        // Emit internal EventEmitter event (for backward compatibility)
         this.emit("pages-changed");
+
+        // Publish to global observer
+        const pages = this.listPages();
+        const autoIcons = this.listAutoIcons();
+        observerService.publish(
+            ObserverChannels.WEBDECK_PAGES_CHANGED,
+            { pages, autoIcons },
+            "WEBDECK_SERVICE"
+        );
+
+        // Legacy callback support
         if (this.changeCallback) {
             try {
                 this.changeCallback(type, data);
@@ -82,6 +95,12 @@ export class WebDeckService extends EventEmitter {
                 icon TEXT,
                 updated_at INTEGER NOT NULL,
                 PRIMARY KEY (kind, icon_key)
+            )
+        `).run();
+        db.prepare(`
+            CREATE TABLE IF NOT EXISTS webdeck_icon_timestamps (
+                icon TEXT PRIMARY KEY,
+                updated_at INTEGER NOT NULL
             )
         `).run();
         return db;
@@ -172,7 +191,9 @@ export class WebDeckService extends EventEmitter {
 
         fs.copyFileSync(normalizedSource, targetPath);
         const relativePath = this.toRelativeStoragePath(targetPath);
-        return this.toMediaUrlFromRelativePath(relativePath);
+        const mediaUrl = this.toMediaUrlFromRelativePath(relativePath);
+        this.touchIconTimestamp(mediaUrl);
+        return mediaUrl;
     }
 
     private saveItemIcon(itemId: string, iconSource: string | null | undefined) {
@@ -201,7 +222,9 @@ export class WebDeckService extends EventEmitter {
 
         fs.copyFileSync(normalizedSource, targetPath);
         const relativePath = this.toRelativeStoragePath(targetPath);
-        return this.toMediaUrlFromRelativePath(relativePath);
+        const mediaUrl = this.toMediaUrlFromRelativePath(relativePath);
+        this.touchIconTimestamp(mediaUrl);
+        return mediaUrl;
     }
 
     private deleteIconIfLocal(icon: string | null | undefined) {
@@ -266,7 +289,34 @@ export class WebDeckService extends EventEmitter {
 
         fs.copyFileSync(normalizedSource, targetPath);
         const relativePath = this.toRelativeStoragePath(targetPath);
-        return this.toMediaUrlFromRelativePath(relativePath);
+        const mediaUrl = this.toMediaUrlFromRelativePath(relativePath);
+        this.touchIconTimestamp(mediaUrl);
+        return mediaUrl;
+    }
+
+    private touchIconTimestamp(icon: string | null | undefined) {
+        if (!icon || !icon.startsWith("underdeck-media://")) return;
+        const db = this.getDatabase();
+        db.prepare(`
+            INSERT INTO webdeck_icon_timestamps (icon, updated_at)
+            VALUES (?, ?)
+            ON CONFLICT(icon) DO UPDATE SET
+                updated_at = excluded.updated_at
+        `).run(icon, Date.now());
+    }
+
+    public listIconTimestamps(): Record<string, number> {
+        const db = this.getDatabase();
+        const rows = db
+            .prepare("SELECT icon, updated_at FROM webdeck_icon_timestamps")
+            .all() as Array<{ icon: string; updated_at: number }>;
+        const map: Record<string, number> = {};
+        rows.forEach((row) => {
+            const icon = String(row.icon || "").trim();
+            if (!icon) return;
+            map[icon] = Number(row.updated_at ?? 0);
+        });
+        return map;
     }
 
     private hasAutoIconReference(kind: "page" | "item", icon: string | null | undefined) {
@@ -699,6 +749,31 @@ export class WebDeckService extends EventEmitter {
             }
         }
         return { pages, items };
+    }
+
+    public listAutoIconsWithTimestamps(): { icons: WebDeckAutoIcons; timestamps: { pages: Record<string, number>; items: Record<string, number> } } {
+        const db = this.getDatabase();
+        const rows = db
+            .prepare("SELECT kind, icon_key, icon, updated_at FROM webdeck_auto_icons")
+            .all() as Array<{ kind: string; icon_key: string; icon: string | null; updated_at: number }>;
+        const pages: Record<string, string> = {};
+        const items: Record<string, string> = {};
+        const pageTimestamps: Record<string, number> = {};
+        const itemTimestamps: Record<string, number> = {};
+        for (const row of rows) {
+            const key = String(row.icon_key ?? "").trim();
+            const icon = row.icon ? String(row.icon) : "";
+            const updatedAt = Number(row.updated_at ?? 0);
+            if (!key || !icon) continue;
+            if (row.kind === "page") {
+                pages[key] = icon;
+                pageTimestamps[key] = updatedAt;
+            } else if (row.kind === "item") {
+                items[key] = icon;
+                itemTimestamps[key] = updatedAt;
+            }
+        }
+        return { icons: { pages, items }, timestamps: { pages: pageTimestamps, items: itemTimestamps } };
     }
 
     public setAutoPageIcon(rootId: string, iconSource: string | null | undefined): WebDeckAutoIcons {

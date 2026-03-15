@@ -6,6 +6,7 @@ import convert from "xml-js";
 import electron from "electron";
 import { Settings } from "./settings.js";
 import { logsService } from "./logs.js";
+import { observerService, ObserverChannels } from "./observer.js";
 
 const { app: electronApp } = electron;
 
@@ -64,7 +65,17 @@ export class SoundPadService extends EventEmitter {
             clearTimeout(this.watcherDebounceTimer);
         }
         this.watcherDebounceTimer = setTimeout(() => {
+            // Emit internal EventEmitter event (for backward compatibility)
             this.emit("audios-changed");
+
+            // Publish to global observer
+            void this.listAudios().then((audios) => {
+                observerService.publish(
+                    ObserverChannels.SOUNDPAD_AUDIOS_CHANGED,
+                    { audios },
+                    "SOUNDPAD_SERVICE"
+                );
+            });
         }, 250);
     }
 

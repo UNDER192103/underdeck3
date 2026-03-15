@@ -17,7 +17,7 @@ export default function AppLauncherApp() {
 
   useEffect(() => {
     try {
-      window.underdeck.observer.publish({
+      window.underdeck.globalObserver.publish({
         id: "loading.ready",
         channel: "app",
         sourceId: "APP_LOADING",

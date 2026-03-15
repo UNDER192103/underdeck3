@@ -337,6 +337,9 @@ const underdeckApi = {
       };
     },
   },
+  notifications: {
+    send: (title, body) => ipcRenderer.invoke("NotificationSV-Send", title, body),
+  },
   soundpad: {
     getPath: () => ipcRenderer.invoke("SoundPadSV-GetPath"),
     setPath: (filePath) => ipcRenderer.invoke("SoundPadSV-SetPath", filePath),
@@ -405,6 +408,7 @@ const underdeckApi = {
   webdeck: {
     listPages: () => ipcRenderer.invoke("WebDeckSV-ListPages"),
     findPage: (id) => ipcRenderer.invoke("WebDeckSV-FindPage", id),
+    getMetadata: () => ipcRenderer.invoke("WebDeckSV-GetMetadata"),
     createPage: (payload, sourceId) => ipcRenderer.invoke("WebDeckSV-CreatePage", payload, sourceId),
     updatePage: (payload, sourceId) => ipcRenderer.invoke("WebDeckSV-UpdatePage", payload, sourceId),
     deletePage: (id, sourceId) => ipcRenderer.invoke("WebDeckSV-DeletePage", id, sourceId),

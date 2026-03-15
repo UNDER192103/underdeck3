@@ -1,0 +1,1 @@
+import{f as t,j as o}from"../http-DK-0syKU.js";import{Z as r}from"../App-B9zleHRL.js";import"../WebDeckGrid-COedDQd1.js";import"../loader-circle-CX8Ebkdl.js";t.createRoot(document.getElementById("root")).render(o.jsx(r,{"data-loc":"client\\src\\overlay\\main.tsx:6"}));

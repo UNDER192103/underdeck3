@@ -3,8 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { RendererSourceMode, RendererTargetConfig } from "../../const.js";
+import { Settings } from "../services/settings.js";
 
-const { app } = electron;
+const { app, shell } = electron;
 
 type RendererPage = "main" | "overlay" | "webdeck" | "applauncher";
 
@@ -87,26 +88,69 @@ const isInsideFileIndexScope = (targetUrl: string, indexFileUrl: string) => {
     }
 };
 
-const lockNavigationToIndexFile = (win: Electron.BrowserWindow, indexFilePath: string) => {
-    const allowedIndexUrl = pathToFileURL(indexFilePath).toString();
-    const shouldBlock = (targetUrl: string) => !isInsideFileIndexScope(targetUrl, allowedIndexUrl);
+const attachNavigationLock = (
+    win: Electron.BrowserWindow,
+    shouldAllowUrl: (targetUrl: string) => boolean
+) => {
+    const shouldOpenExternal = () => Boolean(Settings.get("electron")?.openLinksInBrowser);
+
+    const maybeOpenExternal = (targetUrl: string) => {
+        if (!shouldOpenExternal()) return;
+        try {
+            void shell.openExternal(targetUrl);
+        } catch {
+            // ignore
+        }
+    };
 
     win.webContents.on("will-navigate", (event, targetUrl) => {
-        if (!shouldBlock(targetUrl)) return;
-        event.preventDefault();
+        if (shouldAllowUrl(targetUrl)) return;
+        if (shouldOpenExternal()) {
+            event.preventDefault();
+            maybeOpenExternal(targetUrl);
+        }
     });
 
     win.webContents.on("will-redirect", (event, targetUrl) => {
-        if (!shouldBlock(targetUrl)) return;
-        event.preventDefault();
+        if (shouldAllowUrl(targetUrl)) return;
+        if (shouldOpenExternal()) {
+            event.preventDefault();
+            maybeOpenExternal(targetUrl);
+        }
     });
 
     win.webContents.setWindowOpenHandler(({ url }) => {
-        if (shouldBlock(url)) {
+        if (shouldAllowUrl(url)) return { action: "allow" };
+        if (shouldOpenExternal()) {
+            maybeOpenExternal(url);
             return { action: "deny" };
         }
         return { action: "allow" };
     });
+};
+
+const lockNavigationToIndexFile = (win: Electron.BrowserWindow, indexFilePath: string) => {
+    const allowedIndexUrl = pathToFileURL(indexFilePath).toString();
+    const shouldAllowUrl = (targetUrl: string) => isInsideFileIndexScope(targetUrl, allowedIndexUrl);
+    attachNavigationLock(win, shouldAllowUrl);
+};
+
+const lockNavigationToBaseUrl = (win: Electron.BrowserWindow, baseUrl: string) => {
+    let allowedOrigin = "";
+    try {
+        allowedOrigin = new URL(baseUrl).origin;
+    } catch {
+        allowedOrigin = "";
+    }
+    const shouldAllowUrl = (targetUrl: string) => {
+        try {
+            const target = new URL(targetUrl);
+            return allowedOrigin !== "" && target.origin === allowedOrigin;
+        } catch {
+            return false;
+        }
+    };
+    attachNavigationLock(win, shouldAllowUrl);
 };
 
 const loadRendererPage = (win: Electron.BrowserWindow, isDev: boolean, page: RendererPage) => {
@@ -114,6 +158,7 @@ const loadRendererPage = (win: Electron.BrowserWindow, isDev: boolean, page: Ren
         const baseUrl = getBaseUrl(isDev);
         const remotePath = page === "main" ? "/" : `/${page}/`;
         const target = new URL(remotePath, baseUrl).toString();
+        lockNavigationToBaseUrl(win, baseUrl);
         void win.loadURL(target);
         return;
     }

@@ -42,6 +42,8 @@ export const enUSMessages: Record<string, string> = {
   "settings.advanced.start_minimized": "Start minimized",
   "settings.advanced.close_to_tray": "Close to tray",
   "settings.advanced.devtools": "DevTools",
+  "settings.advanced.open_links_in_browser": "Open links in browser",
+  "settings.advanced.open_links_in_browser_tooltip": "When enabled, external links open in your default browser.",
   "settings.advanced.auto_start": "Start with operating system",
   "settings.advanced.notifications": "Notifications",
   "settings.advanced.auto_download_updates": "Download updates automatically",

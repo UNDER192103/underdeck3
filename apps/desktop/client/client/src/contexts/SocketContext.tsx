@@ -4,8 +4,8 @@ import { useUser } from "@/contexts/UserContext";
 import { toast } from "sonner";
 import { SocketSettings } from "@/const";
 import { useI18n } from "@/contexts/I18nContext";
-import { useObserver } from "@/contexts/ObserverContext";
 import { useGlobalObserver } from "@/contexts/GlobalObserverContext";
+import type { SavedThemeWallpaper } from "@/types/electron";
 
 interface SocketContextType {
     socket: Socket | null;
@@ -24,7 +24,6 @@ export const useSocket = () => {
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user, loading } = useUser();
     const { t } = useI18n();
-    const { subscribe } = useObserver();
     const { subscribe: subscribeGlobal } = useGlobalObserver();
 
     const [socket, setSocket] = useState<Socket | null>(null);
@@ -34,6 +33,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const socketRef = useRef<Socket | null>(null);
     const deviceRef = useRef<{ hwid: string; name: string } | null>(null);
     const webdeckVersionRef = useRef<number>(Date.now());
+
+    const isStoreBackgroundUrl = (value: string) => value.startsWith("underdeck-media://backgrounds-store/");
+    const isLocalBackgroundUrl = (value: string) => value.startsWith("underdeck-media://backgrounds-local/");
+    const isRemoteBackgroundUrl = (value: string) => /^https?:\/\//i.test(value);
 
     // Fila para processar requisições webdeck:getMedia uma por vez
     const mediaQueueRef = useRef<Array<() => Promise<void>>>([]);
@@ -76,99 +79,112 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socketRef.current = socket;
     }, [socket]);
 
+
+
+    // Escuta eventos do GlobalObserver e envia para o servidor remote
     useEffect(() => {
-        if (!window.underdeck?.webdeck?.onChanged) return;
-        const unsubscribe = window.underdeck.webdeck.onChanged((payload) => {
-            if (payload?.timestamp) {
-                webdeckVersionRef.current = payload.timestamp;
+        if (!subscribeGlobal) return;
+
+        // Subscribe to all relevant observer channels
+        const unsubscribeApps = subscribeGlobal(
+            "apps",
+            (payload) => {
+                const currentSocket = socketRef.current;
+                if (!currentSocket?.connected) return;
+
+                // Normalize event type based on payload id
+                let eventType = "apps:changed";
+                if (String(payload?.id || "").includes("add")) eventType = "app:added";
+                else if (String(payload?.id || "").includes("update")) eventType = "app:updated";
+                else if (String(payload?.id || "").includes("delete")) eventType = "app:deleted";
+                else if (String(payload?.id || "").includes("reposition")) eventType = "apps:changed";
+
+                currentSocket.emit("app:observer:event", {
+                    event: {
+                        type: eventType,
+                        data: payload.data,
+                        timestamp: payload.timestamp,
+                        sourceId: payload.sourceId
+                    }
+                });
             }
-            const currentSocket = socketRef.current;
-            if (currentSocket?.connected) {
-                currentSocket.emit("webdeck:changed", { timestamp: payload?.timestamp ?? Date.now() });
+        );
+
+        const unsubscribeWebDeck = subscribeGlobal(
+            ["webdeck:pages-changed", "webdeck:items-changed"],
+            (payload) => {
+                const currentSocket = socketRef.current;
+                if (!currentSocket?.connected) return;
+
+                currentSocket.emit("app:observer:event", {
+                    event: {
+                        type: payload.channel,
+                        data: payload.data,
+                        timestamp: payload.timestamp,
+                        sourceId: payload.sourceId
+                    }
+                });
             }
-        });
+        );
+
+        const unsubscribeObs = subscribeGlobal(
+            ["obs:state-changed", "obs:scene-changed", "obs:stream-changed", "obs:record-changed"],
+            (payload) => {
+                const currentSocket = socketRef.current;
+                if (!currentSocket?.connected) return;
+
+                currentSocket.emit("app:observer:event", {
+                    event: {
+                        type: payload.channel,
+                        data: payload.data,
+                        timestamp: payload.timestamp,
+                        sourceId: payload.sourceId
+                    }
+                });
+            }
+        );
+
+        const unsubscribeSoundpad = subscribeGlobal(
+            "soundpad",
+            (payload) => {
+                const currentSocket = socketRef.current;
+                if (!currentSocket?.connected) return;
+
+                currentSocket.emit("app:observer:event", {
+                    event: {
+                        type: "soundpad:audios-changed",
+                        data: payload.data,
+                        timestamp: payload.timestamp,
+                        sourceId: payload.sourceId
+                    }
+                });
+            }
+        );
+
+        const unsubscribeTheme = subscribeGlobal(
+            ["theme:changed", "theme:preferences-changed", "theme:background-changed"],
+            (payload) => {
+                const currentSocket = socketRef.current;
+                if (!currentSocket?.connected) return;
+
+                currentSocket.emit("app:observer:event", {
+                    event: {
+                        type: payload.channel,
+                        data: payload.data,
+                        timestamp: payload.timestamp,
+                        sourceId: payload.sourceId
+                    }
+                });
+            },
+            false
+        );
+
         return () => {
-            unsubscribe?.();
-        };
-    }, []);
-
-    // Escuta mudanças nos apps e envia para o servidor remote
-    useEffect(() => {
-        if (!window.underdeck?.apps?.onChanged) return;
-        const unsubscribe = window.underdeck.apps.onChanged((payload) => {
-            const currentSocket = socketRef.current;
-            if (currentSocket?.connected) {
-                currentSocket.emit("app:observer:event", {
-                    event: { type: "apps:changed", data: { timestamp: payload.timestamp } }
-                });
-            }
-        });
-        return () => {
-            unsubscribe?.();
-        };
-    }, []);
-
-    // Escuta eventos do observer e envia atualizações detalhadas para o servidor
-    useEffect(() => {
-        const unsubscribeWebDeck = subscribe("webdeck", (payload) => {
-            const currentSocket = socketRef.current;
-            if (!currentSocket?.connected) return;
-
-            if (payload.channel === "webdeck.pages_changed") {
-                currentSocket.emit("app:observer:event", {
-                    event: { type: "webdeck:pages-changed", data: payload.data }
-                });
-            }
-        });
-
-        const unsubscribeApps = subscribe("apps", (payload) => {
-            const currentSocket = socketRef.current;
-            if (!currentSocket?.connected) return;
-
-            if (payload.channel === "apps.changed") {
-                currentSocket.emit("app:observer:event", {
-                    event: { type: "apps:changed", data: payload.data }
-                });
-            }
-        });
-
-        const unsubscribeObs = subscribe("obs", (payload) => {
-            const currentSocket = socketRef.current;
-            if (!currentSocket?.connected) return;
-
-            if (payload.channel === "obs.state_changed") {
-                currentSocket.emit("app:observer:event", {
-                    event: { type: "obs:state-changed", data: payload.data }
-                });
-            }
-        });
-
-        const unsubscribeSoundpad = subscribe("soundpad", (payload) => {
-            const currentSocket = socketRef.current;
-            if (!currentSocket?.connected) return;
-
-            if (payload.channel === "soundpad.audios_changed") {
-                currentSocket.emit("app:observer:event", {
-                    event: { type: "soundpad:audios-changed", data: payload.data }
-                });
-            }
-        });
-
-        return () => {
-            unsubscribeWebDeck();
             unsubscribeApps();
+            unsubscribeWebDeck();
             unsubscribeObs();
             unsubscribeSoundpad();
-        };
-    }, [subscribe]);
-
-    useEffect(() => {
-        if (!window.underdeck?.webdeck?.onChanged) return;
-        const unsubscribe = subscribeGlobal("GLOBAL", (payload) => {
-            console.log(payload);
-        }, false);
-        return () => {
-            unsubscribe?.();
+            unsubscribeTheme();
         };
     }, [subscribeGlobal]);
 
@@ -329,6 +345,70 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                                 background: themePreferences?.background ?? { variant: "neural" },
                             },
                             version: webdeckVersionRef.current,
+                        },
+                    });
+                    return;
+                }
+
+                if (cmd === "webdeck:getMetadata") {
+                    const webdeck = window.underdeck.webdeck as unknown as { getMetadata?: () => Promise<any> };
+                    if (typeof webdeck?.getMetadata === "function") {
+                        const metadata = await webdeck.getMetadata();
+                        safeCb({ ok: true, data: metadata });
+                        return;
+                    }
+                    const [pages, autoIcons, apps] = await Promise.all([
+                        window.underdeck.webdeck.listPages(),
+                        window.underdeck.webdeck.listAutoIcons(),
+                        window.underdeck.apps.list(),
+                    ]);
+                    safeCb({
+                        ok: true,
+                        data: {
+                            pages,
+                            apps,
+                            autoIcons,
+                            iconTimestamps: {},
+                            timestamp: Date.now(),
+                        },
+                    });
+                    return;
+                }
+
+                if (cmd === "webdeck:getThemeBackground") {
+                    const themePreferences = await window.underdeck.theme.getPreferences("ligth", { variant: "neural" });
+                    const background = themePreferences?.background;
+                    let backgroundType: "neural" | "store" | "local" = "neural";
+                    let storeItemId: string | null = null;
+                    let backgroundUrl: string | null = null;
+
+                    if (background && background.variant !== "neural") {
+                        const sourceUrl = background.variant === "image" ? background.imageSrc : background.videoSrc;
+                        if (sourceUrl && isStoreBackgroundUrl(sourceUrl)) {
+                            const saved = await window.underdeck.theme.listSavedStoreWallpapers();
+                            const match = saved.find((item: SavedThemeWallpaper) => item.mediaUrl === sourceUrl && item.exists);
+                            if (match?.itemId) {
+                                backgroundType = "store";
+                                storeItemId = String(match.itemId);
+                                backgroundUrl = match.remoteUrl || null;
+                            }
+                        } else if (sourceUrl && isRemoteBackgroundUrl(sourceUrl)) {
+                            backgroundType = "store";
+                            backgroundUrl = sourceUrl;
+                        } else if (sourceUrl && isLocalBackgroundUrl(sourceUrl)) {
+                            backgroundType = "local";
+                        } else {
+                            backgroundType = "local";
+                        }
+                    }
+
+                    safeCb({
+                        ok: true,
+                        data: {
+                            theme: themePreferences?.theme ?? "ligth",
+                            backgroundType,
+                            storeItemId,
+                            backgroundUrl,
                         },
                     });
                     return;

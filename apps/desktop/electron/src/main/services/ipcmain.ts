@@ -23,7 +23,7 @@ import { OverlaySettings } from "../../types/overlay.js";
 import { UpdaterService } from "./updater.js";
 import { logsService, LogsSettings, LogCategory } from "./logs.js";
 import { NotificationService } from "./notifications.js";
-import { ObserverPayload, observerService } from "./observer.js";
+import { ObserverPayload, observerService, ObserverChannels, ObserverEventDataMap } from "./observer.js";
 
 type WebDeckChangedPayload = { sourceId: string; timestamp: number };
 type ExpressStatusChangedPayload = { sourceId: string; enabled: boolean; port: number; timestamp: number };
@@ -34,6 +34,7 @@ type ElectronSettingsPayload = {
     startMinimized: boolean;
     closeToTray: boolean;
     devTools: boolean;
+    openLinksInBrowser: boolean;
 };
 type LogsSettingsPayload = LogsSettings;
 type WindowControlState = {
@@ -91,39 +92,32 @@ export class IpcmainService {
         this.onWindowsSettingsChanged = onWindowsSettingsChanged;
         this.onUpdateAvailableForHandoff = onUpdateAvailableForHandoff;
 
-        // Registra callback para notificar frontend quando webdeck mudar
-        this.webDeckService.onChange((type, data) => {
-            this.notifyWebDeckChanged(type, data);
-        });
+        // Subscribe to observer events to forward to IPC
+        this.setupObserverBridge();
+    }
 
-        // Registra callback para notificar frontend quando apps mudarem
-        this.AppService.onChange((type, data) => {
-            this.notifyAppsChanged(type, data);
-        });
+    /**
+     * Sets up the bridge between observer events and IPC
+     * REMOVED - now using GlobalObserver directly
+     */
+    private setupObserverBridge() {
+        // No longer needed - all events go through GlobalObserver
     }
 
     private notifyAppsChanged(type: string, data?: unknown) {
-        const windows = BrowserWindow.getAllWindows();
-        windows.forEach((win) => {
-            if (win.isDestroyed()) return;
-            try {
-                win.webContents.send("AppsSV-Changed", { type, data, timestamp: Date.now() });
-            } catch {
-                // ignore broadcast errors
-            }
-        });
+        // REMOVED - old IPC system, now using GlobalObserver directly from source
     }
 
     private notifyWebDeckChanged(type: string, data?: unknown) {
-        const windows = BrowserWindow.getAllWindows();
-        windows.forEach((win) => {
-            if (win.isDestroyed()) return;
-            try {
-                win.webContents.send("WebDeckSV-Changed", { type, data, timestamp: Date.now() });
-            } catch {
-                // ignore broadcast errors
-            }
-        });
+        // REMOVED - old IPC system, now using GlobalObserver directly from source
+    }
+
+    private notifyObsStateChanged(state: unknown) {
+        // REMOVED - old IPC system, now using GlobalObserver directly from source
+    }
+
+    private notifySoundPadAudiosChanged(audios: unknown[]) {
+        // REMOVED - old IPC system, now using GlobalObserver directly from source
     }
 
     private unsubscribeSoundPadAudiosChangedBySenderId(senderId: number) {
@@ -373,6 +367,7 @@ export class IpcmainService {
             startMinimized: Boolean(current?.startMinimized),
             closeToTray: Boolean(current?.closeToTray),
             devTools: Boolean(current?.devTools),
+            openLinksInBrowser: Boolean(current?.openLinksInBrowser),
         };
     }
 
@@ -427,7 +422,7 @@ export class IpcmainService {
             }
         });
 
-        observerService.subscribe('_IPCMAIN_PUBLISH_ENVENT_', (raw: Partial<ObserverPayload>) => {
+        observerService.subscribe('_IPCMAIN_PUBLISH_EVENT_', (raw: Partial<ObserverPayload>) => {
             const payload: ObserverPayload = {
                 id: String(raw?.id || "unknown"),
                 channel: String(raw?.channel || "GLOBAL"),
@@ -515,17 +510,34 @@ export class IpcmainService {
         });
 
         ipcMain.handle("AppsSV-List", async () => await this.AppService.listApps());
-        ipcMain.handle("AppsSV-add", async (_event, app: App) => await this.AppService.addApp(app));
-        ipcMain.handle("AppsSV-update", async (_event, app: App) => await this.AppService.updateApp(app));
+        ipcMain.handle("AppsSV-add", async (_event, app: App) => {
+            const result = await this.AppService.addApp(app);
+            // Publica evento para SocketContext e Express
+            observerService.publish("apps:changed", { type: "added" as const, apps: [app] } as any, "IPCMAIN");
+            return result;
+        });
+        ipcMain.handle("AppsSV-update", async (_event, app: App) => {
+            const result = await this.AppService.updateApp(app);
+            // Publica evento para SocketContext e Express
+            observerService.publish("apps:changed", { type: "updated" as const, apps: [app] } as any, "IPCMAIN");
+            return result;
+        });
         ipcMain.handle("AppsSV-find", async (_event, id: string) => await this.AppService.findApp(id));
         ipcMain.handle("AppsSV-delete", async (_event, id: string) => {
             const result = await this.AppService.deleteApp(id);
             const shortcuts = await this.AppService.listShortcuts();
             await this.hortcutService.updateDataMacros(shortcuts);
+            // Publica evento para SocketContext e Express
+            observerService.publish("apps:changed", { type: "deleted" as const, apps: [{ id }] } as any, "IPCMAIN");
             return result;
         });
         ipcMain.handle("AppsSV-execute", async (_event, id: string) => await this.AppService.executeApp(id));
-        ipcMain.handle("AppsSV-reposition", async (_event, id: string, toPosition: number) => await this.AppService.repositionApp(id, toPosition));
+        ipcMain.handle("AppsSV-reposition", async (_event, id: string, toPosition: number) => {
+            const result = await this.AppService.repositionApp(id, toPosition);
+            // Publica evento para SocketContext e Express
+            observerService.publish("apps:changed", { type: "repositioned" as const, apps: [{ id, position: toPosition }] } as any, "IPCMAIN");
+            return result;
+        });
 
         ipcMain.handle("HortcutSV-GetComboKeys", async () => await this.hortcutService.getComboKeys());
         ipcMain.handle("HortcutSV-List", async () => await this.AppService.listShortcuts());
@@ -665,13 +677,13 @@ export class IpcmainService {
             return this.themeService.getPreferences(defaultTheme, defaultBackground);
         });
         ipcMain.handle("ThemeSV-SetTheme", async (_event, theme: "ligth" | "dark" | "black" | "transparent", sourceId?: string) => {
-            const result = this.themeService.setTheme(theme);
-            this.notifyThemePreferencesChangedClients(sourceId);
+            const result = this.themeService.setTheme(theme, sourceId);
+            // Note: notifyThemePreferencesChangedClients is now called via observer subscription
             return result;
         });
         ipcMain.handle("ThemeSV-SetBackground", async (_event, background: { variant: "neural" } | { variant: "image"; imageSrc: string } | { variant: "video"; videoSrc: string }, sourceId?: string) => {
-            const result = this.themeService.setBackground(background);
-            this.notifyThemePreferencesChangedClients(sourceId);
+            const result = this.themeService.setBackground(background, sourceId);
+            // Note: notifyThemePreferencesChangedClients is now called via observer subscription
             return result;
         });
 
@@ -732,52 +744,230 @@ export class IpcmainService {
             this.unsubscribeObsStateChangedBySenderId(event.sender.id);
         });
 
+        // Handler para comandos do WebDeck remoto
+        ipcMain.on("WebDeckSV-Command", async (event, payload: { cmd: string; data?: any }, callback?: any) => {
+            try {
+                const { cmd, data } = payload;
+                
+                if (cmd === "webdeck:getMetadata") {
+                    const pages = this.webDeckService.listPages();
+                    const apps = await this.AppService.listApps();
+                    const { icons: autoIcons, timestamps: autoIconTimestamps } = this.webDeckService.listAutoIconsWithTimestamps();
+                    const iconTimestamps: Record<string, number> = { ...this.webDeckService.listIconTimestamps() };
+                    const pushTimestamp = (url: string | null | undefined, timestamp: number) => {
+                        if (!url) return;
+                        const safeTimestamp = Number(timestamp || 0);
+                        const current = iconTimestamps[url];
+                        if (!current || safeTimestamp > current) {
+                            iconTimestamps[url] = safeTimestamp;
+                        }
+                    };
+                    pages.forEach((page) => {
+                        const pageTimestamp = Number((page as any)?.updatedAt ?? 0);
+                        pushTimestamp(page.icon, pageTimestamp);
+                        page.items?.forEach((item) => {
+                            if (!item?.icon) return;
+                            pushTimestamp(item.icon, pageTimestamp);
+                        });
+                    });
+                    apps.forEach((app: any) => {
+                        pushTimestamp(app?.icon, Number(app?.updatedAt ?? 0));
+                    });
+                    Object.entries(autoIcons.pages ?? {}).forEach(([key, icon]) => {
+                        pushTimestamp(icon, Number(autoIconTimestamps.pages?.[key] ?? 0));
+                    });
+                    Object.entries(autoIcons.items ?? {}).forEach(([key, icon]) => {
+                        pushTimestamp(icon, Number(autoIconTimestamps.items?.[key] ?? 0));
+                    });
+                    callback?.({
+                        ok: true,
+                        data: {
+                            pages,
+                            apps,
+                            autoIcons,
+                            iconTimestamps,
+                            timestamp: Date.now()
+                        }
+                    });
+                    return;
+                }
+                
+                if (cmd === "webdeck:getMedia") {
+                    const urls: string[] = data?.urls || [];
+                    const assets: Record<string, string> = {};
+                    
+                    for (const url of urls) {
+                        try {
+                            // Converter underdeck-media:// para caminho real e ler arquivo
+                            if (url.startsWith("underdeck-media://")) {
+                                const parsed = new URL(url);
+                                const relativePath = `${parsed.hostname}${parsed.pathname}`.replace(/^\/+/, "");
+                                const fullPath = path.join(electron.app.getPath("userData"), "media", relativePath);
+                                
+                                if (fs.existsSync(fullPath)) {
+                                    const buffer = fs.readFileSync(fullPath);
+                                    const base64 = buffer.toString("base64");
+                                    const ext = path.extname(fullPath).toLowerCase();
+                                    const mimeTypes: Record<string, string> = {
+                                        ".jpg": "image/jpeg",
+                                        ".jpeg": "image/jpeg",
+                                        ".png": "image/png",
+                                        ".gif": "image/gif",
+                                        ".webp": "image/webp",
+                                        ".mp4": "video/mp4",
+                                        ".webm": "video/webm",
+                                    };
+                                    const mimeType = mimeTypes[ext] || "application/octet-stream";
+                                    assets[url] = `data:${mimeType};base64,${base64}`;
+                                }
+                            }
+                        } catch (err) {
+                            console.error(`Failed to load media for URL ${url}:`, err);
+                        }
+                    }
+                    
+                    callback?.({
+                        ok: true,
+                        data: { assets }
+                    });
+                    return;
+                }
+                
+                if (cmd === "webdeck:activateItem") {
+                    const { type, refId } = data || {};
+                    // Aqui iria a lógica para ativar o item (som, cena OBS, etc)
+                    // Por enquanto só retorna sucesso
+                    callback?.({ ok: true });
+                    return;
+                }
+                
+                callback?.({ ok: false, error: `Unknown command: ${cmd}` });
+            } catch (error: any) {
+                callback?.({ ok: false, error: error?.message || "Command failed" });
+            }
+        });
+
         ipcMain.handle("WebDeckSV-ListPages", async () => this.webDeckService.listPages());
         ipcMain.handle("WebDeckSV-FindPage", async (_event, id: string) => this.webDeckService.findPage(id));
+        // Retorna apenas metadados (páginas, apps, etc) SEM imagens para otimização
+        ipcMain.handle("WebDeckSV-GetMetadata", async () => {
+            const pages = this.webDeckService.listPages();
+            const apps = await this.AppService.listApps();
+            const { icons: autoIcons, timestamps: autoIconTimestamps } = this.webDeckService.listAutoIconsWithTimestamps();
+            const iconTimestamps: Record<string, number> = { ...this.webDeckService.listIconTimestamps() };
+            const pushTimestamp = (url: string | null | undefined, timestamp: number) => {
+                if (!url) return;
+                const safeTimestamp = Number(timestamp || 0);
+                const current = iconTimestamps[url];
+                if (!current || safeTimestamp > current) {
+                    iconTimestamps[url] = safeTimestamp;
+                }
+            };
+            pages.forEach((page) => {
+                const pageTimestamp = Number((page as any)?.updatedAt ?? 0);
+                pushTimestamp(page.icon, pageTimestamp);
+                page.items?.forEach((item) => {
+                    if (!item?.icon) return;
+                    pushTimestamp(item.icon, pageTimestamp);
+                });
+            });
+            apps.forEach((app: any) => {
+                pushTimestamp(app?.icon, Number(app?.updatedAt ?? 0));
+            });
+            Object.entries(autoIcons.pages ?? {}).forEach(([key, icon]) => {
+                pushTimestamp(icon, Number(autoIconTimestamps.pages?.[key] ?? 0));
+            });
+            Object.entries(autoIcons.items ?? {}).forEach(([key, icon]) => {
+                pushTimestamp(icon, Number(autoIconTimestamps.items?.[key] ?? 0));
+            });
+            return {
+                pages,
+                apps,
+                autoIcons,
+                iconTimestamps,
+                timestamp: Date.now()
+            };
+        });
         ipcMain.handle("WebDeckSV-CreatePage", async (_event, payload: { name: string; iconSource?: string | null; gridCols?: number; gridRows?: number }, sourceId?: string) => {
             const result = await this.webDeckService.createPage(payload);
             this.notifyWebDeckChangedClients(sourceId);
+            // Publica no observer para SocketContext e Express - usa dados completos
+            const allPages = this.webDeckService.listPages();
+            const autoIcons = this.webDeckService.listAutoIcons();
+            observerService.publish("webdeck:pages-changed", { pages: allPages, autoIcons } as any, sourceId || "IPCMAIN");
             return result;
         });
         ipcMain.handle("WebDeckSV-UpdatePage", async (_event, payload: { id: string; name?: string; iconSource?: string | null }, sourceId?: string) => {
             const result = await this.webDeckService.updatePage(payload);
             this.notifyWebDeckChangedClients(sourceId);
+            // Publica no observer para SocketContext e Express - usa dados completos
+            const allPages = this.webDeckService.listPages();
+            const autoIcons = this.webDeckService.listAutoIcons();
+            observerService.publish("webdeck:pages-changed", { pages: allPages, autoIcons } as any, sourceId || "IPCMAIN");
             return result;
         });
         ipcMain.handle("WebDeckSV-DeletePage", async (_event, id: string, sourceId?: string) => {
             const result = await this.webDeckService.deletePage(id);
             this.notifyWebDeckChangedClients(sourceId);
+            // Publica no observer para SocketContext e Express - usa dados completos
+            const allPages = this.webDeckService.listPages();
+            const autoIcons = this.webDeckService.listAutoIcons();
+            observerService.publish("webdeck:pages-changed", { pages: allPages, autoIcons } as any, sourceId || "IPCMAIN");
             return result;
         });
         ipcMain.handle("WebDeckSV-SetGrid", async (_event, pageId: string, gridCols: number, gridRows: number, sourceId?: string) => {
             const result = await this.webDeckService.setGrid(pageId, gridCols, gridRows);
             this.notifyWebDeckChangedClients(sourceId);
+            // Publica no observer para SocketContext e Express - usa dados completos
+            const allPages = this.webDeckService.listPages();
+            const autoIcons = this.webDeckService.listAutoIcons();
+            observerService.publish("webdeck:pages-changed", { pages: allPages, autoIcons } as any, sourceId || "IPCMAIN");
             return result;
         });
         ipcMain.handle("WebDeckSV-UpsertItem", async (_event, pageId: string, index: number, item: { id?: string; type: "back" | "page" | "app" | "soundpad" | "obs"; refId: string; label?: string; icon?: string | null }, sourceId?: string) => {
             const result = await this.webDeckService.upsertItem(pageId, index, item);
             this.notifyWebDeckChangedClients(sourceId);
+            // Publica no observer para SocketContext e Express - usa dados completos
+            const allPages = this.webDeckService.listPages();
+            const autoIcons = this.webDeckService.listAutoIcons();
+            observerService.publish("webdeck:pages-changed", { pages: allPages, autoIcons } as any, sourceId || "IPCMAIN");
             return result;
         });
         ipcMain.handle("WebDeckSV-RemoveItem", async (_event, pageId: string, index: number, sourceId?: string) => {
             const result = await this.webDeckService.removeItem(pageId, index);
             this.notifyWebDeckChangedClients(sourceId);
+            // Publica no observer para SocketContext e Express - usa dados completos
+            const allPages = this.webDeckService.listPages();
+            const autoIcons = this.webDeckService.listAutoIcons();
+            observerService.publish("webdeck:pages-changed", { pages: allPages, autoIcons } as any, sourceId || "IPCMAIN");
             return result;
         });
         ipcMain.handle("WebDeckSV-MoveItem", async (_event, pageId: string, fromIndex: number, toIndex: number, sourceId?: string) => {
             const result = await this.webDeckService.moveItem(pageId, fromIndex, toIndex);
             this.notifyWebDeckChangedClients(sourceId);
+            // Publica no observer para SocketContext e Express - usa dados completos
+            const allPages = this.webDeckService.listPages();
+            const autoIcons = this.webDeckService.listAutoIcons();
+            observerService.publish("webdeck:pages-changed", { pages: allPages, autoIcons } as any, sourceId || "IPCMAIN");
             return result;
         });
         ipcMain.handle("WebDeckSV-ListAutoIcons", async () => this.webDeckService.listAutoIcons());
         ipcMain.handle("WebDeckSV-SetAutoPageIcon", async (_event, rootId: string, iconSource?: string | null, sourceId?: string) => {
             const result = await this.webDeckService.setAutoPageIcon(rootId, iconSource ?? null);
             this.notifyWebDeckChangedClients(sourceId);
+            // Publica no observer para SocketContext e Express - usa dados completos
+            const allPages = this.webDeckService.listPages();
+            const autoIcons = this.webDeckService.listAutoIcons();
+            observerService.publish("webdeck:pages-changed", { pages: allPages, autoIcons } as any, sourceId || "IPCMAIN");
             return result;
         });
         ipcMain.handle("WebDeckSV-SetAutoItemIcon", async (_event, itemKey: string, iconSource?: string | null, sourceId?: string) => {
             const result = await this.webDeckService.setAutoItemIcon(itemKey, iconSource ?? null);
             this.notifyWebDeckChangedClients(sourceId);
+            // Publica no observer para SocketContext e Express - usa dados completos
+            const allPages = this.webDeckService.listPages();
+            const autoIcons = this.webDeckService.listAutoIcons();
+            observerService.publish("webdeck:pages-changed", { pages: allPages, autoIcons } as any, sourceId || "IPCMAIN");
             return result;
         });
 
@@ -849,6 +1039,7 @@ export class IpcmainService {
                 startMinimized: typeof patch?.startMinimized === "boolean" ? patch.startMinimized : current.startMinimized,
                 closeToTray: typeof patch?.closeToTray === "boolean" ? patch.closeToTray : current.closeToTray,
                 devTools: typeof patch?.devTools === "boolean" ? patch.devTools : current.devTools,
+                openLinksInBrowser: typeof patch?.openLinksInBrowser === "boolean" ? patch.openLinksInBrowser : current.openLinksInBrowser,
             };
             Settings.set("electron", {
                 ...Settings.get("electron"),

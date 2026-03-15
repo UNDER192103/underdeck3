@@ -49,4 +49,5 @@ export interface App {
     banner?: string | null;
     description: string;
     meta_data: AppMetaDataExe | AppMetaDataSystem | AppMetaDataSoundPad | AppMetaDataWebUrl | AppMetaDataCmd | AppMetaDataObsStudio;
+    updatedAt?: number;
 }

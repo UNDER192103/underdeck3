@@ -13,7 +13,7 @@ import rebotjs from "robotjs";
 import { SoundPadService } from "./soundpad.js";
 import { ObsService } from "./obs.js";
 import { logsService } from "./logs.js";
-import { observerService } from "./observer.js";
+import { observerService, ObserverChannels } from "./observer.js";
 
 const { app: electronApp, protocol } = electron;
 
@@ -46,7 +46,50 @@ export class MainAppService extends EventEmitter {
     }
 
     private notifyChange(type: string, data?: unknown) {
+        // Emit internal EventEmitter event (for backward compatibility)
         this.emit(type, data);
+
+        // Publish to global observer
+        const eventType = type as "app-added" | "app-updated" | "app-deleted" | "app-repositioned";
+
+        switch (eventType) {
+            case "app-added":
+                observerService.publish(
+                    ObserverChannels.APP_ADDED,
+                    { app: data },
+                    "MAIN_APP_SERVICE"
+                );
+                break;
+            case "app-updated":
+                observerService.publish(
+                    ObserverChannels.APP_UPDATED,
+                    { app: data },
+                    "MAIN_APP_SERVICE"
+                );
+                break;
+            case "app-deleted":
+                observerService.publish(
+                    ObserverChannels.APP_DELETED,
+                    { appId: String(data) },
+                    "MAIN_APP_SERVICE"
+                );
+                break;
+        }
+
+        // Always publish the general apps:changed event (async)
+        void this.listApps().then((apps) => {
+            observerService.publish(
+                ObserverChannels.APPS_CHANGED,
+                {
+                    type: eventType.replace("app-", "") as "added" | "updated" | "deleted" | "repositioned",
+                    app: data,
+                    apps
+                },
+                "MAIN_APP_SERVICE"
+            );
+        });
+
+        // Legacy callback support
         if (this.changeCallback) {
             try {
                 this.changeCallback(type, data);
@@ -263,7 +306,7 @@ export class MainAppService extends EventEmitter {
 
     private getAppDataBase() {
         const db = getDb('apps');
-        db.prepare(`CREATE TABLE IF NOT EXISTS apps (id TEXT PRIMARY KEY, position INTEGER DEFAULT 0, type INTEGER, name TEXT, icon TEXT, banner TEXT, description TEXT, meta_data TEXT)`).run();
+        db.prepare(`CREATE TABLE IF NOT EXISTS apps (id TEXT PRIMARY KEY, position INTEGER DEFAULT 0, type INTEGER, name TEXT, icon TEXT, banner TEXT, description TEXT, meta_data TEXT, updated_at INTEGER DEFAULT 0)`).run();
         const columns = db.prepare("PRAGMA table_info(apps)").all() as Array<{ name: string }>;
         if (!columns.some((column) => column.name === "position")) {
             db.prepare("ALTER TABLE apps ADD COLUMN position INTEGER DEFAULT 0").run();
@@ -271,6 +314,10 @@ export class MainAppService extends EventEmitter {
             rows.forEach((row, index) => {
                 db.prepare("UPDATE apps SET position = ? WHERE id = ?").run(index, row.id);
             });
+        }
+        if (!columns.some((column) => column.name === "updated_at")) {
+            db.prepare("ALTER TABLE apps ADD COLUMN updated_at INTEGER DEFAULT 0").run();
+            db.prepare("UPDATE apps SET updated_at = ?").run(Date.now());
         }
         return db;
     }
@@ -293,7 +340,8 @@ export class MainAppService extends EventEmitter {
                 icon: row.icon,
                 banner: row.banner,
                 description: row.description,
-                meta_data: JSON.parse(row.meta_data)
+                meta_data: JSON.parse(row.meta_data),
+                updatedAt: Number(row.updated_at || row.updatedAt || Date.now())
             }));
             resolve(apps);
         });
@@ -302,12 +350,14 @@ export class MainAppService extends EventEmitter {
     addApp(app: App) {
         const db = this.getAppDataBase();
         const maxPositionRow = db.prepare("SELECT MAX(position) as maxPosition FROM apps").get() as { maxPosition: number | null };
+        const now = Date.now();
         const appData: App = {
             ...app,
             position: typeof app.position === "number" ? app.position : (maxPositionRow.maxPosition ?? -1) + 1,
             icon: this.persistEntityIcon(app.icon, app.id, Settings.get("storage").appIconsFolder),
+            updatedAt: now,
         };
-        db.prepare('INSERT INTO apps (id, position, type, name, icon, banner, description, meta_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
+        db.prepare('INSERT INTO apps (id, position, type, name, icon, banner, description, meta_data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
             appData.id,
             appData.position,
             appData.type,
@@ -315,7 +365,8 @@ export class MainAppService extends EventEmitter {
             appData.icon,
             appData.banner,
             appData.description,
-            JSON.stringify(appData.meta_data)
+            JSON.stringify(appData.meta_data),
+            now
         );
         this.notifyChange('app-added', appData);
         return appData;
@@ -326,16 +377,18 @@ export class MainAppService extends EventEmitter {
         if (!current) return null;
 
         const nextIcon = this.persistEntityIcon(app.icon, app.id, Settings.get("storage").appIconsFolder);
+        const now = Date.now();
         const appData: App = {
             ...current,
             ...app,
             position: typeof app.position === "number" ? app.position : current.position,
             icon: nextIcon,
+            updatedAt: now,
         };
 
         const db = this.getAppDataBase();
         db.prepare(
-            'UPDATE apps SET position = ?, type = ?, name = ?, icon = ?, banner = ?, description = ?, meta_data = ? WHERE id = ?'
+            'UPDATE apps SET position = ?, type = ?, name = ?, icon = ?, banner = ?, description = ?, meta_data = ?, updated_at = ? WHERE id = ?'
         ).run(
             appData.position,
             appData.type,
@@ -344,6 +397,7 @@ export class MainAppService extends EventEmitter {
             appData.banner,
             appData.description,
             JSON.stringify(appData.meta_data),
+            now,
             appData.id
         );
 
@@ -396,7 +450,8 @@ export class MainAppService extends EventEmitter {
             icon: row.icon,
             banner: row.banner,
             description: row.description,
-            meta_data: JSON.parse(row.meta_data)
+            meta_data: JSON.parse(row.meta_data),
+            updatedAt: Number(row.updated_at || row.updatedAt || Date.now()),
         }
     }
 

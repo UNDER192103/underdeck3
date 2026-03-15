@@ -15,7 +15,7 @@ import Theme from '@/components/dashboard/theme';
 import SoundPad from '@/components/dashboard/soundpad';
 import ObsStudio from '@/components/dashboard/obs';
 import { toast } from "sonner";
-import { useObserver } from "@/contexts/ObserverContext";
+import { useGlobalObserver } from "@/contexts/GlobalObserverContext";
 import UpdatePage from '@/components/dashboard/update';
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
@@ -42,7 +42,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
     onResult: () => undefined,
   });
   const [showProfileEditor, setShowProfileEditor] = useState(false);
-  const { publish, subscribe } = useObserver();
+  const { publish, subscribe } = useGlobalObserver();
   const [windowsSettings, setWindowsSettings] = useState({
     autoStart: true,
     enableNotifications: true,
@@ -51,6 +51,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
     startMinimized: true,
     closeToTray: true,
     devTools: false,
+    openLinksInBrowser: false,
   });
   const [updatesAutoDownload, setUpdatesAutoDownload] = useState(true);
   const [obsStartOnStartup, setObsStartOnStartup] = useState(false);
@@ -167,6 +168,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
         startMinimized: Boolean(electron?.startMinimized),
         closeToTray: Boolean(electron?.closeToTray),
         devTools: Boolean(electron?.devTools),
+        openLinksInBrowser: Boolean(electron?.openLinksInBrowser),
       });
 
       setUpdatesAutoDownload(Boolean(updatesState?.autoDownloadEnabled));
@@ -208,7 +210,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
       const next = await window.underdeck.overlay.updateSettings({ enabled });
       setOverlayEnabled(Boolean(next?.enabled));
       setOverlayKeys(Array.isArray(next?.keys) ? next.keys : []);
-      publish({ id: "overlay.settings.enabled", channel: "overlay", data: { enabled: Boolean(next?.enabled) } });
+      publish({ id: "overlay.settings.enabled", channel: "overlay", sourceId: "OVERLAY_SETTINGS", data: { enabled: Boolean(next?.enabled) } });
     } catch {
       setOverlayEnabled(!enabled);
       toast.error(t("settings.overlay.save_error", "Falha ao salvar configuracao do Overlay."));
@@ -221,7 +223,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
       const next = await window.underdeck.overlay.updateSettings({ closeOnBlur });
       const resolved = typeof next?.closeOnBlur === "boolean" ? next.closeOnBlur : closeOnBlur;
       setOverlayCloseOnBlur(resolved);
-      publish({ id: "overlay.settings.closeOnBlur", channel: "overlay", data: { closeOnBlur: resolved } });
+      publish({ id: "overlay.settings.closeOnBlur", channel: "overlay", sourceId: "OVERLAY_SETTINGS", data: { closeOnBlur: resolved } });
     } catch {
       setOverlayCloseOnBlur(!closeOnBlur);
       toast.error(t("settings.overlay.save_error", "Falha ao salvar configuracao do Overlay."));
@@ -243,7 +245,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
       const next = await window.underdeck.overlay.updateSettings({ keys: combo });
       setOverlayEnabled(Boolean(next?.enabled));
       setOverlayKeys(Array.isArray(next?.keys) ? next.keys : []);
-      publish({ id: "overlay.settings.keys", channel: "overlay", data: { keys: Array.isArray(next?.keys) ? next.keys : [] } });
+      publish({ id: "overlay.settings.keys", channel: "overlay", sourceId: "OVERLAY_SETTINGS", data: { keys: Array.isArray(next?.keys) ? next.keys : [] } });
     } catch {
       toast.error(t("settings.overlay.capture_error", "Falha ao capturar sequencia."));
     } finally {
@@ -275,6 +277,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
         startMinimized: Boolean(next?.startMinimized),
         closeToTray: Boolean(next?.closeToTray),
         devTools: Boolean(next?.devTools),
+        openLinksInBrowser: Boolean(next?.openLinksInBrowser),
       });
     } catch {
       setElectronSettings(previous);
@@ -799,6 +802,29 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         </TooltipTrigger>
                         <TooltipContent>
                           {t("settings.advanced.devtools_tooltip")}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="advanced-open-links-browser">
+                        {t("settings.advanced.open_links_in_browser", "Abrir links no navegador")}
+                      </Label>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Switch
+                            id="advanced-open-links-browser"
+                            checked={electronSettings.openLinksInBrowser}
+                            onCheckedChange={(checked) => {
+                              void handleElectronSettings({ openLinksInBrowser: Boolean(checked) });
+                            }}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {t(
+                            "settings.advanced.open_links_in_browser_tooltip",
+                            "Quando ativado, links externos abrem no navegador padrão."
+                          )}
                         </TooltipContent>
                       </Tooltip>
                     </div>

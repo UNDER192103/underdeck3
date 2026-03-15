@@ -5,7 +5,7 @@ import { UserProvider } from "@/contexts/UserContext";
 import { UnderDeckProvider } from "@/contexts/UnderDeckContext";
 import { I18nProvider } from "@/contexts/I18nContext";
 import { SocketProvider } from "@/contexts/SocketContext";
-import { ObserverProvider } from "@/contexts/ObserverContext";
+import { GlobalObserverProvider } from "@/contexts/GlobalObserverContext";
 import { UserModalLogin } from "@/components/user/UserModalLogin";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
@@ -40,25 +40,25 @@ export default function OverlayApp() {
 
   return (
     <ErrorBoundary>
-      <ObserverProvider sourceId="OVERLAY">
+      <GlobalObserverProvider sourceId="OVERLAY_RENDERER">
         <I18nProvider>
-          <UserProvider>
-            <ThemeProvider defaultTheme="dark" switchable={true}>
-              <SocketProvider>
-                <UnderDeckProvider>
-                  <TooltipProvider>
-                    <Toaster />
-                    <UserModalLogin />
-                    <NavigationProvider>
-                      <OverlayDashboard />
-                    </NavigationProvider>
-                  </TooltipProvider>
-                </UnderDeckProvider>
-              </SocketProvider>
-            </ThemeProvider>
-          </UserProvider>
-        </I18nProvider>
-      </ObserverProvider>
+            <UserProvider>
+              <ThemeProvider defaultTheme="dark" switchable={true}>
+                <SocketProvider>
+                  <UnderDeckProvider>
+                    <TooltipProvider>
+                      <Toaster />
+                      <UserModalLogin />
+                      <NavigationProvider>
+                        <OverlayDashboard />
+                      </NavigationProvider>
+                    </TooltipProvider>
+                  </UnderDeckProvider>
+                </SocketProvider>
+              </ThemeProvider>
+            </UserProvider>
+          </I18nProvider>
+      </GlobalObserverProvider>
     </ErrorBoundary>
   );
 }

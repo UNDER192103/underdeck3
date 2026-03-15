@@ -1,7 +1,7 @@
 export type RendererSourceMode = "auto" | "local" | "url";
 
 export const RendererTargetConfig = {
-    sourceMode: "url" as RendererSourceMode,
+    sourceMode: "local" as RendererSourceMode,
     devBaseUrl: "http://localhost:3404",
 };
 
@@ -22,6 +22,7 @@ export const BaseConfig = {
         closeToTray: true,
         devTools: false,
         startOpenDevTools: false,
+        openLinksInBrowser: true,
     },
     assets: {
         tryIcon: ['img', 'icon.ico'],

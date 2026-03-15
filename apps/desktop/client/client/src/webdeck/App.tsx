@@ -6,7 +6,7 @@ import { BackgroundComp, type BackgroundProps } from "../components/ui/backgroun
 import { Button } from "@/components/ui/button";
 import { WebDeckGrid } from "../components/webdeck/WebDeckGrid";
 import { I18nProvider } from "@/contexts/I18nContext";
-import { ObserverProvider } from "@/contexts/ObserverContext";
+import { GlobalObserverProvider, useGlobalObserver } from "@/contexts/GlobalObserverContext";
 import { SocketSettings } from "@/const";
 import { Maximize2, Minimize2 } from "lucide-react";
 
@@ -198,7 +198,76 @@ async function execute(type: string, id: string, baseUrl: string) {
   }
 }
 
+/**
+ * ExpressObserverBridge - conecta o socket do Express ao GlobalObserverContext local.
+ * Recebe eventos do servidor via Socket.IO e republica no observer em memória.
+ */
+function ExpressObserverBridge({
+  socketUrl,
+  onPagesChanged,
+  onAppsChanged,
+  onObsChanged,
+  onSoundpadChanged,
+  onThemeChanged,
+}: {
+  socketUrl: string;
+  onPagesChanged?: (data: unknown) => void;
+  onAppsChanged?: (data: unknown) => void;
+  onObsChanged?: (data: unknown) => void;
+  onSoundpadChanged?: (data: unknown) => void;
+  onThemeChanged?: (data: unknown) => void;
+}) {
+  const { publish } = useGlobalObserver();
+
+  useEffect(() => {
+    if (!socketUrl) return;
+    const socket: Socket = io(socketUrl, {
+      transports: ["websocket", "polling"],
+      withCredentials: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    socket.on("webdeck:pages-changed", (data: unknown) => {
+      onPagesChanged?.(data);
+      publish({ id: "webdeck.pages_changed", channel: "webdeck:pages-changed", sourceId: "EXPRESS_SOCKET", data });
+    });
+    socket.on("apps:changed", (data: unknown) => {
+      onAppsChanged?.(data);
+      publish({ id: "apps.changed", channel: "apps:changed", sourceId: "EXPRESS_SOCKET", data });
+    });
+    socket.on("obs:state-changed", (data: unknown) => {
+      onObsChanged?.(data);
+      publish({ id: "obs.state_changed", channel: "obs:state-changed", sourceId: "EXPRESS_SOCKET", data });
+    });
+    socket.on("soundpad:audios-changed", (data: unknown) => {
+      onSoundpadChanged?.(data);
+      publish({ id: "soundpad.audios_changed", channel: "soundpad:audios-changed", sourceId: "EXPRESS_SOCKET", data });
+    });
+    socket.on("theme:changed", (data: unknown) => {
+      onThemeChanged?.(data);
+      publish({ id: "theme.changed", channel: "theme:changed", sourceId: "EXPRESS_SOCKET", data });
+    });
+    socket.on("theme:preferences-changed", (data: unknown) => {
+      onThemeChanged?.(data);
+      publish({ id: "theme.preferences_changed", channel: "theme:preferences-changed", sourceId: "EXPRESS_SOCKET", data });
+    });
+    socket.on("theme:background-changed", (data: unknown) => {
+      onThemeChanged?.(data);
+      publish({ id: "theme.background_changed", channel: "theme:background-changed", sourceId: "EXPRESS_SOCKET", data });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [socketUrl, publish, onPagesChanged, onAppsChanged, onObsChanged, onSoundpadChanged, onThemeChanged]);
+
+  return null;
+}
+
+
 function WebDeckRemoteAppContent() {
+  const { subscribe } = useGlobalObserver();
   const [apiBaseUrl, setApiBaseUrl] = useState<string>("");
   const [socketUrl, setSocketUrl] = useState<string>(SocketSettings.url);
   const [config, setConfig] = useState<WebDeckConfig>({
@@ -322,8 +391,9 @@ function WebDeckRemoteAppContent() {
           const info = await window.underdeck.express.getWebDeckAccessInfo();
           const localBase = String(info?.localhostUrl || info?.localIpUrl || "").trim();
           if (mounted && localBase) {
+            const socketBase = new URL(localBase).origin;
             setApiBaseUrl(localBase);
-            setSocketUrl(localBase);
+            setSocketUrl(socketBase);
             return;
           }
         } catch {
@@ -343,29 +413,22 @@ function WebDeckRemoteAppContent() {
 
   useEffect(() => {
     void refresh();
-    const socket: Socket = io(socketUrl, {
-      path: "/socket.io",
-      transports: ["websocket", "polling"],
-      withCredentials: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
-    socket.on("webdeck:pages-changed", (payload) => {
-      const pages = Array.isArray(payload?.pages) ? payload.pages : [];
-      const autoPageIcons = (payload?.autoIcons?.pages ?? {}) as Record<string, string>;
-      const autoItemIcons = (payload?.autoIcons?.items ?? {}) as Record<string, string>;
-      setConfig((prev) => ({ ...prev, pages }));
-      setAutoPageIcons(autoPageIcons);
-      setAutoItemIcons(autoItemIcons);
-    });
-    socket.on("apps:changed", (payload) => {
-      const apps = Array.isArray(payload?.apps) ? payload.apps : [];
-      setConfig((prev) => ({ ...prev, apps }));
-    });
+  }, [apiBaseUrl]);
+
+  // Observador global fica apenas para integrações futuras.
+  useEffect(() => {
+    const unsubscribeTheme = subscribe(
+      ["theme:changed", "theme:preferences-changed", "theme:background-changed"],
+      () => {
+        void refresh();
+      },
+      false
+    );
+
     return () => {
-      socket.disconnect();
+      unsubscribeTheme();
     };
-  }, [apiBaseUrl, socketUrl]);
+  }, [subscribe]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -393,7 +456,7 @@ function WebDeckRemoteAppContent() {
       }
       await document.documentElement.requestFullscreen?.();
       try {
-        await window.screen?.orientation?.lock?.("landscape");
+        await (window.screen?.orientation as any)?.lock?.("landscape");
       } catch {
         // ignore
       }
@@ -527,9 +590,35 @@ function WebDeckRemoteAppContent() {
       </div>
     );
   }
-
+  
   return (
     <div className="h-screen w-screen text-white p-3 border rounded-xl overflow-hidden">
+      <ExpressObserverBridge
+        socketUrl={socketUrl}
+        onPagesChanged={(data) => {
+          const pages = Array.isArray((data as any)?.pages) ? (data as any).pages : [];
+          const autoPageIconsData = ((data as any)?.autoIcons?.pages ?? {}) as Record<string, string>;
+          const autoItemIconsData = ((data as any)?.autoIcons?.items ?? {}) as Record<string, string>;
+          setConfig((prev) => ({ ...prev, pages }));
+          setAutoPageIcons(autoPageIconsData);
+          setAutoItemIcons(autoItemIconsData);
+        }}
+        onAppsChanged={(data) => {
+          const apps = Array.isArray((data as any)?.apps) ? (data as any).apps : [];
+          setConfig((prev) => ({ ...prev, apps }));
+        }}
+        onObsChanged={(data) => {
+          const state = (data as any)?.state ?? {};
+          setConfig((prev) => ({ ...prev, obs: state }));
+        }}
+        onSoundpadChanged={(data) => {
+          const audios = (data as any)?.audios ?? [];
+          setConfig((prev) => ({ ...prev, soundpad: { ...prev.soundpad, audios } }));
+        }}
+        onThemeChanged={() => {
+          void refresh();
+        }}
+      />
       <BackgroundComp {...config.theme.background} />
       <div className="w-full h-full min-h-0 flex flex-col gap-3">
         <div className="relative flex items-center justify-between gap-2">
@@ -566,7 +655,6 @@ function WebDeckRemoteAppContent() {
             emptyStyle="placeholder"
             emptyLabel="Nenhuma imagem"
             fillHeight={true}
-            enableMobileLandscape={true}
             onSlotClick={(_index, item) => {
               if (!item) return;
               void openItem(item);
@@ -582,10 +670,10 @@ function WebDeckRemoteAppContent() {
 
 export default function WebDeckRemoteApp() {
   return (
-    <ObserverProvider sourceId="WEBDECK_REMOTE" mode="express">
+    <GlobalObserverProvider sourceId="WEBDECK_EXPRESS">
       <I18nProvider>
         <WebDeckRemoteAppContent />
       </I18nProvider>
-    </ObserverProvider>
+    </GlobalObserverProvider>
   );
 }

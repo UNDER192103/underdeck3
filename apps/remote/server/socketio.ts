@@ -140,28 +140,7 @@ export class RemoteSocketService {
         },
       );
 
-      socket.on("webdeck:changed", (payload: { timestamp?: number }) => {
-        const data = socket.data as AuthedData;
-        if (!data.authenticated || !data.userId || !data.hwid) return;
-        const device = this.devicesByUser.get(data.userId)?.get(data.hwid);
-        if (!device || !this.webNsp) return;
-        
-        // Envia notificação simples
-        this.webNsp.to(this.deviceRoom(data.hwid)).emit("webdeck:changed", {
-          deviceId: device.deviceId,
-          hwid: data.hwid,
-          timestamp: payload?.timestamp ?? Date.now(),
-        });
-        
-        // Também envia como observer:event para atualização em tempo real
-        this.webNsp.to(this.userRoom(data.userId)).emit("observer:event", {
-          hwid: data.hwid,
-          event: {
-            type: "webdeck:pages-changed",
-            data: { timestamp: payload?.timestamp ?? Date.now() }
-          }
-        });
-      });
+      // Legacy: webdeck:changed - now handled by app:observer:event with full data
 
       socket.on("disconnect", () => {
         unauth();
@@ -186,7 +165,14 @@ export class RemoteSocketService {
             });
           }
           
+          // Emite observer:event para TODAS as rooms relevantes
+          // 1. User room (para todos os usuários conectados)
           webNsp.to(this.userRoom(data.userId)).emit("observer:event", {
+            hwid: data.hwid,
+            event: payload?.event ?? null,
+          });
+          // 2. Device room (para quem está conectado ao dispositivo específico)
+          webNsp.to(this.deviceRoom(data.hwid)).emit("observer:event", {
             hwid: data.hwid,
             event: payload?.event ?? null,
           });

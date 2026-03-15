@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useSocket } from "@/contexts/SocketContext";
@@ -6,6 +6,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { BackgroundComp, type BackgroundProps } from "@/components/ui/background";
 import { WebDeckGrid } from "@/components/webdeck/WebDeckGrid";
 import { Maximize2, Minimize2, ArrowLeft } from "lucide-react";
+import type { StoreItem } from "@/types/store";
 
 type WebDeckItem = {
   id: string;
@@ -23,6 +24,7 @@ type WebDeckPage = {
   gridRows: number;
   items: Array<WebDeckItem | null>;
   position: number;
+  updatedAt?: number;
 };
 
 type AppInfo = {
@@ -30,6 +32,7 @@ type AppInfo = {
   name: string;
   icon: string | null;
   type: number;
+  updatedAt?: number;
 };
 
 type WebDeckConfig = {
@@ -53,6 +56,13 @@ type WebDeckConfig = {
   version?: number;
 };
 
+type WebDeckThemePayload = {
+  theme?: WebDeckConfig["theme"]["theme"];
+  backgroundType?: "neural" | "store" | "local";
+  storeItemId?: string | null;
+  backgroundUrl?: string | null;
+};
+
 type WebDeckViewPage = WebDeckPage & {
   isAutoPage?: boolean;
   autoRootId?: string;
@@ -62,6 +72,7 @@ type WebDeckViewPage = WebDeckPage & {
 type AssetCache = {
   version: number;
   assets: Record<string, string>;
+  timestamps?: Record<string, number>;
 };
 
 const AUTO_PAGE = {
@@ -103,6 +114,22 @@ function shouldLoadBackground(url: string): boolean {
   return isGifOrPng;
 }
 
+function resolveBackgroundFromStoreItem(item: StoreItem | null): BackgroundProps {
+  const url = String(item?.meta_data?.url || "").trim();
+  if (!url) return { variant: "neural" };
+  const mediaType = String(item?.meta_data?.mediaType || item?.meta_data?.mimeType || item?.meta_data?.type || "")
+    .trim()
+    .toLowerCase();
+  const cleanUrl = url.split("?")[0].toLowerCase();
+  const isVideo =
+    mediaType.startsWith("video/") ||
+    [".mp4", ".webm", ".mkv", ".mov", ".avi", ".m4v"].some((ext) => cleanUrl.endsWith(ext));
+  if (isVideo) {
+    return { variant: "video", videoSrc: url };
+  }
+  return { variant: "image", imageSrc: url };
+}
+
 const DB_NAME = "UnderDeckAssets";
 const DB_VERSION = 1;
 const STORE_NAME = "assets";
@@ -140,6 +167,7 @@ async function readAssetCache(hwid: string): Promise<AssetCache> {
     return {
       version: Number(result.data.version || 0),
       assets: result.data.assets && typeof result.data.assets === "object" ? result.data.assets : {},
+      timestamps: result.data.timestamps && typeof result.data.timestamps === "object" ? result.data.timestamps : {},
     };
   } catch {
     // Fallback para localStorage em caso de erro
@@ -150,6 +178,7 @@ async function readAssetCache(hwid: string): Promise<AssetCache> {
       return {
         version: Number(parsed.version || 0),
         assets: parsed.assets && typeof parsed.assets === "object" ? parsed.assets : {},
+        timestamps: parsed.timestamps && typeof parsed.timestamps === "object" ? parsed.timestamps : {},
       };
     } catch {
       return { version: 0, assets: {} };
@@ -298,14 +327,20 @@ export default function WebDeckRemotePage() {
   const [obs, setObs] = useState<WebDeckConfig["obs"]>({ scenes: [], audioInputs: [] });
   const [soundpad, setSoundpad] = useState<WebDeckConfig["soundpad"]>({ audios: [] });
   const [theme, setTheme] = useState<WebDeckConfig["theme"]>({ theme: "ligth", background: { variant: "neural" } });
+  const [remoteBackground, setRemoteBackground] = useState<BackgroundProps>({ variant: "neural" });
+  const [storeItems, setStoreItems] = useState<StoreItem[]>([]);
+  const storeItemsLoadingRef = useRef<Promise<StoreItem[]> | null>(null);
   const [version, setVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPageId, setCurrentPageId] = useState("");
   const [stack, setStack] = useState<string[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [assetCache, setAssetCache] = useState<AssetCache>({ version: 0, assets: {} });
-  const assetsLoadedForPage = useRef(new Set<string>());
+  const [assetCache, setAssetCache] = useState<AssetCache>({ version: 0, assets: {}, timestamps: {} });
+  const [iconTimestamps, setIconTimestamps] = useState<Record<string, number>>({});
+  const pendingAssetRequests = useRef(new Set<string>());
+  const metadataSyncDone = useRef(false);
+  const [metadataSyncNonce, setMetadataSyncNonce] = useState(0);
 
   const hwidParam = useMemo(() => {
     const url = new URL(window.location.href);
@@ -329,18 +364,23 @@ export default function WebDeckRemotePage() {
     void (async () => {
       const cache = await readAssetCache(hwid);
       setAssetCache(cache);
+      setIconTimestamps({});
     })();
   }, [hwid]);
 
   useEffect(() => {
     if (!hwid) return;
     if (version && assetCache.version !== version) {
-      const next = { version, assets: {} };
+      const next = { version, assets: {}, timestamps: {} };
       void writeAssetCache(hwid, next);
       setAssetCache(next);
-      assetsLoadedForPage.current.clear();
     }
   }, [assetCache.version, hwid, version]);
+
+  useEffect(() => {
+    metadataSyncDone.current = false;
+    setMetadataSyncNonce((value) => value + 1);
+  }, [hwid, version]);
 
   useEffect(() => {
     if (!isMobileDevice()) return;
@@ -366,7 +406,7 @@ export default function WebDeckRemotePage() {
       // Se o hwid removido for o atual, limpa o cache e redireciona
       if (removedHwid && removedHwid === hwid) {
         void clearAssetCache(hwid);
-        setAssetCache({ version: 0, assets: {} });
+        setAssetCache({ version: 0, assets: {}, timestamps: {} });
         // Redireciona para a lista de dispositivos
         window.location.href = "/dashboard/devices";
       }
@@ -383,6 +423,79 @@ export default function WebDeckRemotePage() {
     ["ligth", "dark", "black", "transparent"].forEach((value) => root.classList.remove(value));
     root.classList.add(theme.theme);
   }, [theme.theme]);
+
+  // Coleta todas as URLs de ícones em uso
+  const collectIconUrlsInUse = useCallback((config: WebDeckConfig, background: BackgroundProps): Set<string> => {
+    const urls = new Set<string>();
+
+    // Ícones de páginas
+    config.pages?.forEach((page) => {
+      if (page.icon) urls.add(page.icon);
+    });
+
+    // Ícones auto de páginas
+    Object.values(config.autoIcons?.pages ?? {}).forEach((icon) => {
+      if (icon) urls.add(icon);
+    });
+
+    // Ícones auto de items
+    Object.values(config.autoIcons?.items ?? {}).forEach((icon) => {
+      if (icon) urls.add(icon);
+    });
+
+    // Ícones de apps
+    config.apps?.forEach((app) => {
+      if (app.icon) urls.add(app.icon);
+    });
+
+    // Ícones dos items nas páginas
+    config.pages?.forEach((page) => {
+      page.items?.forEach((item) => {
+        if (item?.icon) urls.add(item.icon);
+      });
+    });
+
+    // Background remoto (apenas se for proxy de media)
+    if (background.variant === "image" && shouldProxyMedia(background.imageSrc)) {
+      urls.add(background.imageSrc);
+    }
+    if (background.variant === "video" && shouldProxyMedia(background.videoSrc)) {
+      urls.add(background.videoSrc);
+    }
+
+    return urls;
+  }, []);
+
+  // Limpa ícones não usados do cache
+  const cleanupUnusedIcons = useCallback(async (config: WebDeckConfig, background: BackgroundProps) => {
+    if (!hwid) return;
+
+    const usedUrls = collectIconUrlsInUse(config, background);
+    const currentCache = await readAssetCache(hwid);
+
+    // Filtra apenas os assets em uso
+    const newAssets: Record<string, string> = {};
+    const newTimestamps: Record<string, number> = {};
+    let hasChanges = false;
+
+    for (const [url, dataUrl] of Object.entries(currentCache.assets)) {
+      if (usedUrls.has(url)) {
+        newAssets[url] = dataUrl;
+        const timestamp = currentCache.timestamps?.[url];
+        if (timestamp) {
+          newTimestamps[url] = timestamp;
+        }
+      } else {
+        hasChanges = true;
+      }
+    }
+
+    if (hasChanges) {
+      const newCache = { ...currentCache, assets: newAssets, timestamps: newTimestamps };
+      await writeAssetCache(hwid, newCache);
+      setAssetCache(newCache);
+    }
+  }, [hwid, collectIconUrlsInUse]);
 
   const fetchConfig = async () => {
     if (!socket || !isConnected || !hwid) return;
@@ -411,10 +524,78 @@ export default function WebDeckRemotePage() {
           const exists = data?.pages?.some((page) => page.id === prev) ?? false;
           return exists || prev.startsWith("__auto_page_") ? prev : fallback;
         });
+
+        if (data) {
+          void cleanupUnusedIcons(data, remoteBackground);
+        }
+
+        metadataSyncDone.current = false;
+        setMetadataSyncNonce((value) => value + 1);
         setLoading(false);
       },
     );
   };
+
+  const fetchStoreItems = useCallback(async () => {
+    if (storeItems.length) return storeItems;
+    if (storeItemsLoadingRef.current) return storeItemsLoadingRef.current;
+    const promise = (async () => {
+      try {
+        const response = await fetch("/api/store/items/2", { credentials: "include" });
+        if (!response.ok) return [];
+        const data = (await response.json()) as StoreItem[];
+        setStoreItems(Array.isArray(data) ? data : []);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      } finally {
+        storeItemsLoadingRef.current = null;
+      }
+    })();
+    storeItemsLoadingRef.current = promise;
+    return promise;
+  }, [storeItems]);
+
+  const fetchThemeBackground = useCallback(() => {
+    if (!socket || !isConnected || !hwid) return;
+    socket.emit(
+      "device:command",
+      { hwid, cmd: "webdeck:getThemeBackground", data: null, timeoutMs: 20000 },
+      (result: { ok: boolean; data?: WebDeckThemePayload; error?: string }) => {
+        if (!result?.ok) return;
+        const data = result?.data;
+        if (data?.theme) {
+          setTheme((prev) => ({ ...prev, theme: data.theme! }));
+        }
+        const backgroundType = data?.backgroundType ?? "neural";
+        if (backgroundType !== "store") {
+          setRemoteBackground({ variant: "neural" });
+          return;
+        }
+        if (data?.storeItemId) {
+          void (async () => {
+            const items = await fetchStoreItems();
+            const match = items.find((item) => String(item.id) === String(data.storeItemId));
+            if (match) {
+              setRemoteBackground(resolveBackgroundFromStoreItem(match));
+              return;
+            }
+            if (data?.backgroundUrl) {
+              setRemoteBackground(resolveBackgroundFromStoreItem({ id: "remote", type: 2, name: "remote", description: "", meta_data: { url: data.backgroundUrl } }));
+              return;
+            }
+            setRemoteBackground({ variant: "neural" });
+          })();
+          return;
+        }
+        if (data?.backgroundUrl) {
+          setRemoteBackground(resolveBackgroundFromStoreItem({ id: "remote", type: 2, name: "remote", description: "", meta_data: { url: data.backgroundUrl } }));
+          return;
+        }
+        setRemoteBackground({ variant: "neural" });
+      },
+    );
+  }, [socket, isConnected, hwid, fetchStoreItems]);
 
   useEffect(() => {
     if (!tokenParam) return;
@@ -454,76 +635,9 @@ export default function WebDeckRemotePage() {
         return;
       }
       void fetchConfig();
+      void fetchThemeBackground();
     });
-  }, [hwid, isConnected, socket]);
-
-  useEffect(() => {
-    if (!socket) return;
-    const onChanged = () => {
-      assetsLoadedForPage.current.clear();
-      void fetchConfig();
-    };
-    const onAccessResolved = (payload: { sessionId?: string; status?: string; hwid?: string }) => {
-      if (!payload?.sessionId || payload.sessionId !== accessSessionId) return;
-      if (payload.status === "approved") {
-        if (payload.hwid) setTokenHwid(String(payload.hwid));
-        setAccessPending(false);
-        return;
-      }
-      if (payload.status === "denied" || payload.status === "revoked" || payload.status === "expired") {
-        setAccessPending(false);
-        setAccessError(t("remote.webdeck.access.denied", "Access denied."));
-      }
-    };
-    
-    // Recebe eventos específicos do observer (pages-changed, apps-changed, etc)
-    const onObserverEvent = (payload: { hwid?: string; event?: { type?: string; data?: unknown } }) => {
-      if (payload?.hwid !== hwid) return; // Só processa se for do device atual
-      const eventType = payload?.event?.type;
-      const eventData = payload?.event?.data;
-      
-      if (eventType === "webdeck:pages-changed") {
-        const data = eventData as { pages?: WebDeckPage[]; autoIcons?: { pages?: Record<string, string>; items?: Record<string, string> } } | undefined;
-        if (data?.pages) {
-          setPages(data.pages);
-          if (data.autoIcons?.pages) {
-            setAutoIcons((prev) => ({ ...prev, pages: data.autoIcons!.pages! }));
-          }
-          if (data.autoIcons?.items) {
-            setAutoIcons((prev) => ({ ...prev, items: data.autoIcons!.items! }));
-          }
-          assetsLoadedForPage.current.clear();
-        }
-      } else if (eventType === "apps:changed") {
-        const data = eventData as { apps?: AppInfo[] } | undefined;
-        if (data?.apps) {
-          setApps(data.apps);
-        }
-      } else if (eventType === "obs:state-changed") {
-        const data = eventData as { scenes?: Array<{ sceneName: string }>; audioInputs?: Array<{ inputName: string }> } | undefined;
-        if (data) {
-          setObs((prev) => ({
-            scenes: data.scenes ?? prev.scenes,
-            audioInputs: data.audioInputs ?? prev.audioInputs,
-          }));
-        }
-      } else if (eventType === "soundpad:audios-changed") {
-        const data = eventData as { audios?: Array<{ index: number; name?: string }> } | undefined;
-        if (data?.audios) {
-          setSoundpad((prev) => ({ ...prev, audios: data.audios! }));
-        }
-      }
-    };
-    
-    socket.on("webdeck:changed", onChanged);
-    socket.on("device:access:resolved", onAccessResolved);
-    socket.on("observer:event", onObserverEvent);
-    return () => {
-      socket.off("webdeck:changed", onChanged);
-      socket.off("device:access:resolved", onAccessResolved);
-      socket.off("observer:event", onObserverEvent);
-    };
-  }, [accessSessionId, socket, t, hwid]);
+  }, [hwid, isConnected, socket, fetchThemeBackground]);
 
   const autoPages = useMemo(() => {
     const firstPage = [...pages].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))[0];
@@ -696,13 +810,25 @@ export default function WebDeckRemotePage() {
     return assetCache.assets[url] || "";
   };
 
-  const requestMedia = async (urls: string[]) => {
+  const requestMedia = async (
+    urls: string[],
+    options?: { timestamps?: Record<string, number>; ignoreCache?: boolean }
+  ) => {
     if (!socket || !isConnected || !hwid || urls.length === 0) return;
+
+    const timestamps = options?.timestamps ?? {};
     
     // Processa URLs em sequência (uma por vez) para evitar sobrecarga no socket
     for (const url of urls) {
-      // Verifica se já não foi carregado por outra requisição concorrente
-      if (assetCache.assets[url]) continue;
+      const requiredTimestamp = Number(timestamps[url] ?? 0);
+      const cachedTimestamp = Number(assetCache.timestamps?.[url] ?? 0);
+      const hasAsset = Boolean(assetCache.assets[url]);
+      const isFresh = requiredTimestamp ? cachedTimestamp === requiredTimestamp : hasAsset;
+      const shouldSkip = !options?.ignoreCache && hasAsset && isFresh;
+
+      if (shouldSkip) continue;
+      if (pendingAssetRequests.current.has(url)) continue;
+      pendingAssetRequests.current.add(url);
       
       await new Promise<void>((resolve) => {
         socket.emit(
@@ -713,12 +839,24 @@ export default function WebDeckRemotePage() {
               const assets = result?.data?.assets ?? {};
               if (Object.keys(assets).length > 0) {
                 setAssetCache((prev) => {
-                  const next = { ...prev, assets: { ...prev.assets, ...assets } };
+                  const nextTimestamps = { ...(prev.timestamps ?? {}) };
+                  Object.keys(assets).forEach((assetUrl) => {
+                    const nextTimestamp = Number(timestamps[assetUrl] ?? 0);
+                    if (nextTimestamp) {
+                      nextTimestamps[assetUrl] = nextTimestamp;
+                    }
+                  });
+                  const next = {
+                    ...prev,
+                    assets: { ...prev.assets, ...assets },
+                    timestamps: nextTimestamps,
+                  };
                   void writeAssetCache(hwid, next);
                   return next;
                 });
               }
             }
+            pendingAssetRequests.current.delete(url);
             resolve();
           },
         );
@@ -729,23 +867,216 @@ export default function WebDeckRemotePage() {
     }
   };
 
+  // Busca apenas metadados e sincroniza ícones com cache baseado em timestamp
+  const fetchMetadataAndSyncIcons = useCallback(
+    async (preferredPageId?: string) => {
+      if (!socket || !isConnected || !hwid) return;
+
+      socket.emit(
+        "device:command",
+        { hwid, cmd: "webdeck:getMetadata", data: null, timeoutMs: 20000 },
+        async (result: { ok: boolean; data?: { pages: WebDeckPage[]; apps: AppInfo[]; autoIcons: any; iconTimestamps?: Record<string, number>; timestamp: number }; error?: string }) => {
+          if (!result?.ok) {
+            console.error("Failed to fetch metadata:", result?.error);
+            return;
+          }
+
+          const metadata = result.data;
+          if (!metadata) return;
+
+          setPages(metadata.pages);
+          setApps(metadata.apps);
+          setAutoIcons(metadata.autoIcons);
+
+          const nextIconTimestamps: Record<string, number> = { ...(metadata.iconTimestamps ?? {}) };
+          const fallbackTimestamp = Number(metadata.timestamp || Date.now());
+
+          metadata.pages?.forEach((page) => {
+            const pageTimestamp = Number(page.updatedAt ?? 0);
+            if (page.icon && !nextIconTimestamps[page.icon] && pageTimestamp) {
+              nextIconTimestamps[page.icon] = pageTimestamp;
+            }
+            page.items?.forEach((item) => {
+              if (item?.icon && !nextIconTimestamps[item.icon] && pageTimestamp) {
+                nextIconTimestamps[item.icon] = pageTimestamp;
+              }
+            });
+          });
+
+          metadata.apps?.forEach((app) => {
+            const appTimestamp = Number(app.updatedAt ?? 0);
+            if (app.icon && !nextIconTimestamps[app.icon] && appTimestamp) {
+              nextIconTimestamps[app.icon] = appTimestamp;
+            }
+          });
+
+          Object.values(metadata.autoIcons?.pages || {}).forEach((icon) => {
+            const iconKey = String(icon || "").trim();
+            if (iconKey && !nextIconTimestamps[iconKey]) {
+              nextIconTimestamps[iconKey] = fallbackTimestamp;
+            }
+          });
+          Object.values(metadata.autoIcons?.items || {}).forEach((icon) => {
+            const iconKey = String(icon || "").trim();
+            if (iconKey && !nextIconTimestamps[iconKey]) {
+              nextIconTimestamps[iconKey] = fallbackTimestamp;
+            }
+          });
+          setIconTimestamps(nextIconTimestamps);
+          metadataSyncDone.current = true;
+
+          const targetPageId = preferredPageId || currentPageId || metadata.pages?.[0]?.id || "";
+          const currentPageData = metadata.pages.find((page) => page.id === targetPageId) || metadata.pages[0];
+          if (!currentPageData) return;
+
+          const urlsToCheck = new Set<string>();
+
+          if (currentPageData.icon && shouldProxyMedia(currentPageData.icon)) urlsToCheck.add(currentPageData.icon);
+          currentPageData.items?.forEach((item) => {
+            if (item?.icon && shouldProxyMedia(item.icon)) urlsToCheck.add(item.icon);
+          });
+
+          Object.values(metadata.autoIcons?.pages || {}).forEach((icon) => {
+            const iconKey = String(icon || "").trim();
+            if (iconKey && shouldProxyMedia(iconKey)) urlsToCheck.add(iconKey);
+          });
+          Object.values(metadata.autoIcons?.items || {}).forEach((icon) => {
+            const iconKey = String(icon || "").trim();
+            if (iconKey && shouldProxyMedia(iconKey)) urlsToCheck.add(iconKey);
+          });
+
+          metadata.apps.forEach((app) => {
+            if (app.icon && shouldProxyMedia(app.icon)) urlsToCheck.add(app.icon);
+          });
+
+          const currentCache = await readAssetCache(hwid);
+          const timestampsInCache = currentCache.timestamps || {};
+          const urlsToRequest = new Set<string>();
+
+          urlsToCheck.forEach((url) => {
+            const requiredTimestamp = Number(nextIconTimestamps[url] ?? 0);
+            const cachedTimestamp = Number(timestampsInCache[url] ?? 0);
+            const hasAsset = Boolean(currentCache.assets[url]);
+            const isFresh = requiredTimestamp ? cachedTimestamp === requiredTimestamp : hasAsset;
+
+            if (!hasAsset || !isFresh) {
+              urlsToRequest.add(url);
+            }
+          });
+
+          if (urlsToRequest.size > 0) {
+            await requestMedia(Array.from(urlsToRequest), { timestamps: nextIconTimestamps });
+          }
+        },
+      );
+    },
+    [socket, isConnected, hwid, currentPageId, requestMedia]
+  );
+
+  useEffect(() => {
+    if (!socket || !isConnected || !hwid) return;
+    if (loading) return;
+    if (metadataSyncDone.current) return;
+    void fetchMetadataAndSyncIcons(currentPageId || pages[0]?.id);
+  }, [socket, isConnected, hwid, loading, currentPageId, pages, fetchMetadataAndSyncIcons, metadataSyncNonce]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const onChanged = () => {
+      metadataSyncDone.current = false;
+      setMetadataSyncNonce((value) => value + 1);
+      void fetchConfig();
+      void fetchThemeBackground();
+    };
+    const onAccessResolved = (payload: { sessionId?: string; status?: string; hwid?: string }) => {
+      if (!payload?.sessionId || payload.sessionId !== accessSessionId) return;
+      if (payload.status === "approved") {
+        if (payload.hwid) setTokenHwid(String(payload.hwid));
+        setAccessPending(false);
+        metadataSyncDone.current = false;
+        setMetadataSyncNonce((value) => value + 1);
+        void fetchConfig();
+        void fetchThemeBackground();
+        return;
+      }
+      if (payload.status === "denied" || payload.status === "revoked" || payload.status === "expired") {
+        setAccessPending(false);
+        setAccessError(t("remote.webdeck.access.denied", "Access denied."));
+      }
+    };
+
+    // Recebe eventos específicos do observer (pages-changed, apps-changed, etc)
+    const onObserverEvent = (payload: { hwid?: string; event?: { type?: string; data?: unknown } }) => {
+      if (payload?.hwid !== hwid) return; // Só processa se for do device atual
+      const eventType = payload?.event?.type;
+      const eventData = payload?.event?.data;
+
+      if (eventType === "webdeck:pages-changed" || eventType === "webdeck:items-changed") {
+        metadataSyncDone.current = false;
+        setMetadataSyncNonce((value) => value + 1);
+        void fetchMetadataAndSyncIcons(currentPageId);
+      } else if (eventType === "apps:changed" || eventType === "app:added" || eventType === "app:updated" || eventType === "app:deleted") {
+        metadataSyncDone.current = false;
+        setMetadataSyncNonce((value) => value + 1);
+        void fetchMetadataAndSyncIcons(currentPageId);
+      } else if (eventType === "theme:changed" || eventType === "theme:preferences-changed" || eventType === "theme:background-changed") {
+        void fetchThemeBackground();
+      } else if (eventType === "obs:state-changed") {
+        const data = eventData as { scenes?: Array<{ sceneName: string }>; audioInputs?: Array<{ inputName: string }> } | undefined;
+        if (data) {
+          setObs((prev) => ({
+            scenes: data.scenes ?? prev.scenes,
+            audioInputs: data.audioInputs ?? prev.audioInputs,
+          }));
+        }
+      } else if (eventType === "soundpad:audios-changed") {
+        const data = eventData as { audios?: Array<{ index: number; name?: string }> } | undefined;
+        if (data?.audios) {
+          setSoundpad((prev) => ({ ...prev, audios: data.audios! }));
+        }
+      }
+    };
+
+    socket.on("webdeck:changed", onChanged);
+    socket.on("device:access:resolved", onAccessResolved);
+    socket.on("observer:event", onObserverEvent);
+    return () => {
+      socket.off("webdeck:changed", onChanged);
+      socket.off("device:access:resolved", onAccessResolved);
+      socket.off("observer:event", onObserverEvent);
+    };
+  }, [accessSessionId, socket, t, hwid, fetchConfig, fetchMetadataAndSyncIcons, currentPageId, fetchThemeBackground]);
+
   useEffect(() => {
     if (!currentPage || !hwid) return;
-    if (assetsLoadedForPage.current.has(currentPage.id)) return;
-
     const urls = new Set<string>();
+    const timestamps = iconTimestamps ?? {};
+    const cachedTimestamps = assetCache.timestamps ?? {};
+
+    const maybeQueue = (url: string) => {
+      if (!url) return;
+      if (!shouldProxyMedia(url)) return;
+      const requiredTimestamp = Number(timestamps[url] ?? 0);
+      const cachedTimestamp = Number(cachedTimestamps[url] ?? 0);
+      const hasAsset = Boolean(assetCache.assets[url]);
+      const isFresh = requiredTimestamp ? cachedTimestamp === requiredTimestamp : hasAsset;
+      if (!hasAsset || !isFresh) {
+        urls.add(url);
+      }
+    };
+
     const pageIcon = currentPage.icon || autoIcons.pages?.[currentPage.id] || "";
-    if (pageIcon && shouldProxyMedia(pageIcon) && !assetCache.assets[pageIcon]) urls.add(pageIcon);
+    maybeQueue(pageIcon);
 
     for (const item of currentPage.items) {
       const icon = resolveItemIcon(item);
-      if (icon && shouldProxyMedia(icon) && !assetCache.assets[icon]) urls.add(icon);
+      maybeQueue(icon);
     }
 
     // Background: apenas GIF/PNG pequenos (verificação de tamanho é feita no servidor)
-    const background = theme.background;
-    if (background.variant === "image" && shouldProxyMedia(background.imageSrc) && shouldLoadBackground(background.imageSrc) && !assetCache.assets[background.imageSrc]) {
-      urls.add(background.imageSrc);
+    const background = remoteBackground;
+    if (background.variant === "image" && shouldLoadBackground(background.imageSrc)) {
+      maybeQueue(background.imageSrc);
     }
     // Vídeos são ignorados (podem ser muito grandes)
     // if (background.variant === "video" && shouldProxyMedia(background.videoSrc) && !assetCache.assets[background.videoSrc]) {
@@ -753,11 +1084,9 @@ export default function WebDeckRemotePage() {
     // }
 
     if (urls.size > 0) {
-      void requestMedia(Array.from(urls));
+      void requestMedia(Array.from(urls), { timestamps });
     }
-
-    assetsLoadedForPage.current.add(currentPage.id);
-  }, [assetCache.assets, autoIcons.pages, currentPage, hwid, theme.background]);
+  }, [assetCache.assets, assetCache.timestamps, autoIcons.pages, autoIcons.items, currentPage, hwid, iconTimestamps, remoteBackground, resolveItemIcon]);
 
   const handleSlotClick = (item: WebDeckItem | null) => {
     if (!item || !socket || !isConnected || !hwid) return;
@@ -826,25 +1155,25 @@ export default function WebDeckRemotePage() {
   };
 
   const background = useMemo<BackgroundProps>(() => {
-    if (theme.background.variant === "image") {
-      const original = theme.background.imageSrc;
+    if (remoteBackground.variant === "image") {
+      const original = remoteBackground.imageSrc;
       const resolved = resolveAsset(original);
       const imageSrc = resolved || (shouldProxyMedia(original) ? "" : original);
       if (!imageSrc) return { variant: "neural" };
-      return { ...theme.background, imageSrc };
+      return { ...remoteBackground, imageSrc };
     }
-    if (theme.background.variant === "video") {
-      const original = theme.background.videoSrc;
+    if (remoteBackground.variant === "video") {
+      const original = remoteBackground.videoSrc;
       const resolved = resolveAsset(original);
       const videoSrc = resolved || (shouldProxyMedia(original) ? "" : original);
-      const posterOriginal = theme.background.videoPoster || "";
+      const posterOriginal = remoteBackground.videoPoster || "";
       const posterResolved = posterOriginal ? resolveAsset(posterOriginal) : "";
       const videoPoster = posterResolved || (posterOriginal && shouldProxyMedia(posterOriginal) ? "" : posterOriginal || undefined);
       if (!videoSrc) return { variant: "neural" };
-      return { ...theme.background, videoSrc, videoPoster };
+      return { ...remoteBackground, videoSrc, videoPoster };
     }
-    return theme.background;
-  }, [assetCache.assets, theme.background]);
+    return remoteBackground;
+  }, [assetCache.assets, remoteBackground]);
 
   const renderStatus = (message: string) => (
     <div className="min-h-screen w-full flex items-center justify-center bg-black text-white">

@@ -61,4 +61,5 @@ export interface App {
     | AppMetaDataWebUrl
     | AppMetaDataCmd
     | AppMetaDataObsStudio;
+  updatedAt?: number;
 }

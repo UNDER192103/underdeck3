@@ -501,13 +501,15 @@ export default function WebDeck({
     setAutoItemIcons(icons?.items ?? {});
   };
 
-  const notifyWebDeckChanged = async () => {
-    try {
-      // Atualiza o cache-buster para forçar re-renderização das imagens
-      setIconVersion(Date.now());
-      await window.underdeck.express.notifyWebDeckChanged();
-    } catch {
-      // ignore notify failures when express is off or unavailable
+  const notifyWebDeckChanged = () => {
+    // Publica direto no GlobalObserver para notificar SocketContext e Express
+    if (window?.underdeck?.globalObserver?.publish) {
+      window.underdeck.globalObserver.publish({
+        id: "webdeck.pages_changed",
+        channel: "webdeck:pages-changed",
+        sourceId: "WEBDECK_DASHBOARD",
+        data: {},
+      });
     }
   };
 

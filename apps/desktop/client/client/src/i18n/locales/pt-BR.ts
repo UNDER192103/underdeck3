@@ -42,6 +42,8 @@
   "settings.advanced.start_minimized": "Iniciar minimizado",
   "settings.advanced.close_to_tray": "Fechar para bandeja",
   "settings.advanced.devtools": "DevTools",
+  "settings.advanced.open_links_in_browser": "Abrir links no navegador",
+  "settings.advanced.open_links_in_browser_tooltip": "Quando ativado, links externos abrem no navegador padrão.",
   "settings.advanced.auto_start": "Iniciar com sistema operacional",
   "settings.advanced.notifications": "Notificações",
   "settings.advanced.auto_download_updates": "Baixar atualizações automaticamente",

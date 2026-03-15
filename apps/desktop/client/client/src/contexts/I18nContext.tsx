@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { builtinByLocale, builtinLocales, TranslationMessages } from "@/i18n/builtin";
-import { useObserver } from "@/contexts/ObserverContext";
+import { useGlobalObserver } from "@/contexts/GlobalObserverContext";
 
 export interface LocaleOption {
   locale: string;
@@ -47,7 +47,7 @@ function mergeLocales(externalLocales: Array<{ locale: string; name: string }>) 
 }
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const { publish, subscribe } = useObserver();
+  const { publish, subscribe } = useGlobalObserver();
   const [locale, setLocaleState] = useState(DEFAULT_LOCALE);
   const [locales, setLocales] = useState<LocaleOption[]>(mergeLocales([]));
   const [externalMessages, setExternalMessages] = useState<TranslationMessages>({});
@@ -124,7 +124,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     }
     await loadLocale(nextLocale);
     await refreshLocales();
-    publish({ id: "i18n.setLocale", channel: "i18n", data: { locale: nextLocale } });
+    publish({ id: "i18n.setLocale", channel: "i18n", sourceId: "I18N_CONTEXT", data: { locale: nextLocale } });
   };
 
   const importLocaleFile = async (filePath: string) => {

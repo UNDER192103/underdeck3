@@ -3,7 +3,7 @@ import { App } from "@/types/apps";
 import { Shortcut } from "@/types/shortcuts";
 import { toast } from "sonner";
 import { useI18n } from "@/contexts/I18nContext";
-import { useObserver } from "@/contexts/ObserverContext";
+import { useGlobalObserver } from "@/contexts/GlobalObserverContext";
 
 interface UnderDeckContextType {
     apps: App[];
@@ -29,7 +29,7 @@ const UnderDeckContext = createContext<UnderDeckContextType | undefined>(undefin
 
 export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
     const { t } = useI18n();
-    const { publish, subscribe } = useObserver();
+    const { publish, subscribe } = useGlobalObserver();
     const [apps, setApps] = useState<App[]>([]);
     const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
     const [isShortcutsEnabled, setIsShortcutsEnabled] = useState(false);
@@ -88,8 +88,9 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
     const createApp = async (app: App) => {
         try {
             const created = await window.underdeck.apps.add(app);
+            console.log("[UnderDeckContext] Publishing apps.add:", { appId: created.id });
             setApps((prev) => upsertApp(prev, created));
-            publish({ id: "apps.add", channel: "apps", data: { appId: created.id } });
+            publish({ id: "apps.add", channel: "apps", sourceId: "UNDERDECK_CONTEXT", data: { appId: created.id } });
             toast.success(t("underdeck.apps.added", "Aplicativo adicionado."));
             return created;
         } catch {
@@ -110,7 +111,7 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
             }
             setApps((prev) => upsertApp(prev, updated));
             await refreshApps();
-            publish({ id: "apps.update", channel: "apps", data: { appId: updated.id } });
+            publish({ id: "apps.update", channel: "apps", sourceId: "UNDERDECK_CONTEXT", data: { appId: updated.id } });
             toast.success(t("underdeck.apps.updated", "Aplicativo atualizado."));
             return updated;
         } catch {
@@ -136,7 +137,7 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
         try {
             await window.underdeck.apps.delete(id);
             await refreshShortcuts();
-            publish({ id: "apps.delete", channel: "apps", data: { appId: id } });
+            publish({ id: "apps.delete", channel: "apps", sourceId: "UNDERDECK_CONTEXT", data: { appId: id } });
             toast.success(t("underdeck.apps.removed", "Aplicativo removido."));
         } catch {
             setApps(previousApps);
@@ -158,7 +159,7 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
         try {
             const serverApps = await window.underdeck.apps.reposition(sourceId, toIndex);
             replaceApps(serverApps);
-            publish({ id: "apps.reposition", channel: "apps", data: { appId: sourceId, toIndex } });
+            publish({ id: "apps.reposition", channel: "apps", sourceId: "UNDERDECK_CONTEXT", data: { appId: sourceId, toIndex } });
         } catch {
             replaceApps(previousApps);
             toast.error(t("underdeck.apps.reposition_failed", "Não foi possivel reposicionar os aplicativos."));
@@ -188,7 +189,7 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
             const nextShortcuts = upsertShortcut(shortcuts, created);
             setShortcuts(nextShortcuts);
             await syncShortcutsToService(nextShortcuts);
-            publish({ id: "shortcuts.add", channel: "shortcuts", data: { shortcutId: created.id } });
+            publish({ id: "shortcuts.add", channel: "shortcuts", sourceId: "UNDERDECK_CONTEXT", data: { shortcutId: created.id } });
             toast.success(t("underdeck.shortcuts.created", "Atalho criado com sucesso."));
             return created;
         } catch {
@@ -212,7 +213,7 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
             setShortcuts(finalShortcuts);
             await syncShortcutsToService(finalShortcuts);
             await refreshShortcuts();
-            publish({ id: "shortcuts.update", channel: "shortcuts", data: { shortcutId: updated.id } });
+            publish({ id: "shortcuts.update", channel: "shortcuts", sourceId: "UNDERDECK_CONTEXT", data: { shortcutId: updated.id } });
             toast.success(t("underdeck.shortcuts.updated", "Atalho atualizado com sucesso."));
             return updated;
         } catch {
@@ -229,7 +230,7 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
         try {
             await window.underdeck.shortcuts.delete(id);
             await syncShortcutsToService(nextShortcuts);
-            publish({ id: "shortcuts.delete", channel: "shortcuts", data: { shortcutId: id } });
+            publish({ id: "shortcuts.delete", channel: "shortcuts", sourceId: "UNDERDECK_CONTEXT", data: { shortcutId: id } });
             toast.success(t("underdeck.shortcuts.deleted", "Atalho deletado com sucesso."));
         } catch {
             setShortcuts(previousShortcuts);
@@ -246,7 +247,7 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
             if (started) {
                 await syncShortcutsToService();
             }
-            publish({ id: "shortcuts.enabled", channel: "shortcuts", data: { enabled: started } });
+            publish({ id: "shortcuts.enabled", channel: "shortcuts", sourceId: "UNDERDECK_CONTEXT", data: { enabled: started } });
         } catch {
             setIsShortcutsEnabled(previousState);
             toast.error(

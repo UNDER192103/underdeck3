@@ -20,7 +20,7 @@ import { AddAppModal } from "@/components/apps/create/AddAppModal";
 import { AddShortcutModal } from "@/components/shortcuts/create/AddShortcutModal";
 import { DropdownUp, DropdownUpContent, DropdownUpTrigger } from "@/components/ui/dropdown-up";
 import { useUnderDeck } from "@/contexts/UnderDeckContext";
-import { useObserver } from "@/contexts/ObserverContext";
+import { useGlobalObserver } from "@/contexts/GlobalObserverContext";
 import {
   Dialog,
   DialogContent,
@@ -82,7 +82,7 @@ export default function SoundPad({
   className?: string;
 }) {
   const { t } = useI18n();
-  const { publish, subscribe } = useObserver();
+  const { publish, subscribe } = useGlobalObserver();
   const { apps, createApp } = useUnderDeck();
   const [pathValue, setPathValue] = useState("");
   const [audios, setAudios] = useState<SoundPadAudio[]>([]);
@@ -197,7 +197,7 @@ export default function SoundPad({
       t("soundpad.saved.title", "Caminho salvo"),
       t("soundpad.saved.message", "Caminho do SoundPad salvo com sucesso.")
     );
-    publish({ id: "soundpad.setPath", channel: "soundpad", data: { path: selectedPath } });
+    publish({ id: "soundpad.setPath", channel: "soundpad", sourceId: "SOUNDPAD_CONTEXT", data: { path: selectedPath } });
   };
 
   const verifySoundPad = async () => {
@@ -218,7 +218,7 @@ export default function SoundPad({
       );
       return;
     }
-    publish({ id: "soundpad.setPath", channel: "soundpad", data: { path: current } });
+    publish({ id: "soundpad.setPath", channel: "soundpad", sourceId: "SOUNDPAD_CONTEXT", data: { path: current } });
 
     setChecking(true);
     try {
@@ -441,7 +441,7 @@ export default function SoundPad({
                 const current = pathValue.trim();
                 if (!isSoundPadExePath(current)) return;
                 await window.underdeck.soundpad.setPath(current);
-                publish({ id: "soundpad.setPath", channel: "soundpad", data: { path: current } });
+                publish({ id: "soundpad.setPath", channel: "soundpad", sourceId: "SOUNDPAD_CONTEXT", data: { path: current } });
               }}
               placeholder="C:\\Program Files\\Soundpad\\soundpad.exe"
             />

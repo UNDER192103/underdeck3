@@ -6,7 +6,7 @@ import electron from "electron";
 import OBSWebSocket from "obs-websocket-js";
 import { Settings } from "./settings.js";
 import { logsService } from "./logs.js";
-import { observerService } from "./observer.js";
+import { observerService, ObserverChannels } from "./observer.js";
 
 const { app: electronApp } = electron;
 
@@ -384,7 +384,41 @@ export class ObsService extends EventEmitter {
 
     private async emitStateChanged() {
         const snapshot = this.getStateSnapshot();
+
+        // Emit internal EventEmitter event (for backward compatibility)
         this.emit("state-changed", snapshot);
+
+        // Publish to global observer
+        observerService.publish(
+            ObserverChannels.OBS_STATE_CHANGED,
+            { state: snapshot },
+            "OBS_SERVICE"
+        );
+
+        // Publish granular events based on state changes
+        if (snapshot.streamActive !== undefined) {
+            observerService.publish(
+                ObserverChannels.OBS_STREAM_CHANGED,
+                { active: snapshot.streamActive },
+                "OBS_SERVICE"
+            );
+        }
+
+        if (snapshot.recordActive !== undefined) {
+            observerService.publish(
+                ObserverChannels.OBS_RECORD_CHANGED,
+                { active: snapshot.recordActive, paused: snapshot.recordPaused },
+                "OBS_SERVICE"
+            );
+        }
+
+        if (snapshot.currentProgramSceneName) {
+            observerService.publish(
+                ObserverChannels.OBS_SCENE_CHANGED,
+                { sceneName: snapshot.currentProgramSceneName, scenes: snapshot.scenes },
+                "OBS_SERVICE"
+            );
+        }
     }
 
     private getStateSnapshot(): ObsState {

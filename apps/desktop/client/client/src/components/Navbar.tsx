@@ -3,7 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { Moon, Sun, Bell, Layers, Circle } from 'lucide-react';
 import { Theme, useTheme } from "@/contexts/ThemeContext";
 import { useI18n } from "@/contexts/I18nContext";
-import { useObserver } from "@/contexts/ObserverContext";
+import { useGlobalObserver } from "@/contexts/GlobalObserverContext";
 import { TITLE_BAR_HEIGHT } from "./WindowTitleBar";
 import { useSocket } from "@/contexts/SocketContext";
 import { useNavigation } from "@/contexts/NavigationContext";
@@ -17,7 +17,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ isCollapsed }) => {
   const { theme, setTheme } = useTheme();
   const { t } = useI18n();
-  const { subscribe } = useObserver();
+  const { subscribe } = useGlobalObserver();
   const { socket } = useSocket();
   const { set } = useNavigation();
 

@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import type { SavedThemeWallpaper, ThemeDownloadProgress } from "@/types/electron";
 import { ModalConfirm } from "@/components/ModalConfirm";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useObserver } from "@/contexts/ObserverContext";
+import { useGlobalObserver } from "@/contexts/GlobalObserverContext";
 
 function getBackgroundSource(background: BackgroundProps | null) {
   if (!background) return "";
@@ -77,7 +77,7 @@ export default function ThemePage({
 }) {
   const { t } = useI18n();
   const { theme, setTheme, background, setBackground, listStoreBackgrounds } = useTheme();
-  const { publish, subscribe } = useObserver();
+  const { publish, subscribe } = useGlobalObserver();
 
   const [storeBackgrounds, setStoreBackgrounds] = useState<StoreItem[]>([]);
   const [searchValue, setSearchValue] = useState("");
@@ -415,6 +415,7 @@ export default function ThemePage({
             value={theme}
             onValueChange={(value: Theme) => {
               setTheme(value);
+              publish({ id: "theme.changed", channel: "theme:changed", data: { theme: value } });
             }}
           >
             <SelectTrigger

@@ -11,7 +11,6 @@ import { UserModalLogin } from "@/components/user/UserModalLogin";
 import { UnderDeckProvider } from "@/contexts/UnderDeckContext";
 import { I18nProvider } from "@/contexts/I18nContext";
 import { GlobalObserverProvider } from "./contexts/GlobalObserverContext";
-import { ObserverProvider } from "@/contexts/ObserverContext";
 import { NavigationProvider } from "@/contexts/NavigationContext";
 import Home from "@/pages/Home";
 import { BackgroundComp } from "@/components/ui/background";
@@ -24,7 +23,7 @@ function Router() {
   const [bootReady, setBootReady] = useState(false);
   const notifyMainReady = () => {
     try {
-      window.underdeck.observer.publish({
+      window.underdeck.globalObserver.publish({
         id: "main.ready",
         channel: "app",
         sourceId: "APP_RENDERER",
@@ -104,8 +103,7 @@ function App() {
   return (
     <ErrorBoundary>
       <GlobalObserverProvider sourceId="APP_RENDERER">
-        <ObserverProvider sourceId="APP_ELECTRON">
-          <I18nProvider>
+        <I18nProvider>
             <UserProvider>
               <ThemeProvider defaultTheme="dark" switchable={true}>
                 <SocketProvider>
@@ -123,7 +121,6 @@ function App() {
               </ThemeProvider>
             </UserProvider>
           </I18nProvider>
-        </ObserverProvider>
       </GlobalObserverProvider>
     </ErrorBoundary>
   );

@@ -238,6 +238,7 @@ export interface AppElectronSettings {
   startMinimized: boolean;
   closeToTray: boolean;
   devTools: boolean;
+  openLinksInBrowser: boolean;
 }
 
 export interface AppDevToolsChangedPayload {

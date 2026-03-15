@@ -14,6 +14,7 @@ import { ObsService } from "./obs.js";
 import { Settings } from "./settings.js";
 import { logsService } from "./logs.js";
 import { getDb } from "./database.js";
+import { observerService, ObserverChannels, ObserverEventDataMap } from "./observer.js";
 
 const { app: electronApp } = electron;
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -78,12 +79,13 @@ export class ExpressServer {
   private async emitWebDeckUpdate() {
     if (!this.io) return false;
     const timestamp = Date.now();
-    const autoIcons = this.mapAutoIconsMediaUrls(this.webDeckService.listAutoIcons(), timestamp);
+    const { icons: autoIcons, timestamps: autoIconTimestamps } = this.webDeckService.listAutoIconsWithTimestamps();
+    const mappedAutoIcons = this.mapAutoIconsMediaUrls(autoIcons, autoIconTimestamps);
     this.io.emit("webdeck:pages-changed", {
-      pages: this.webDeckService.listPages().map((page) => this.mapPageMediaUrls(page, autoIcons.pages, autoIcons.items, timestamp)),
+      pages: this.webDeckService.listPages().map((page) => this.mapPageMediaUrls(page, mappedAutoIcons.pages, mappedAutoIcons.items, autoIconTimestamps)),
       autoIcons: {
-        pages: autoIcons.pages,
-        items: autoIcons.items,
+        pages: mappedAutoIcons.pages,
+        items: mappedAutoIcons.items,
       },
       at: timestamp,
     });
@@ -173,12 +175,15 @@ export class ExpressServer {
     page: T,
     autoPageIcons?: Record<string, string>,
     autoItemIcons?: Record<string, string>,
-    version?: number
+    version?: number | { pages?: Record<string, number>; items?: Record<string, number> }
   ): T {
-    const icon = this.mediaUrlToHttpUrl(page.icon ?? null, version) ?? null;
+    // Get version for page icon (use global version or default)
+    const pageVersion = typeof version === "number" ? version : undefined;
+    const icon = this.mediaUrlToHttpUrl(page.icon ?? null, pageVersion) ?? null;
     if (!Array.isArray(page.items)) {
       return { ...page, icon };
     }
+    const timestamps = typeof version === "object" ? version : undefined;
     const items = page.items.map((item) => {
       if (!item) return item;
       const itemType = String(item.type ?? "").toLowerCase();
@@ -192,9 +197,16 @@ export class ExpressServer {
           ? this.getAutoItemKey(itemType as "app" | "soundpad" | "obs", itemRefId)
           : "";
       const fallbackAutoItemIcon = autoItemKey ? autoItemIcons?.[autoItemKey] ?? null : null;
+      // Use individual timestamp for auto icons if available
+      let itemVersion = pageVersion;
+      if (timestamps && itemRefId.startsWith("__auto_page_")) {
+        itemVersion = timestamps.pages?.[itemRefId] ?? pageVersion;
+      } else if (timestamps && autoItemKey) {
+        itemVersion = timestamps.items?.[autoItemKey] ?? pageVersion;
+      }
       return {
         ...item,
-        icon: this.mediaUrlToHttpUrl(item.icon ?? null, version) ?? fallbackAutoPageIcon ?? fallbackAutoItemIcon ?? null,
+        icon: this.mediaUrlToHttpUrl(item.icon ?? null, itemVersion) ?? fallbackAutoPageIcon ?? fallbackAutoItemIcon ?? null,
       };
     });
     return { ...page, icon, items };
@@ -207,16 +219,23 @@ export class ExpressServer {
     };
   }
 
-  private mapAutoIconsMediaUrls(autoIcons: { pages?: Record<string, string>; items?: Record<string, string> }, version?: number) {
+  private mapAutoIconsMediaUrls(
+    autoIcons: { pages?: Record<string, string>; items?: Record<string, string> },
+    version?: number | { pages?: Record<string, number>; items?: Record<string, number> }
+  ) {
     const pages: Record<string, string> = {};
     const items: Record<string, string> = {};
+    const timestamps = typeof version === "object" ? version : undefined;
+    const globalVersion = typeof version === "number" ? version : undefined;
     for (const [key, value] of Object.entries(autoIcons.pages ?? {})) {
-      const mapped = this.mediaUrlToHttpUrl(value, version);
+      const iconVersion = timestamps?.pages?.[key] ?? globalVersion;
+      const mapped = this.mediaUrlToHttpUrl(value, iconVersion);
       if (!mapped) continue;
       pages[key] = mapped;
     }
     for (const [key, value] of Object.entries(autoIcons.items ?? {})) {
-      const mapped = this.mediaUrlToHttpUrl(value, version);
+      const iconVersion = timestamps?.items?.[key] ?? globalVersion;
+      const mapped = this.mediaUrlToHttpUrl(value, iconVersion);
       if (!mapped) continue;
       items[key] = mapped;
     }
@@ -500,8 +519,9 @@ export class ExpressServer {
           this.obsService.getState(),
           this.soundPadService.listAudios(),
         ]);
-        const autoIcons = this.mapAutoIconsMediaUrls(this.webDeckService.listAutoIcons(), timestamp);
-        const mappedPages = pages.map((page) => this.mapPageMediaUrls(page, autoIcons.pages, autoIcons.items, timestamp));
+        const { icons: autoIconsRaw, timestamps: autoIconTimestamps } = this.webDeckService.listAutoIconsWithTimestamps();
+        const autoIcons = this.mapAutoIconsMediaUrls(autoIconsRaw, autoIconTimestamps);
+        const mappedPages = pages.map((page) => this.mapPageMediaUrls(page, autoIcons.pages, autoIcons.items, autoIconTimestamps));
         const mappedApps = apps.map((app) => this.mapAppMediaUrls(app, timestamp));
         res.json({
           ok: true,
@@ -529,9 +549,10 @@ export class ExpressServer {
     this.app.get("/api/webdeck/pages", async (_req, res) => {
       try {
         const timestamp = Date.now();
-        const autoIcons = this.mapAutoIconsMediaUrls(this.webDeckService.listAutoIcons(), timestamp);
-        const pages = this.webDeckService.listPages().map((page) => this.mapPageMediaUrls(page, autoIcons.pages, autoIcons.items, timestamp));
-        res.json({ ok: true, pages });
+        const { icons: autoIconsRaw, timestamps: autoIconTimestamps } = this.webDeckService.listAutoIconsWithTimestamps();
+        const autoIcons = this.mapAutoIconsMediaUrls(autoIconsRaw, autoIconTimestamps);
+        const pages = this.webDeckService.listPages().map((page) => this.mapPageMediaUrls(page, autoIcons.pages, autoIcons.items, autoIconTimestamps));
+        res.json({ ok: true, pages, at: timestamp });
       } catch (error) {
         res.status(500).json({
           ok: false,
@@ -555,54 +576,124 @@ export class ExpressServer {
     io.on("connection", (socket) => {
       socket.emit("connected", { ok: true, now: Date.now() });
       logsService.log("socket", "client.connected", { id: socket.id });
+      
+      // Handler para comandos do WebDeck remoto
+      socket.on("device:command", (payload: { hwid?: string; cmd?: string; data?: any }, callback?: any) => {
+        const { cmd, data } = payload;
+        
+        if (!cmd) {
+          callback?.({ ok: false, error: "Missing command" });
+          return;
+        }
+        
+        // Repassa para o IPC main processar
+        electron.ipcMain.emit("WebDeckSV-Command", {}, { cmd, data }, callback);
+      });
+      
+      // Handler para comandos vindos do servidor remoto
+      socket.on("app:command", (payload: { cmd?: string; data?: any }, callback?: any) => {
+        const { cmd, data } = payload;
+        
+        if (!cmd) {
+          callback?.({ ok: false, error: "Missing command" });
+          return;
+        }
+        
+        // Repassa para o IPC main processar
+        electron.ipcMain.emit("WebDeckSV-Command", {}, { cmd, data }, callback);
+      });
+      
       socket.on("disconnect", (reason) => {
         logsService.log("socket", "client.disconnected", { id: socket.id, reason });
       });
     });
 
-    const emitWebDeck = async () => {
-      await this.emitWebDeckUpdate();
-    };
-    const emitApps = async () => {
-      const timestamp = Date.now();
-      io.emit("apps:changed", {
-        apps: (await this.appService.listApps()).map((app) => this.mapAppMediaUrls(app, timestamp)),
-        at: timestamp,
-      });
-    };
-    const emitObs = async () => {
-      io.emit("obs:state-changed", {
-        state: await this.obsService.getState(),
-        at: Date.now(),
-      });
-    };
-    const emitSoundPad = async () => {
-      io.emit("soundpad:audios-changed", {
-        audios: await this.soundPadService.listAudios(),
-        at: Date.now(),
-      });
-    };
+    // Subscribe to observer events instead of direct service events
+    const unsubscribeWebDeck = observerService.subscribe(
+      ObserverChannels.WEBDECK_PAGES_CHANGED,
+      (payload) => {
+        const data = payload.data as { pages?: Array<{ icon?: string | null; items?: Array<{ type?: string; refId?: string; icon?: string | null } | null> }>; autoIcons?: { pages?: Record<string, string>; items?: Record<string, string> } };
+        const timestamp = Date.now();
+        
+        // Se não tem pages, busca todas as páginas atuais
+        if (!data || !Array.isArray(data.pages)) {
+          // Publicou dados vazios, busca o estado completo
+          const allPages = this.webDeckService.listPages();
+          const { icons: autoIcons, timestamps: autoIconTimestamps } = this.webDeckService.listAutoIconsWithTimestamps();
+          io.emit("webdeck:pages-changed", {
+            pages: allPages.map((page) => this.mapPageMediaUrls(page, autoIcons.pages, autoIcons.items, autoIconTimestamps)),
+            autoIcons: this.mapAutoIconsMediaUrls(autoIcons, autoIconTimestamps),
+            at: timestamp,
+          });
+          return;
+        }
+        
+        // Get timestamps for auto icons to use in cache-busting (only changes when icon actually changes)
+        const { timestamps: autoIconTimestamps } = this.webDeckService.listAutoIconsWithTimestamps();
+        io.emit("webdeck:pages-changed", {
+          pages: data.pages.map((page) => this.mapPageMediaUrls(page, data.autoIcons?.pages, data.autoIcons?.items, autoIconTimestamps)),
+          autoIcons: this.mapAutoIconsMediaUrls(data.autoIcons || {}, autoIconTimestamps),
+          at: timestamp,
+        });
+      }
+    );
 
-    const onWebDeckChanged = () => void emitWebDeck();
-    const onAppAdded = () => void emitApps();
-    const onAppUpdated = () => void emitApps();
-    const onAppDeleted = () => void emitApps();
-    const onObsChanged = () => void emitObs();
-    const onSoundPadChanged = () => void emitSoundPad();
+    const unsubscribeApps = observerService.subscribe(
+      ObserverChannels.APPS_CHANGED,
+      async () => {
+        const timestamp = Date.now();
+        io.emit("apps:changed", {
+          apps: (await this.appService.listApps()).map((app) => this.mapAppMediaUrls(app, timestamp)),
+          at: timestamp,
+        });
+      }
+    );
 
-    this.webDeckService.on("pages-changed", onWebDeckChanged);
-    this.appService.on("app-added", onAppAdded);
-    this.appService.on("app-updated", onAppUpdated);
-    this.appService.on("app-deleted", onAppDeleted);
-    this.obsService.on("state-changed", onObsChanged);
-    this.soundPadService.on("audios-changed", onSoundPadChanged);
+    const unsubscribeObs = observerService.subscribe(
+      ObserverChannels.OBS_STATE_CHANGED,
+      (payload) => {
+        const data = payload.data as ObserverEventDataMap["obs:state-changed"];
+        io.emit("obs:state-changed", {
+          state: data.state,
+          at: Date.now(),
+        });
+      }
+    );
 
-    this.unsubscribers.push(() => this.webDeckService.off("pages-changed", onWebDeckChanged));
-    this.unsubscribers.push(() => this.appService.off("app-added", onAppAdded));
-    this.unsubscribers.push(() => this.appService.off("app-updated", onAppUpdated));
-    this.unsubscribers.push(() => this.appService.off("app-deleted", onAppDeleted));
-    this.unsubscribers.push(() => this.obsService.off("state-changed", onObsChanged));
-    this.unsubscribers.push(() => this.soundPadService.off("audios-changed", onSoundPadChanged));
+    const unsubscribeSoundPad = observerService.subscribe(
+      ObserverChannels.SOUNDPAD_AUDIOS_CHANGED,
+      (payload) => {
+        const data = payload.data as ObserverEventDataMap["soundpad:audios-changed"];
+        io.emit("soundpad:audios-changed", {
+          audios: data.audios,
+          at: Date.now(),
+        });
+      }
+    );
+
+    const unsubscribeTheme = observerService.subscribeMany(
+      [
+        ObserverChannels.THEME_CHANGED,
+        ObserverChannels.THEME_PREFERENCES_CHANGED,
+        ObserverChannels.THEME_BACKGROUND_CHANGED,
+      ],
+      (payload) => {
+        const timestamp = Date.now();
+        const data = payload.data;
+        if (data && typeof data === "object" && !Array.isArray(data)) {
+          io.emit(payload.channel, { ...data, at: timestamp });
+          return;
+        }
+        io.emit(payload.channel, { data, at: timestamp });
+      }
+    );
+
+    // Store unsubscribers for cleanup
+    this.unsubscribers.push(unsubscribeWebDeck);
+    this.unsubscribers.push(unsubscribeApps);
+    this.unsubscribers.push(unsubscribeObs);
+    this.unsubscribers.push(unsubscribeSoundPad);
+    this.unsubscribers.push(unsubscribeTheme);
   }
 
   satus() {

@@ -242,6 +242,7 @@ interface UnderDeckApi {
   webdeck: {
     listPages: () => Promise<WebDeckPage[]>;
     findPage: (id: string) => Promise<WebDeckPage | null>;
+    getMetadata: () => Promise<{ pages: WebDeckPage[]; apps: App[]; autoIcons: WebDeckAutoIcons; iconTimestamps?: Record<string, number>; timestamp: number }>;
     createPage: (payload: { name: string; iconSource?: string | null; gridCols?: number; gridRows?: number }, sourceId?: string) => Promise<WebDeckPage | null>;
     updatePage: (payload: { id: string; name?: string; iconSource?: string | null }, sourceId?: string) => Promise<WebDeckPage | null>;
     deletePage: (id: string, sourceId?: string) => Promise<boolean>;
@@ -438,7 +439,7 @@ const underdeckApi: UnderDeckApi = {
       ipcRenderer.send("GlobalObserverSV-Publish", payload);
     },
     subscribe: (listener) => {
-      observerListeners.add(listener);
+      globalObserverListeners.add(listener);
       if (!globalObserverSubscribed) {
         ipcRenderer.on("GlobalObserverSV-Event", globalObserverEventHandler);
         globalObserverSubscribed = true;
@@ -688,6 +689,7 @@ const underdeckApi: UnderDeckApi = {
   webdeck: {
     listPages: () => ipcRenderer.invoke("WebDeckSV-ListPages"),
     findPage: (id) => ipcRenderer.invoke("WebDeckSV-FindPage", id),
+    getMetadata: () => ipcRenderer.invoke("WebDeckSV-GetMetadata"),
     createPage: (payload, sourceId) => ipcRenderer.invoke("WebDeckSV-CreatePage", payload, sourceId),
     updatePage: (payload, sourceId) => ipcRenderer.invoke("WebDeckSV-UpdatePage", payload, sourceId),
     deletePage: (id, sourceId) => ipcRenderer.invoke("WebDeckSV-DeletePage", id, sourceId),
