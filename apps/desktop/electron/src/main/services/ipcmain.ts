@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import qrcode from "qrcode";
 import { MainAppService } from "./main-app.js";
 import { ExpressServer } from "./express.js";
-import { Shortcutkey } from "./shortcutkeys.js";
+import { Shortcutkey, normalizeShortcutKeys } from "./shortcutkeys.js";
 import { App } from "../../types/apps.js";
 import { Shortcut } from "../../types/shortcuts.js";
 import { FileDialogService } from "./file-dialog.js";
@@ -556,9 +556,8 @@ export class IpcmainService {
                 const shortcuts = await this.AppService.listShortcuts();
                 await this.hortcutService.updateDataMacros(shortcuts);
                 this.hortcutService.start();
-            } else {
-                this.hortcutService.stop();
             }
+            this.hortcutService.setMacrosEnabled(Boolean(enabled));
             if (this.onOverlaySettingsChanged) {
                 await this.onOverlaySettingsChanged();
             }
@@ -569,9 +568,7 @@ export class IpcmainService {
             const raw = Settings.get("overlay");
             return {
                 enabled: Boolean(raw?.enabled),
-                keys: Array.isArray(raw?.keys)
-                    ? raw.keys.map((key: unknown) => String(key || "").trim()).filter(Boolean)
-                    : [],
+                keys: normalizeShortcutKeys(raw?.keys),
                 closeOnBlur: typeof raw?.closeOnBlur === "boolean" ? raw.closeOnBlur : true,
             };
         });
@@ -580,8 +577,8 @@ export class IpcmainService {
             const next: OverlaySettings = {
                 enabled: typeof patch?.enabled === "boolean" ? patch.enabled : Boolean(current?.enabled),
                 keys: Array.isArray(patch?.keys)
-                    ? patch.keys.map((key) => String(key || "").trim()).filter(Boolean)
-                    : (Array.isArray(current?.keys) ? current.keys : []),
+                    ? normalizeShortcutKeys(patch.keys)
+                    : normalizeShortcutKeys(current?.keys),
                 closeOnBlur: typeof patch?.closeOnBlur === "boolean"
                     ? patch.closeOnBlur
                     : (typeof current?.closeOnBlur === "boolean" ? current.closeOnBlur : true),

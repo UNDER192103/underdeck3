@@ -27,7 +27,7 @@ VelopackApp
 import { getAssetPath } from "../communs/commun.js";
 import { Settings } from "./services/settings.js";
 import { MainAppService } from "./services/main-app.js";
-import { Shortcutkey } from "./services/shortcutkeys.js";
+import { Shortcutkey, normalizeShortcutKeys } from "./services/shortcutkeys.js";
 import { ExpressServer } from "./services/express.js";
 import { createMainWindow } from "./windows/MainWindow.js";
 import { createLoadingWindow } from "./windows/LoadingWindow.js";
@@ -259,9 +259,7 @@ const toggleOverlayWindow = () => {
 const syncOverlayShortcut = async () => {
   const overlay = Settings.get("overlay");
   const overlayEnabled = Boolean(overlay?.enabled);
-  const keys = Array.isArray(overlay?.keys)
-    ? overlay.keys.map((key: unknown) => String(key || "").trim()).filter(Boolean)
-    : [];
+  const keys = normalizeShortcutKeys(overlay?.keys);
   const payload: AlternativeShortcut[] = overlayEnabled && keys.length > 0
     ? [{ id: OVERLAY_SHORTCUT_ID, keys }]
     : [];
@@ -497,14 +495,14 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
 
   if (Settings.get("express").enabled) expressService.start(Settings.get("express").port);
   await obsService.connectOnStartupIfNeeded();
-  if (Settings.get("shortcuts").enalbed) {
+  const shortcutsEnabled = Boolean(Settings.get("shortcuts").enalbed);
+  hortcutService.setMacrosEnabled(shortcutsEnabled);
+  if (shortcutsEnabled) {
     const shortcuts = await AppService.listShortcuts();
     await hortcutService.updateDataMacros(shortcuts);
-    await syncOverlayShortcut();
-    hortcutService.start();
-  } else {
-    await syncOverlayShortcut();
   }
+  await syncOverlayShortcut();
+  hortcutService.start();
 
   hortcutService.on("shortcut", (payload: any) => {
     const appId = payload?.data?.meta_data?.appId;

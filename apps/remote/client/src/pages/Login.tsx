@@ -6,7 +6,7 @@ import { Input, InputPassword } from "@/components/ui/input";
 import { useUser } from "@/contexts/UserContext";
 import { useI18n } from "@/contexts/I18nContext";
 
-export default function LoginPage() {
+export default function LoginPage({ enableRedirect }: { enableRedirect?: boolean } = { enableRedirect: true }) {
   const { user, loading, login } = useUser();
   const { t } = useI18n();
   const [, navigate] = useLocation();
@@ -24,7 +24,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const ok = await login({ identifier, password });
-      if (ok) navigate("/dashboard/connections", { replace: true });
+      if(enableRedirect) if (ok) navigate("/dashboard/connections", { replace: true });
     } finally {
       setSubmitting(false);
     }
@@ -81,15 +81,16 @@ export default function LoginPage() {
                 : t("remote.login.submit", "Sign in")}
             </Button>
           </div>
-
-          <div className="mt-4 flex items-center justify-between text-sm">
-            <Link href="/forgot-password" className="text-cyan-200/90 hover:text-cyan-200 hover:underline">
-              {t("remote.login.forgot", "Forgot password?")}
-            </Link>
-            <Link href="/register" className="text-white/80 hover:text-white hover:underline">
-              {t("remote.login.create", "Create account")}
-            </Link>
-          </div>
+          {enableRedirect && (
+            <div className="mt-4 flex items-center justify-between text-sm">
+              <Link href="/forgot-password" className="text-cyan-200/90 hover:text-cyan-200 hover:underline">
+                {t("remote.login.forgot", "Forgot password?")}
+              </Link>
+              <Link href="/register" className="text-white/80 hover:text-white hover:underline">
+                {t("remote.login.create", "Create account")}
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>

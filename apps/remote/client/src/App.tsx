@@ -65,7 +65,7 @@ function Router() {
   return (
     <>
       <Switch>
-        <Route path="/login" component={LoginPage} />
+        <Route path="/login" component={() => <LoginPage />} />
         <Route path="/register" component={RegisterPage} />
         <Route path="/forgot-password" component={ForgotPasswordPage} />
         <Route path="/webdeck" component={WebDeckRemotePage} />

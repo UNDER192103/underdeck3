@@ -11,10 +11,13 @@ import { Button } from "@/components/ui/button";
 import { ModalConfirm } from "@/components/ModalConfirm";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import type { Shortcut } from "@/types/shortcuts";
+import type { Shortcut, ShortcutKey } from "@/types/shortcuts";
 import { AddShortcutModal } from "@/components/shortcuts/create/AddShortcutModal";
 
 const PENDING_EDIT_SHORTCUT_KEY = "underdeck:shortcut-edit-id";
+const getKeyLabel = (key: ShortcutKey | string) => (typeof key === "string" ? key : key.key);
+const formatKeyCombo = (keys: Array<ShortcutKey | string>) =>
+  keys.map(getKeyLabel).filter(Boolean).join(" + ");
 
 export default function Shortcuts() {
   const {
@@ -42,7 +45,7 @@ export default function Shortcuts() {
     return shortcuts.filter((shortcut) => {
       const app = appMap.get(shortcut.meta_data.appId);
       const appName = app?.name ?? "";
-      const keys = shortcut.meta_data.keys.join(" + ");
+      const keys = formatKeyCombo(shortcut.meta_data.keys);
       return (
         shortcut.name.toLowerCase().includes(query) ||
         appName.toLowerCase().includes(query) ||
@@ -230,7 +233,7 @@ export default function Shortcuts() {
                   {t("shortcuts.type_prefix", "Tipo")} {appMap.get(shortcut.meta_data.appId)?.type ?? t("shortcuts.unknown", "Desconhecido")}
                 </p>
                 <p className="text-sm text-white/90">
-                  {shortcut.meta_data.keys.length ? shortcut.meta_data.keys.join(" + ") : t("shortcuts.no_keys", "Sem teclas")}
+                  {shortcut.meta_data.keys.length ? formatKeyCombo(shortcut.meta_data.keys) : t("shortcuts.no_keys", "Sem teclas")}
                 </p>
               </div>
             </Card>
@@ -266,4 +269,3 @@ export default function Shortcuts() {
     </div>
   );
 }
-

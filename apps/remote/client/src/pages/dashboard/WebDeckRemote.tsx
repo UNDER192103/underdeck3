@@ -7,6 +7,8 @@ import { BackgroundComp, type BackgroundProps } from "@/components/ui/background
 import { WebDeckGrid } from "@/components/webdeck/WebDeckGrid";
 import { Maximize2, Minimize2, ArrowLeft } from "lucide-react";
 import type { StoreItem } from "@/types/store";
+import { useUser } from "@/contexts/UserContext";
+import LoginPage from "@/pages/Login";
 
 type WebDeckItem = {
   id: string;
@@ -318,6 +320,10 @@ function buildAutoPagedPages(params: {
 }
 
 export default function WebDeckRemotePage() {
+  const { user, loading: loadinguser, login } = useUser();
+  if(!user) {
+    return <LoginPage enableRedirect={false} />;
+  }
   const { socket, isConnected } = useSocket();
   const { t } = useI18n();
   const [location, navigate] = useLocation();

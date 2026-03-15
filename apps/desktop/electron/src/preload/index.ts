@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 type App = import("../types/apps.js").App;
 type Shortcut = import("../types/shortcuts.js").Shortcut;
+type ShortcutKey = import("../types/shortcuts.js").ShortcutKey;
 type SelectFileOptions = import("../types/file-dialog.js").SelectFileOptions;
 type SaveFileOptions = import("../types/file-dialog.js").SaveFileOptions;
 type SavedThemeWallpaper = import("../types/theme.js").SavedThemeWallpaper;
@@ -105,7 +106,7 @@ interface UnderDeckApi {
     onChanged: (listener: (payload: AppsChangedPayload) => void) => () => void;
   };
   shortcuts: {
-    getComboKeys: () => Promise<string[]>;
+    getComboKeys: () => Promise<ShortcutKey[]>;
     list: () => Promise<Shortcut[]>;
     add: (shortcut: Shortcut) => Promise<Shortcut>;
     update: (shortcut: Shortcut) => Promise<Shortcut | null>;

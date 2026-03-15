@@ -18,6 +18,13 @@ import { toast } from "sonner";
 import { useGlobalObserver } from "@/contexts/GlobalObserverContext";
 import UpdatePage from '@/components/dashboard/update';
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import type { ShortcutKey } from "@/types/shortcuts";
+
+const getKeyLabel = (key: ShortcutKey | string) => (typeof key === "string" ? key : key.key);
+const toShortcutKey = (key: ShortcutKey | string): ShortcutKey =>
+  typeof key === "string" ? { keyCode: 0, key } : key;
+const formatKeyCombo = (keys: Array<ShortcutKey | string>) =>
+  keys.map(getKeyLabel).filter(Boolean).join(" + ");
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -31,7 +38,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
   const [isImportingLocale, setIsImportingLocale] = useState(false);
   const [removingLocale, setRemovingLocale] = useState<string | null>(null);
   const [overlayEnabled, setOverlayEnabled] = useState(false);
-  const [overlayKeys, setOverlayKeys] = useState<string[]>([]);
+  const [overlayKeys, setOverlayKeys] = useState<ShortcutKey[]>([]);
   const [overlayCloseOnBlur, setOverlayCloseOnBlur] = useState(true);
   const [isCapturingOverlayKeys, setIsCapturingOverlayKeys] = useState(false);
   const [isShortcutsEnabled, setIsShortcutsEnabled] = useState(false);
@@ -136,7 +143,10 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
         window.underdeck.shortcuts.isStarted(),
       ]);
       setOverlayEnabled(Boolean(overlaySettings?.enabled));
-      setOverlayKeys(Array.isArray(overlaySettings?.keys) ? overlaySettings.keys : []);
+      const normalizedKeys = Array.isArray(overlaySettings?.keys)
+        ? overlaySettings.keys.map(toShortcutKey)
+        : [];
+      setOverlayKeys(normalizedKeys);
       setOverlayCloseOnBlur(
         typeof overlaySettings?.closeOnBlur === "boolean" ? overlaySettings.closeOnBlur : true
       );
@@ -209,7 +219,8 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
     try {
       const next = await window.underdeck.overlay.updateSettings({ enabled });
       setOverlayEnabled(Boolean(next?.enabled));
-      setOverlayKeys(Array.isArray(next?.keys) ? next.keys : []);
+      const normalizedKeys = Array.isArray(next?.keys) ? next.keys.map(toShortcutKey) : [];
+      setOverlayKeys(normalizedKeys);
       publish({ id: "overlay.settings.enabled", channel: "overlay", sourceId: "OVERLAY_SETTINGS", data: { enabled: Boolean(next?.enabled) } });
     } catch {
       setOverlayEnabled(!enabled);
@@ -231,10 +242,6 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
   };
 
   const handleCaptureOverlayKeys = async () => {
-    if (!isShortcutsEnabled) {
-      toast.error(t("shortcuts.capture.enable_service", "Ative o servico de atalhos para capturar teclas."));
-      return;
-    }
     setIsCapturingOverlayKeys(true);
     try {
       const combo = await window.underdeck.shortcuts.getComboKeys();
@@ -244,8 +251,9 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
       }
       const next = await window.underdeck.overlay.updateSettings({ keys: combo });
       setOverlayEnabled(Boolean(next?.enabled));
-      setOverlayKeys(Array.isArray(next?.keys) ? next.keys : []);
-      publish({ id: "overlay.settings.keys", channel: "overlay", sourceId: "OVERLAY_SETTINGS", data: { keys: Array.isArray(next?.keys) ? next.keys : [] } });
+      const normalizedKeys = Array.isArray(next?.keys) ? next.keys.map(toShortcutKey) : [];
+      setOverlayKeys(normalizedKeys);
+      publish({ id: "overlay.settings.keys", channel: "overlay", sourceId: "OVERLAY_SETTINGS", data: { keys: normalizedKeys } });
     } catch {
       toast.error(t("settings.overlay.capture_error", "Falha ao capturar sequencia."));
     } finally {
@@ -370,7 +378,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
       toast.error(t("settings.logs.clear_category_error"));
     }
   };
-
+  
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -646,14 +654,14 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           id="overlay-shortcut-keys"
                           rounded="xl"
                           disabled={true}
-                          value={overlayKeys.join(" + ")}
+                          value={formatKeyCombo(overlayKeys)}
                           placeholder={t("settings.overlay.shortcut_placeholder", "CTRL + ALT + O")}
                         />
                         <Button
                           type="button"
                           rounded="xl"
                           variant="outline-primary"
-                          disabled={!isShortcutsEnabled || isCapturingOverlayKeys}
+                          disabled={isCapturingOverlayKeys}
                           onClick={() => {
                             void handleCaptureOverlayKeys();
                           }}
@@ -663,11 +671,6 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                             : t("shortcuts.capture.button", "Capturar")}
                         </Button>
                       </div>
-                      {!isShortcutsEnabled && (
-                        <p className="text-xs text-muted-foreground">
-                          {t("shortcuts.capture.enable_service", "Ative o servico de atalhos para capturar teclas.")}
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>

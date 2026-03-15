@@ -1,5 +1,7 @@
+import type { ShortcutKey } from "./shortcuts.js";
+
 export interface OverlaySettings {
     enabled: boolean;
-    keys: string[];
+    keys: ShortcutKey[];
     closeOnBlur: boolean;
 }

@@ -14,13 +14,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import type { Shortcut } from "@/types/shortcuts";
+import type { Shortcut, ShortcutKey } from "@/types/shortcuts";
 
-const parseKeys = (raw: string) =>
-  raw
-    .split("+")
-    .map((key) => key.trim())
-    .filter(Boolean);
+const getKeyLabel = (key: ShortcutKey | string) => (typeof key === "string" ? key : key.key);
+const toShortcutKey = (key: ShortcutKey | string): ShortcutKey =>
+  typeof key === "string" ? { keyCode: 0, key } : key;
+const formatKeyCombo = (keys: Array<ShortcutKey | string>) =>
+  keys.map(getKeyLabel).filter(Boolean).join(" + ");
 
 interface AddShortcutModalProps {
   shortcutToEdit?: Shortcut | null;
@@ -38,11 +38,12 @@ export function AddShortcutModal({
   initialAppId,
 }: AddShortcutModalProps) {
   const { t } = useI18n();
-  const { apps, shortcuts, createShortcut, updateShortcut, isShortcutsEnabled } = useUnderDeck();
+  const { apps, shortcuts, createShortcut, updateShortcut } = useUnderDeck();
   const [localOpen, setLocalOpen] = useState(false);
   const [isCapturingCombo, setIsCapturingCombo] = useState(false);
   const [appId, setAppId] = useState("");
-  const [keys, setKeys] = useState("");
+  const [keys, setKeys] = useState<ShortcutKey[]>([]);
+  const [keysLabel, setKeysLabel] = useState("");
   const open = typeof controlledOpen === "boolean" ? controlledOpen : localOpen;
   const isEditing = !!shortcutToEdit;
 
@@ -57,13 +58,18 @@ export function AddShortcutModal({
 
   const resetForm = () => {
     if (shortcutToEdit) {
+      const normalizedKeys = Array.isArray(shortcutToEdit.meta_data.keys)
+        ? shortcutToEdit.meta_data.keys.map(toShortcutKey)
+        : [];
       setAppId(shortcutToEdit.meta_data.appId);
-      setKeys(shortcutToEdit.meta_data.keys.join(" + "));
+      setKeys(normalizedKeys);
+      setKeysLabel(formatKeyCombo(normalizedKeys));
       return;
     }
     const defaultAppId = initialAppId || apps[0]?.id || "";
     setAppId(defaultAppId);
-    setKeys("");
+    setKeys([]);
+    setKeysLabel("");
   };
 
   useEffect(() => {
@@ -72,10 +78,6 @@ export function AddShortcutModal({
   }, [open, shortcutToEdit, initialAppId, apps]);
 
   const handleCaptureCombo = async () => {
-    if (!isShortcutsEnabled) {
-      toast.error(t("shortcuts.capture.enable_service", "Ative o serviço de atalhos para capturar teclas."));
-      return;
-    }
     setIsCapturingCombo(true);
     try {
       const combo = await window.underdeck.shortcuts.getComboKeys();
@@ -83,7 +85,9 @@ export function AddShortcutModal({
         toast.error(t("shortcuts.capture.none", "Nenhuma tecla capturada."));
         return;
       }
-      setKeys(combo.join(" + "));
+      const normalizedCombo = combo.map(toShortcutKey);
+      setKeys(normalizedCombo);
+      setKeysLabel(formatKeyCombo(normalizedCombo));
     } finally {
       setIsCapturingCombo(false);
     }
@@ -95,8 +99,7 @@ export function AddShortcutModal({
       return;
     }
 
-    const keyList = parseKeys(keys);
-    if (!keyList.length) {
+    if (!keys.length) {
       toast.error(t("shortcuts.keys.required", "Informe pelo menos uma tecla."));
       return;
     }
@@ -123,7 +126,7 @@ export function AddShortcutModal({
         description: relatedApp.description,
         meta_data: {
           appId,
-          keys: keyList,
+          keys,
         },
       };
       const created = await createShortcut(newShortcut);
@@ -149,7 +152,7 @@ export function AddShortcutModal({
       description: relatedApp.description,
       meta_data: {
         appId,
-        keys: keyList,
+        keys,
       },
     };
     const result = await updateShortcut(updatedShortcut);
@@ -207,9 +210,9 @@ export function AddShortcutModal({
                 id="shortcut-keys"
                 rounded="xl"
                 className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
-                value={keys}
+                value={keysLabel}
                 disabled={true}
-                onChange={(event) => setKeys(event.target.value)}
+                onChange={(event) => setKeysLabel(event.target.value)}
                 placeholder={t("shortcuts.modal.keys_placeholder", "CTRL + ALT + P")}
               />
               <Button
@@ -217,7 +220,7 @@ export function AddShortcutModal({
                 variant="outline-primary"
                 rounded="xl"
                 onClick={handleCaptureCombo}
-                disabled={!isShortcutsEnabled || isCapturingCombo}
+                disabled={isCapturingCombo}
                 className={isCapturingCombo ? "animate-pulse" : undefined}
               >
                 {isCapturingCombo
@@ -225,11 +228,6 @@ export function AddShortcutModal({
                   : t("shortcuts.capture.button", "Capturar")}
               </Button>
             </div>
-            {!isShortcutsEnabled && (
-              <p className="text-xs text-muted-foreground">
-                {t("shortcuts.capture.enable_service", "Ative o servico de atalhos para capturar teclas.")}
-              </p>
-            )}
           </div>
         </div>
         <DialogFooter>

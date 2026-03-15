@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import type { ShortcutKey } from "../../types/shortcuts.js";
 
 // Standardized channel names for the observer system
 export const ObserverChannels = {
@@ -83,7 +84,7 @@ export interface ObserverEventDataMap {
     "settings:changed": { category: string; settings: unknown };
     "settings:windows-changed": { autoStart?: boolean; enableNotifications?: boolean };
     "settings:electron-changed": { startMinimized?: boolean; closeToTray?: boolean; devTools?: boolean };
-    "settings:overlay-changed": { enabled?: boolean; keys?: string[]; closeOnBlur?: boolean };
+    "settings:overlay-changed": { enabled?: boolean; keys?: ShortcutKey[]; closeOnBlur?: boolean };
 
     // Express events
     "express:status-changed": { enabled: boolean; port: number };

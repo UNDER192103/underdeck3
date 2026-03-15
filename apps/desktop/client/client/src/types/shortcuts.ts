@@ -1,6 +1,11 @@
 
 export type ShortcutTypes = 1 | 2 | 3;
 
+export interface ShortcutKey {
+    keyCode: number;
+    key: string;
+}
+
 export interface Shortcut {
     id: string;
     type: ShortcutTypes;
@@ -10,11 +15,11 @@ export interface Shortcut {
     description: string;
     meta_data: {
         appId: string;
-        keys: string[];
+        keys: ShortcutKey[];
     };
 }
 
 export interface AlternativeShortcut {
     id: string;
-    keys: string[];
+    keys: ShortcutKey[];
 }

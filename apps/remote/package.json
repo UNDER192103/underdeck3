@@ -1,6 +1,6 @@
 {
   "name": "underdeck-remote",
-  "version": "3.0.1",
+  "version": "3.0.17",
   "type": "module",
   "license": "MIT",
   "scripts": {
