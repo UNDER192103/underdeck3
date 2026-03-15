@@ -129,6 +129,8 @@
       "sharp"
     ],
     "onlyBuiltDependencies": [
+      "@tailwindcss/oxide",
+      "esbuild",
       "sharp"
     ]
   }

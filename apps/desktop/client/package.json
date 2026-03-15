@@ -1,6 +1,6 @@
 {
   "name": "underdeck-desktop-client",
-  "version": "3.0.3",
+  "version": "3.0.15",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -127,6 +127,8 @@
       "sharp"
     ],
     "onlyBuiltDependencies": [
+      "@tailwindcss/oxide",
+      "esbuild",
       "sharp"
     ]
   }
