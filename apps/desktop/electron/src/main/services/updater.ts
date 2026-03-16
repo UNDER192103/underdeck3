@@ -385,7 +385,7 @@ export class UpdaterService extends EventEmitter {
         totalBytes,
         bytesPerSecond: null,
         detail: totalBytes > 0
-          ? `v${availableVersion} â€¢ ${formatBytes(0)} / ${formatBytes(totalBytes)}`
+          ? `v${availableVersion} • ${formatBytes(0)} / ${formatBytes(totalBytes)}`
           : `v${availableVersion}`,
       });
 
@@ -456,7 +456,7 @@ export class UpdaterService extends EventEmitter {
       totalBytes,
       bytesPerSecond: null,
       detail: totalBytes > 0
-        ? `v${version} â€¢ ${formatBytes(0)} / ${formatBytes(totalBytes)}`
+        ? `v${version} • ${formatBytes(0)} / ${formatBytes(totalBytes)}`
         : (version ? `v${version}` : null),
     });
 
@@ -485,7 +485,7 @@ export class UpdaterService extends EventEmitter {
           totalBytes,
           bytesPerSecond,
           detail: totalBytes > 0
-            ? `v${version} â€¢ ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}`
+            ? `v${version} • ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}`
             : (version ? `v${version}` : null),
         });
       });
@@ -508,7 +508,7 @@ export class UpdaterService extends EventEmitter {
         bytesDownloaded: totalBytes,
         totalBytes,
         bytesPerSecond: null,
-        detail: version ? `Vers\u00e3o: v${version}` : null,
+        detail: version ? `Version: v${version}` : null,
       });
 
       Settings.set("updates", {
@@ -555,4 +555,3 @@ export class UpdaterService extends EventEmitter {
     }
   }
 }
-

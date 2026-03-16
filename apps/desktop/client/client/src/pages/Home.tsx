@@ -13,6 +13,7 @@ import SoundPad from '@/components/dashboard/soundpad';
 import ObsStudio from '@/components/dashboard/obs';
 import WebDeck from '@/components/dashboard/webdeck';
 import UpdatePage from '@/components/dashboard/update';
+import WebPages from '@/components/dashboard/webpages';
 
 export default function Home() {
   const { get, set } = useNavigation();
@@ -42,6 +43,8 @@ export default function Home() {
         return <WebDeck />;
       case "updates":
         return <UpdatePage />;
+      case "webpages":
+        return <WebPages />;
       case "app":
       case "apps":
       default:

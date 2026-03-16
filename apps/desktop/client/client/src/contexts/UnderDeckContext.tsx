@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { App } from "@/types/apps";
+import { AppCategory } from "@/types/categories";
+import { WebPage, WebPagesSettings } from "@/types/webpages";
 import { Shortcut } from "@/types/shortcuts";
 import { toast } from "sonner";
 import { useI18n } from "@/contexts/I18nContext";
@@ -12,6 +14,21 @@ interface UnderDeckContextType {
     executeApp: (id: string) => Promise<void>;
     deleteApp: (id: string) => Promise<void>;
     repositionApp: (sourceId: string, toIndex: number) => Promise<void>;
+
+    categories: AppCategory[];
+    createCategory: (category: AppCategory) => Promise<AppCategory | null>;
+    updateCategory: (category: AppCategory) => Promise<AppCategory | null>;
+    deleteCategory: (id: string) => Promise<void>;
+    setAppCategory: (appId: string, categoryId: string | null) => Promise<AppCategory[] | null>;
+
+    webPages: WebPage[];
+    webPagesSettings: WebPagesSettings | null;
+    createWebPage: (page: WebPage) => Promise<WebPage | null>;
+    updateWebPage: (page: WebPage) => Promise<WebPage | null>;
+    deleteWebPage: (id: string) => Promise<void>;
+    openWebPage: (id: string) => Promise<void>;
+    closeAllWebPages: () => Promise<void>;
+    updateWebPagesSettings: (patch: Partial<WebPagesSettings>) => Promise<WebPagesSettings | null>;
 
     shortcuts: Shortcut[];
     createShortcut: (shortcut: Shortcut) => Promise<Shortcut | null>;
@@ -31,6 +48,9 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
     const { t } = useI18n();
     const { publish, subscribe } = useGlobalObserver();
     const [apps, setApps] = useState<App[]>([]);
+    const [categories, setCategories] = useState<AppCategory[]>([]);
+    const [webPages, setWebPages] = useState<WebPage[]>([]);
+    const [webPagesSettings, setWebPagesSettings] = useState<WebPagesSettings | null>(null);
     const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
     const [isShortcutsEnabled, setIsShortcutsEnabled] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -39,6 +59,24 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
         const serverApps = await window.underdeck.apps.list();
         setApps(serverApps);
         return serverApps;
+    };
+
+    const refreshCategories = async () => {
+        const serverCategories = await window.underdeck.categories.list();
+        setCategories(serverCategories);
+        return serverCategories;
+    };
+
+    const refreshWebPages = async () => {
+        const serverPages = await window.underdeck.webPages.list();
+        setWebPages(serverPages);
+        return serverPages;
+    };
+
+    const refreshWebPagesSettings = async () => {
+        const settings = await window.underdeck.webPages.getSettings();
+        setWebPagesSettings(settings);
+        return settings;
     };
 
     const refreshShortcuts = async () => {
@@ -51,10 +89,16 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
         setLoading(true);
         Promise.all([
             refreshApps(),
+            refreshCategories(),
+            refreshWebPages(),
+            refreshWebPagesSettings(),
             refreshShortcuts(),
             window.underdeck.shortcuts.isStarted(),
-        ]).then(([apps, shortcuts, isStarted]) => {
+        ]).then(([apps, categories, webPages, webPagesSettings, shortcuts, isStarted]) => {
             setApps(apps);
+            setCategories(categories);
+            setWebPages(webPages);
+            setWebPagesSettings(webPagesSettings);
             setShortcuts(shortcuts);
             setIsShortcutsEnabled(isStarted);
             setLoading(false);
@@ -65,8 +109,8 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
     }, [t]);
 
     useEffect(() => {
-        const unsubscribe = subscribe(["apps", "shortcuts"], async () => {
-            await Promise.all([refreshApps(), refreshShortcuts()]);
+        const unsubscribe = subscribe(["apps", "shortcuts", "categories:changed", "webpages:changed"], async () => {
+            await Promise.all([refreshApps(), refreshCategories(), refreshWebPages(), refreshWebPagesSettings(), refreshShortcuts()]);
         });
         return () => {
             unsubscribe();
@@ -99,6 +143,23 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const createCategory = async (category: AppCategory) => {
+        try {
+            const created = await window.underdeck.categories.add(category);
+            setCategories((prev) => {
+                const next = [...prev, created];
+                next.sort((a, b) => b.timestamp - a.timestamp);
+                return next;
+            });
+            publish({ id: "categories.add", channel: "categories:changed", sourceId: "UNDERDECK_CONTEXT", data: { categoryId: created.id } });
+            toast.success(t("underdeck.categories.added", "Categoria adicionada."));
+            return created;
+        } catch {
+            toast.error(t("underdeck.categories.add_failed", "Falha ao adicionar categoria."));
+            return null;
+        }
+    };
+
     const updateApp = async (app: App) => {
         const previousApps = apps;
         setApps((prev) => upsertApp(prev, app));
@@ -121,6 +182,28 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const updateCategory = async (category: AppCategory) => {
+        const previousCategories = categories;
+        setCategories((prev) => prev.map((item) => item.id === category.id ? category : item));
+        try {
+            const updated = await window.underdeck.categories.update(category);
+            if (!updated) {
+                setCategories(previousCategories);
+                toast.error(t("underdeck.categories.not_found_edit", "Categoria nÃ£o encontrada para ediÃ§Ã£o."));
+                return null;
+            }
+            setCategories((prev) => prev.map((item) => item.id === updated.id ? updated : item));
+            await refreshCategories();
+            publish({ id: "categories.update", channel: "categories:changed", sourceId: "UNDERDECK_CONTEXT", data: { categoryId: updated.id } });
+            toast.success(t("underdeck.categories.updated", "Categoria atualizada."));
+            return updated;
+        } catch {
+            setCategories(previousCategories);
+            toast.error(t("underdeck.categories.update_failed", "Falha ao atualizar categoria."));
+            return null;
+        }
+    };
+
     const executeApp = async (id: string) => {
         try {
             await window.underdeck.apps.execute(id);
@@ -133,7 +216,7 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
         const previousApps = apps;
         const previousShortcuts = shortcuts;
         setApps((prev) => prev.filter((a) => a.id !== id));
-        setShortcuts((prev) => prev.filter((shortcut) => shortcut.meta_data.appId !== id));
+        setShortcuts((prev) => prev.filter((shortcut) => shortcut.meta_data?.appId !== id));
         try {
             await window.underdeck.apps.delete(id);
             await refreshShortcuts();
@@ -143,6 +226,114 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
             setApps(previousApps);
             setShortcuts(previousShortcuts);
             toast.error(t("underdeck.apps.remove_failed", "Falha ao remover aplicativo."));
+        }
+    };
+
+    const deleteCategory = async (id: string) => {
+        const previousCategories = categories;
+        setCategories((prev) => prev.filter((c) => c.id !== id));
+        try {
+            await window.underdeck.categories.delete(id);
+            await refreshCategories();
+            publish({ id: "categories.delete", channel: "categories:changed", sourceId: "UNDERDECK_CONTEXT", data: { categoryId: id } });
+            toast.success(t("underdeck.categories.removed", "Categoria removida."));
+        } catch {
+            setCategories(previousCategories);
+            toast.error(t("underdeck.categories.remove_failed", "Falha ao remover categoria."));
+        }
+    };
+
+    const setAppCategory = async (appId: string, categoryId: string | null) => {
+        try {
+            const updatedCategories = await window.underdeck.categories.setApp(appId, categoryId);
+            setCategories(updatedCategories);
+            publish({ id: "categories.set_app", channel: "categories:changed", sourceId: "UNDERDECK_CONTEXT", data: { appId, categoryId } });
+            return updatedCategories;
+        } catch {
+            toast.error(t("underdeck.categories.set_app_failed", "Falha ao atualizar categoria do app."));
+            return null;
+        }
+    };
+
+    const createWebPage = async (page: WebPage) => {
+        try {
+            const created = await window.underdeck.webPages.add(page);
+            setWebPages((prev) => {
+                const next = [...prev, created];
+                next.sort((a, b) => b.updatedAt - a.updatedAt);
+                return next;
+            });
+            publish({ id: "webpages.add", channel: "webpages:changed", sourceId: "UNDERDECK_CONTEXT", data: { pageId: created.id } });
+            toast.success(t("underdeck.webpages.added", "Pagina adicionada."));
+            return created;
+        } catch {
+            toast.error(t("underdeck.webpages.add_failed", "Falha ao adicionar pagina."));
+            return null;
+        }
+    };
+
+    const updateWebPage = async (page: WebPage) => {
+        const previous = webPages;
+        setWebPages((prev) => prev.map((item) => item.id === page.id ? page : item));
+        try {
+            const updated = await window.underdeck.webPages.update(page);
+            if (!updated) {
+                setWebPages(previous);
+                toast.error(t("underdeck.webpages.not_found_edit", "Pagina nao encontrada para edicao."));
+                return null;
+            }
+            setWebPages((prev) => prev.map((item) => item.id === updated.id ? updated : item));
+            await refreshWebPages();
+            publish({ id: "webpages.update", channel: "webpages:changed", sourceId: "UNDERDECK_CONTEXT", data: { pageId: updated.id } });
+            toast.success(t("underdeck.webpages.updated", "Pagina atualizada."));
+            return updated;
+        } catch {
+            setWebPages(previous);
+            toast.error(t("underdeck.webpages.update_failed", "Falha ao atualizar pagina."));
+            return null;
+        }
+    };
+
+    const deleteWebPage = async (id: string) => {
+        const previous = webPages;
+        setWebPages((prev) => prev.filter((page) => page.id !== id));
+        try {
+            await window.underdeck.webPages.delete(id);
+            await refreshWebPages();
+            publish({ id: "webpages.delete", channel: "webpages:changed", sourceId: "UNDERDECK_CONTEXT", data: { pageId: id } });
+            toast.success(t("underdeck.webpages.removed", "Pagina removida."));
+        } catch {
+            setWebPages(previous);
+            toast.error(t("underdeck.webpages.remove_failed", "Falha ao remover pagina."));
+        }
+    };
+
+    const openWebPage = async (id: string) => {
+        try {
+            await window.underdeck.webPages.open(id);
+        } catch {
+            toast.error(t("underdeck.webpages.open_failed", "Falha ao abrir pagina."));
+        }
+    };
+
+    const closeAllWebPages = async () => {
+        try {
+            await window.underdeck.webPages.closeAll();
+            toast.success(t("underdeck.webpages.closed_all", "Paginas fechadas."));
+        } catch {
+            toast.error(t("underdeck.webpages.close_all_failed", "Falha ao fechar paginas."));
+        }
+    };
+
+    const updateWebPagesSettings = async (patch: Partial<WebPagesSettings>) => {
+        try {
+            const next = await window.underdeck.webPages.updateSettings(patch);
+            setWebPagesSettings(next);
+            publish({ id: "webpages.settings", channel: "webpages:changed", sourceId: "UNDERDECK_CONTEXT", data: next });
+            return next;
+        } catch {
+            toast.error(t("underdeck.webpages.settings_failed", "Falha ao salvar configuracoes das paginas."));
+            return null;
         }
     };
 
@@ -268,6 +459,19 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
                 executeApp,
                 deleteApp,
                 repositionApp,
+                categories,
+                createCategory,
+                updateCategory,
+                deleteCategory,
+                setAppCategory,
+                webPages,
+                webPagesSettings,
+                createWebPage,
+                updateWebPage,
+                deleteWebPage,
+                openWebPage,
+                closeAllWebPages,
+                updateWebPagesSettings,
                 shortcuts,
                 createShortcut,
                 updateShortcut,

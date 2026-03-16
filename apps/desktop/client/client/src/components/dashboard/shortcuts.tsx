@@ -43,9 +43,10 @@ export default function Shortcuts() {
     const query = search.trim().toLowerCase();
     if (!query) return shortcuts;
     return shortcuts.filter((shortcut) => {
-      const app = appMap.get(shortcut.meta_data.appId);
+      const meta = shortcut.meta_data ?? { appId: "", keys: [] };
+      const app = appMap.get(meta.appId);
       const appName = app?.name ?? "";
-      const keys = formatKeyCombo(shortcut.meta_data.keys);
+      const keys = formatKeyCombo(meta.keys ?? []);
       return (
         shortcut.name.toLowerCase().includes(query) ||
         appName.toLowerCase().includes(query) ||
@@ -151,16 +152,20 @@ export default function Shortcuts() {
       )}
       {filteredShortcuts.length > 0 && (
         <Card className="grid grid-cols-1 bg-transparent border-none shadow-none gap-4 border-none sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredShortcuts.map((shortcut) => (
+          {filteredShortcuts.map((shortcut) => {
+            const linkedApp = appMap.get(shortcut.meta_data?.appId ?? "");
+            const displayName = linkedApp?.name ?? t("shortcuts.missing_app", "App removido");
+            const displayIcon = linkedApp?.icon ?? shortcut.icon;
+            return (
             <Card
               key={shortcut.id}
               className="group relative min-h-[220px] overflow-hidden rounded-2xl border border-border/70 bg-card/70 backdrop-blur-sm"
             >
-              {shortcut.icon ? (
+              {displayIcon ? (
                 <BackgroundComp
                   variant="image"
-                  imageSrc={shortcut.icon}
-                  imageAlt={shortcut.name}
+                  imageSrc={displayIcon}
+                  imageAlt={displayName}
                   fullScreen={false}
                   className="absolute inset-0 transition-transform duration-300 group-hover:scale-115"
                   overlayClassName="bg-black/35"
@@ -228,16 +233,16 @@ export default function Shortcuts() {
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent" />
               <div className="relative z-10 flex h-full flex-col justify-end p-4">
-                <h3 className="line-clamp-2 text-base font-semibold text-white">{shortcut.name}</h3>
+                <h3 className="line-clamp-2 text-base font-semibold text-white">{displayName}</h3>
                 <p className="text-sm text-white/90">
-                  {t("shortcuts.type_prefix", "Tipo")} {appMap.get(shortcut.meta_data.appId)?.type ?? t("shortcuts.unknown", "Desconhecido")}
+                  {t("shortcuts.type_prefix", "Tipo")} {linkedApp?.type ?? t("shortcuts.unknown", "Desconhecido")}
                 </p>
                 <p className="text-sm text-white/90">
-                  {shortcut.meta_data.keys.length ? formatKeyCombo(shortcut.meta_data.keys) : t("shortcuts.no_keys", "Sem teclas")}
+                  {shortcut.meta_data?.keys?.length ? formatKeyCombo(shortcut.meta_data.keys) : t("shortcuts.no_keys", "Sem teclas")}
                 </p>
               </div>
             </Card>
-          ))}
+          )})}
         </Card>
       )}
 

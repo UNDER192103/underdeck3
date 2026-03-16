@@ -22,6 +22,7 @@ export interface AppMetaDataSoundPad {
 export interface AppMetaDataWebUrl {
     url: string;
     args?: string[];
+    openInApp?: boolean;
 }
 
 export interface AppMetaDataCmd {

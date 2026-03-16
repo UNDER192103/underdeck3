@@ -10,21 +10,47 @@ import {
     CommandItem,
 } from "@/components/ui/command";
 import { Command as CommandPrimitive } from "cmdk";
-
 const multiSelectVariants = cva(
-    "m-1 transition-all duration-300", {
+    "p-1 transition-all duration-300", {
     variants: {
         variant: {
             default: "border-foreground ",
-            secondary:"border-secondary text-secondary-foreground hover:bg-secondary/80",
+            secondary: "border-secondary text-secondary-foreground hover:bg-secondary/80",
             destructive: "border-destructive text-destructive-foreground hover:bg-destructive/80",
             success: "border-green-500/50 text-green-500",
+        },
+        rounded: {
+            default: "rounded-md",
+            md: "rounded-md",
+            sm: "rounded-sm",
+            lg: "rounded-lg",
+            xl: "rounded-xl",
+            full: "rounded-full",
         },
     },
     defaultVariants: {
         variant: "default",
+        rounded: "default",
     },
 });
+
+const multiSelectReoundedVariants = cva(
+    "", {
+    variants: {
+        rounded: {
+            default: "rounded-md",
+            md: "rounded-md",
+            sm: "rounded-sm",
+            lg: "rounded-lg",
+            xl: "rounded-xl",
+            full: "rounded-full",
+        },
+    },
+    defaultVariants: {
+        rounded: "default",
+    },
+});
+
 
 interface MultiSelectProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof multiSelectVariants> {
     placeholder?: string;
@@ -46,6 +72,7 @@ const MultiSelect = React.forwardRef<HTMLDivElement, MultiSelectProps>(({
     value,
     onValueChange,
     variant,
+    rounded,
     disabled = false,
     maxCount = 5,
     ...props
@@ -54,7 +81,7 @@ const MultiSelect = React.forwardRef<HTMLDivElement, MultiSelectProps>(({
     const [inputValue, setInputValue] = React.useState("");
     const [open, setOpen] = React.useState(false);
     const [selected, setSelected] = React.useState<string[]>(value);
-    
+
     const inputRef = React.useRef<HTMLInputElement>(null);
 
     React.useEffect(() => {
@@ -104,11 +131,11 @@ const MultiSelect = React.forwardRef<HTMLDivElement, MultiSelectProps>(({
 
     return (
         <Command onKeyDown={handleKeyDown} className={cn("overflow-visible bg-transparent", className)}>
-            <div className="group rounded-md border border-input px-3 py-2 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+            <div className={cn("group rounded-md border border-input px-3 py-2 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2", multiSelectReoundedVariants({ rounded }))}>
                 <div className="flex flex-wrap gap-1">
                     {selectedOptions.map((option) => {
                         return (
-                            <Badge key={option.value} className={cn(multiSelectVariants({ variant }))}>
+                            <Badge key={option.value} className={cn(multiSelectVariants({ variant, rounded }))}>
                                 {option.label}
                                 <button
                                     className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -142,7 +169,7 @@ const MultiSelect = React.forwardRef<HTMLDivElement, MultiSelectProps>(({
             </div>
             <div className="relative mt-2">
                 {open && unselectedOptions.length > 0 ?
-                    <div className="absolute top-0 z-10 w-full rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in">
+                    <div className={cn("absolute top-0 z-10 w-full rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in", multiSelectReoundedVariants({ rounded }))}>
                         <CommandGroup className="h-full overflow-auto">
                             {unselectedOptions.map((option) => {
                                 return (

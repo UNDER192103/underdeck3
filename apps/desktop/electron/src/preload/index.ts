@@ -1,5 +1,8 @@
 const { contextBridge, ipcRenderer } = require("electron");
 type App = import("../types/apps.js").App;
+type AppCategory = import("../types/categories.js").AppCategory;
+type WebPage = import("../types/webpages.js").WebPage;
+type WebPagesSettings = import("../types/webpages.js").WebPagesSettings;
 type Shortcut = import("../types/shortcuts.js").Shortcut;
 type ShortcutKey = import("../types/shortcuts.js").ShortcutKey;
 type SelectFileOptions = import("../types/file-dialog.js").SelectFileOptions;
@@ -104,6 +107,26 @@ interface UnderDeckApi {
     execute: (id: string) => Promise<unknown>;
     reposition: (id: string, toPosition: number) => Promise<App[]>;
     onChanged: (listener: (payload: AppsChangedPayload) => void) => () => void;
+  };
+  categories: {
+    list: () => Promise<AppCategory[]>;
+    add: (category: AppCategory) => Promise<AppCategory>;
+    update: (category: AppCategory) => Promise<AppCategory | null>;
+    find: (id: string) => Promise<AppCategory | null>;
+    delete: (id: string) => Promise<unknown>;
+    setApp: (appId: string, categoryId: string | null) => Promise<AppCategory[]>;
+  };
+  webPages: {
+    list: () => Promise<WebPage[]>;
+    add: (page: WebPage) => Promise<WebPage>;
+    update: (page: WebPage) => Promise<WebPage | null>;
+    find: (id: string) => Promise<WebPage | null>;
+    delete: (id: string) => Promise<unknown>;
+    open: (id: string) => Promise<unknown>;
+    openUrl: (url: string, title?: string) => Promise<unknown>;
+    closeAll: () => Promise<void>;
+    getSettings: () => Promise<WebPagesSettings>;
+    updateSettings: (patch: Partial<WebPagesSettings>) => Promise<WebPagesSettings>;
   };
   shortcuts: {
     getComboKeys: () => Promise<ShortcutKey[]>;
@@ -404,6 +427,26 @@ const underdeckApi: UnderDeckApi = {
         }
       };
     },
+  },
+  categories: {
+    list: () => ipcRenderer.invoke("CategoriesSV-List"),
+    add: (category) => ipcRenderer.invoke("CategoriesSV-add", category),
+    update: (category) => ipcRenderer.invoke("CategoriesSV-update", category),
+    find: (id) => ipcRenderer.invoke("CategoriesSV-find", id),
+    delete: (id) => ipcRenderer.invoke("CategoriesSV-delete", id),
+    setApp: (appId, categoryId) => ipcRenderer.invoke("CategoriesSV-SetApp", appId, categoryId),
+  },
+  webPages: {
+    list: () => ipcRenderer.invoke("WebPagesSV-List"),
+    add: (page) => ipcRenderer.invoke("WebPagesSV-add", page),
+    update: (page) => ipcRenderer.invoke("WebPagesSV-update", page),
+    find: (id) => ipcRenderer.invoke("WebPagesSV-find", id),
+    delete: (id) => ipcRenderer.invoke("WebPagesSV-delete", id),
+    open: (id) => ipcRenderer.invoke("WebPagesSV-open", id),
+    openUrl: (url, title) => ipcRenderer.invoke("WebPagesSV-openUrl", url, title),
+    closeAll: () => ipcRenderer.invoke("WebPagesSV-closeAll"),
+    getSettings: () => ipcRenderer.invoke("WebPagesSV-GetSettings"),
+    updateSettings: (patch) => ipcRenderer.invoke("WebPagesSV-UpdateSettings", patch),
   },
   shortcuts: {
     getComboKeys: () => ipcRenderer.invoke("HortcutSV-GetComboKeys"),

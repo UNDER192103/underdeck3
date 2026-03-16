@@ -3,6 +3,7 @@ import { getDb } from "./database.js";
 import { Settings } from './settings.js';
 import { App } from "../../types/apps.js";
 import { Shortcut } from "../../types/shortcuts.js";
+import { AppCategory } from "../../types/categories.js";
 import EventEmitter from "events";
 import fs from "node:fs";
 import path from "node:path";
@@ -12,6 +13,7 @@ import { exec, spawn } from "node:child_process";
 import rebotjs from "robotjs";
 import { SoundPadService } from "./soundpad.js";
 import { ObsService } from "./obs.js";
+import { WebPagesService } from "./web-pages.js";
 import { logsService } from "./logs.js";
 import { observerService, ObserverChannels } from "./observer.js";
 
@@ -23,12 +25,14 @@ export class MainAppService extends EventEmitter {
     private robot: any | null = null;
     private soundPadService: SoundPadService;
     private obsService: ObsService;
+    private webPagesService: WebPagesService;
     private changeCallback: ((type: string, data?: unknown) => void) | null = null;
 
-    constructor(soundPadService: SoundPadService, obsService: ObsService) {
+    constructor(soundPadService: SoundPadService, obsService: ObsService, webPagesService: WebPagesService) {
         super();
         this.soundPadService = soundPadService;
         this.obsService = obsService;
+        this.webPagesService = webPagesService;
         try {
             this.robot = rebotjs;
         } catch {
@@ -97,6 +101,45 @@ export class MainAppService extends EventEmitter {
                 // ignore callback errors
             }
         }
+    }
+
+    private notifyCategoryChange(type: "category-added" | "category-updated" | "category-deleted", data?: AppCategory | { id: string }) {
+        const eventType = type as "category-added" | "category-updated" | "category-deleted";
+        switch (eventType) {
+            case "category-added":
+                observerService.publish(
+                    ObserverChannels.CATEGORY_ADDED,
+                    { category: data },
+                    "MAIN_APP_SERVICE"
+                );
+                break;
+            case "category-updated":
+                observerService.publish(
+                    ObserverChannels.CATEGORY_UPDATED,
+                    { category: data },
+                    "MAIN_APP_SERVICE"
+                );
+                break;
+            case "category-deleted":
+                observerService.publish(
+                    ObserverChannels.CATEGORY_DELETED,
+                    { categoryId: String((data as { id?: string })?.id ?? "") },
+                    "MAIN_APP_SERVICE"
+                );
+                break;
+        }
+
+        void this.listCategories().then((categories) => {
+            observerService.publish(
+                ObserverChannels.CATEGORIES_CHANGED,
+                {
+                    type: eventType.replace("category-", "") as "added" | "updated" | "deleted",
+                    category: data,
+                    categories,
+                },
+                "MAIN_APP_SERVICE"
+            );
+        });
     }
 
     private getStorageRootPath() {
@@ -186,7 +229,10 @@ export class MainAppService extends EventEmitter {
         const appRef = appDb.prepare("SELECT 1 FROM apps WHERE icon = ? LIMIT 1").get(icon);
         if (appRef) return true;
         const shortcutRef = shortcutDb.prepare("SELECT 1 FROM shortcuts WHERE icon = ? LIMIT 1").get(icon);
-        return !!shortcutRef;
+        if (shortcutRef) return true;
+        const categoryDb = this.getCategoryDataBase();
+        const categoryRef = categoryDb.prepare("SELECT 1 FROM categories WHERE icon = ? LIMIT 1").get(icon);
+        return !!categoryRef;
     }
 
     private deleteIconFileIfUnreferenced(icon: string | null | undefined) {
@@ -322,10 +368,96 @@ export class MainAppService extends EventEmitter {
         return db;
     }
 
+    private getCategoryDataBase() {
+        const db = getDb('apps');
+        db.prepare(`CREATE TABLE IF NOT EXISTS categories (id TEXT PRIMARY KEY, name TEXT, icon TEXT, apps TEXT, timestamp INTEGER DEFAULT 0)`).run();
+        const columns = db.prepare("PRAGMA table_info(categories)").all() as Array<{ name: string }>;
+        if (!columns.some((column) => column.name === "apps")) {
+            db.prepare("ALTER TABLE categories ADD COLUMN apps TEXT").run();
+            db.prepare("UPDATE categories SET apps = ? WHERE apps IS NULL").run(JSON.stringify([]));
+        }
+        if (!columns.some((column) => column.name === "timestamp")) {
+            db.prepare("ALTER TABLE categories ADD COLUMN timestamp INTEGER DEFAULT 0").run();
+            db.prepare("UPDATE categories SET timestamp = ? WHERE timestamp IS NULL").run(Date.now());
+        }
+        return db;
+    }
+
     private getShortcutDataBase() {
         const db = getDb('shortcuts');
         db.prepare(`CREATE TABLE IF NOT EXISTS shortcuts (id TEXT PRIMARY KEY, type INTEGER, name TEXT, icon TEXT, banner TEXT, description TEXT, meta_data TEXT)`).run();
         return db;
+    }
+
+    private normalizeCategoryApps(value: unknown) {
+        if (!Array.isArray(value)) return [] as string[];
+        const unique = new Set<string>();
+        value.forEach((item) => {
+            const id = String(item || "").trim();
+            if (id) unique.add(id);
+        });
+        return Array.from(unique);
+    }
+
+    private mapCategoryRow(row: any): AppCategory {
+        return {
+            id: String(row.id),
+            name: String(row.name ?? ""),
+            icon: row.icon ?? null,
+            apps: this.normalizeCategoryApps(JSON.parse(row.apps ?? "[]")),
+            timestamp: Number(row.timestamp ?? Date.now()),
+        };
+    }
+
+    private updateCategoryRow(categoryId: string, patch: Partial<AppCategory>) {
+        const current = this.findCategory(categoryId);
+        if (!current) return null;
+        const next: AppCategory = {
+            ...current,
+            ...patch,
+            apps: this.normalizeCategoryApps(patch.apps ?? current.apps),
+            timestamp: Number(patch.timestamp ?? Date.now()),
+        };
+        const db = this.getCategoryDataBase();
+        db.prepare("UPDATE categories SET name = ?, icon = ?, apps = ?, timestamp = ? WHERE id = ?").run(
+            next.name,
+            next.icon,
+            JSON.stringify(next.apps),
+            next.timestamp,
+            next.id
+        );
+        return next;
+    }
+
+    private removeAppsFromOtherCategories(appIds: string[], exceptCategoryId?: string | null) {
+        if (appIds.length === 0) return [] as AppCategory[];
+        const db = this.getCategoryDataBase();
+        const rows = db.prepare("SELECT * FROM categories").all() as any[];
+        const updated: AppCategory[] = [];
+        const idsSet = new Set(appIds);
+        rows.forEach((row) => {
+            if (exceptCategoryId && row.id === exceptCategoryId) return;
+            const apps = this.normalizeCategoryApps(JSON.parse(row.apps ?? "[]"));
+            const filtered = apps.filter((id) => !idsSet.has(id));
+            if (filtered.length === apps.length) return;
+            const next = this.updateCategoryRow(String(row.id), { apps: filtered });
+            if (next) updated.push(next);
+        });
+        return updated;
+    }
+
+    private removeAppFromCategories(appId: string) {
+        const db = this.getCategoryDataBase();
+        const rows = db.prepare("SELECT * FROM categories").all() as any[];
+        const updated: AppCategory[] = [];
+        rows.forEach((row) => {
+            const apps = this.normalizeCategoryApps(JSON.parse(row.apps ?? "[]"));
+            if (!apps.includes(appId)) return;
+            const filtered = apps.filter((id) => id !== appId);
+            const next = this.updateCategoryRow(String(row.id), { apps: filtered });
+            if (next) updated.push(next);
+        });
+        return updated;
     }
 
     listApps(): Promise<App[]> {
@@ -345,6 +477,121 @@ export class MainAppService extends EventEmitter {
             }));
             resolve(apps);
         });
+    }
+
+    listCategories(): Promise<AppCategory[]> {
+        return new Promise((resolve) => {
+            const db = this.getCategoryDataBase();
+            const rows = db.prepare("SELECT * FROM categories ORDER BY timestamp DESC, rowid DESC").all();
+            const categories = (rows as any[]).map((row) => this.mapCategoryRow(row));
+            resolve(categories);
+        });
+    }
+
+    addCategory(category: AppCategory) {
+        const db = this.getCategoryDataBase();
+        const now = Date.now();
+        const appIds = this.normalizeCategoryApps(category.apps);
+        const storage = Settings.get("storage");
+        const categoryIconsFolder = storage?.categoryIconsFolder ?? storage?.appIconsFolder;
+        const categoryData: AppCategory = {
+            id: category.id,
+            name: category.name,
+            icon: this.persistEntityIcon(category.icon, category.id, categoryIconsFolder),
+            apps: appIds,
+            timestamp: now,
+        };
+
+        db.prepare("INSERT INTO categories (id, name, icon, apps, timestamp) VALUES (?, ?, ?, ?, ?)").run(
+            categoryData.id,
+            categoryData.name,
+            categoryData.icon,
+            JSON.stringify(categoryData.apps),
+            categoryData.timestamp
+        );
+
+        const updated = this.removeAppsFromOtherCategories(categoryData.apps, categoryData.id);
+        updated.forEach((item) => this.notifyCategoryChange("category-updated", item));
+
+        this.notifyCategoryChange("category-added", categoryData);
+        return categoryData;
+    }
+
+    updateCategory(category: AppCategory) {
+        const current = this.findCategory(category.id);
+        if (!current) return null;
+
+        const appIds = this.normalizeCategoryApps(category.apps ?? current.apps);
+        const storage = Settings.get("storage");
+        const categoryIconsFolder = storage?.categoryIconsFolder ?? storage?.appIconsFolder;
+        const nextIcon = this.persistEntityIcon(category.icon, category.id, categoryIconsFolder);
+        const now = Date.now();
+        const updated = this.updateCategoryRow(category.id, {
+            name: category.name ?? current.name,
+            icon: nextIcon,
+            apps: appIds,
+            timestamp: now,
+        });
+
+        if (!updated) return null;
+
+        if (current.icon !== updated.icon) {
+            this.deleteIconFileIfUnreferenced(current.icon);
+        }
+
+        const normalizedUpdated = this.removeAppsFromOtherCategories(updated.apps, updated.id);
+        normalizedUpdated.forEach((item) => this.notifyCategoryChange("category-updated", item));
+
+        this.notifyCategoryChange("category-updated", updated);
+        return updated;
+    }
+
+    deleteCategory(id: string) {
+        const current = this.findCategory(id);
+        const db = this.getCategoryDataBase();
+        const result = db.prepare("DELETE FROM categories WHERE id = ?").run(id);
+        if (current?.icon) {
+            this.deleteIconFileIfUnreferenced(current.icon);
+        }
+        this.notifyCategoryChange("category-deleted", { id });
+        return result;
+    }
+
+    findCategory(id: string) {
+        const db = this.getCategoryDataBase();
+        const row = db.prepare("SELECT * FROM categories WHERE id = ?").get(id) as any;
+        if (!row) return null;
+        return this.mapCategoryRow(row);
+    }
+
+    setAppCategory(appId: string, categoryId: string | null) {
+        const db = this.getCategoryDataBase();
+        const rows = db.prepare("SELECT * FROM categories").all() as any[];
+        const updated: AppCategory[] = [];
+        const targetId = categoryId ? String(categoryId) : null;
+        const now = Date.now();
+
+        rows.forEach((row) => {
+            const apps = this.normalizeCategoryApps(JSON.parse(row.apps ?? "[]"));
+            const isTarget = targetId && row.id === targetId;
+            let nextApps = apps;
+
+            if (isTarget) {
+                if (!apps.includes(appId)) {
+                    nextApps = [...apps, appId];
+                }
+            } else if (apps.includes(appId)) {
+                nextApps = apps.filter((id) => id !== appId);
+            }
+
+            if (nextApps !== apps) {
+                const next = this.updateCategoryRow(String(row.id), { apps: nextApps, timestamp: now });
+                if (next) updated.push(next);
+            }
+        });
+
+        updated.forEach((item) => this.notifyCategoryChange("category-updated", item));
+        return this.listCategories();
     }
 
     addApp(app: App) {
@@ -434,6 +681,8 @@ export class MainAppService extends EventEmitter {
         if (current?.icon) {
             this.deleteIconFileIfUnreferenced(current.icon);
         }
+        const updatedCategories = this.removeAppFromCategories(id);
+        updatedCategories.forEach((category) => this.notifyCategoryChange("category-updated", category));
         this.notifyChange('app-deleted', id);
         return result;
     }
@@ -590,8 +839,14 @@ export class MainAppService extends EventEmitter {
                     return false;
                 }
                 const url = app.meta_data.url;
+                const openInApp = Boolean((app.meta_data as any)?.openInApp);
                 try {
                     const _url = new URL(url);
+                    if (openInApp) {
+                        await this.webPagesService.openUrl(_url.toString(), app.name);
+                        logsService.log("app", "execute.url.in_app", { id: app.id, url: _url.toString() });
+                        return true;
+                    }
                     await electron.shell.openExternal(_url.toString());
                     logsService.log("app", "execute.url", { id: app.id, url: _url.toString() });
                     return true;

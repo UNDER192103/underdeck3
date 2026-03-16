@@ -20,6 +20,7 @@ import {
   Globe,
   Download,
   Radio,
+  LayoutTemplate,
   Music2
 } from 'lucide-react';
 import { useUser } from "@/contexts/UserContext";
@@ -166,12 +167,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
               }}
             />
             <BuildSidebarOption
-              icon={<Globe size={14} />}
+              icon={<LayoutTemplate size={14} />}
               title={t("sidebar.deck", "Deck")}
               focusing={CurrentTab === "deck"}
               onClick={() => {
                 set("pages", "home");
                 set("homePages", "deck");
+              }}
+            />
+            <BuildSidebarOption
+              icon={<Radio size={14} />}
+              title={t("sidebar.obsstudio", "Obs Studio")}
+              focusing={CurrentTab === "obs"}
+              onClick={() => {
+                set("pages", "home");
+                set("homePages", "obs");
+              }}
+            />
+            <BuildSidebarOption
+              icon={<Globe size={14} />}
+              title={t("sidebar.webpages", "Paginas Webs")}
+              focusing={CurrentTab === "webpages"}
+              onClick={() => {
+                set("pages", "home");
+                set("homePages", "webpages");
               }}
             />
             <BuildSidebarOption
@@ -190,15 +209,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
               onClick={() => {
                 set("pages", "home");
                 set("homePages", "soundpad");
-              }}
-            />
-            <BuildSidebarOption
-              icon={<Radio size={14} />}
-              title={t("sidebar.obsstudio", "Obs Studio")}
-              focusing={CurrentTab === "obs"}
-              onClick={() => {
-                set("pages", "home");
-                set("homePages", "obs");
               }}
             />
             <BuildSidebarOption

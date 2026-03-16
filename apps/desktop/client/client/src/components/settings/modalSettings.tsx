@@ -62,6 +62,10 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
   });
   const [updatesAutoDownload, setUpdatesAutoDownload] = useState(true);
   const [obsStartOnStartup, setObsStartOnStartup] = useState(false);
+  const [webPagesSettings, setWebPagesSettings] = useState({
+    useAdblock: true,
+    blockNewWindows: true,
+  });
   const [logsSettings, setLogsSettings] = useState({
     enabled: false,
     app: false,
@@ -69,6 +73,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
     obs: false,
     soundpad: false,
     webdeck: false,
+    webpages: false,
     socket: false,
     updates: false,
   });
@@ -161,12 +166,13 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
 
   const refreshAdvancedSettings = async () => {
     try {
-      const [windows, electron, updatesState, obsSettings, logs] = await Promise.all([
+      const [windows, electron, updatesState, obsSettings, logs, webPages] = await Promise.all([
         window.underdeck.appSettings.getWindows(),
         window.underdeck.appSettings.getElectron(),
         window.underdeck.updates.getState(),
         window.underdeck.obs.getSettings(),
         window.underdeck.logs.getSettings(),
+        window.underdeck.webPages.getSettings(),
       ]);
 
       setWindowsSettings({
@@ -183,6 +189,10 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
 
       setUpdatesAutoDownload(Boolean(updatesState?.autoDownloadEnabled));
       setObsStartOnStartup(Boolean(obsSettings?.connectOnStartup));
+      setWebPagesSettings({
+        useAdblock: typeof webPages?.useAdblock === "boolean" ? webPages.useAdblock : true,
+        blockNewWindows: typeof webPages?.blockNewWindows === "boolean" ? webPages.blockNewWindows : true,
+      });
       setLogsSettings({
         enabled: Boolean(logs?.enabled),
         app: Boolean(logs?.app),
@@ -190,6 +200,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
         obs: Boolean(logs?.obs),
         soundpad: Boolean(logs?.soundpad),
         webdeck: Boolean(logs?.webdeck),
+        webpages: Boolean(logs?.webpages),
         socket: Boolean(logs?.socket),
         updates: Boolean(logs?.updates),
       });
@@ -343,9 +354,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
         obs: Boolean(updated?.obs),
         soundpad: Boolean(updated?.soundpad),
         webdeck: Boolean(updated?.webdeck),
+        webpages: Boolean(updated?.webpages),
         socket: Boolean(updated?.socket),
         updates: Boolean(updated?.updates),
       });
+      publish({ id: "logs.settings", channel: "logs", sourceId: "MODAL_SETTINGS", data: updated });
     } catch (error: any) {
       console.log(error);
       setLogsSettings(previous);
@@ -376,6 +389,23 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
       toast.success(t("settings.logs.clear_category_success"));
     } catch {
       toast.error(t("settings.logs.clear_category_error"));
+    }
+  };
+  
+  const handleWebPagesSettings = async (patch: Partial<typeof webPagesSettings>) => {
+    const previous = webPagesSettings;
+    const nextLocal = { ...webPagesSettings, ...patch };
+    setWebPagesSettings(nextLocal);
+    try {
+      const updated = await window.underdeck.webPages.updateSettings(patch);
+      setWebPagesSettings({
+        useAdblock: typeof updated?.useAdblock === "boolean" ? updated.useAdblock : nextLocal.useAdblock,
+        blockNewWindows: typeof updated?.blockNewWindows === "boolean" ? updated.blockNewWindows : nextLocal.blockNewWindows,
+      });
+      publish({ id: "webpages.settings", channel: "webpages:changed", sourceId: "MODAL_SETTINGS", data: updated });
+    } catch {
+      setWebPagesSettings(previous);
+      toast.error(t("settings.advanced.save_error", "Falha ao salvar configuracao."));
     }
   };
   
@@ -680,7 +710,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                   <h3 className="text-lg font-semibold">{t("settings.advanced.title", "Avancado")}</h3>
 
                   <div className="grid gap-2 rounded-xl border border-border/70 bg-card/70 p-4">
-                    <h4 className="text-sm font-semibold">{t("settings.advanced.services", "Serviços")}</h4>
+                    <h4 className="text-sm font-semibold">{t("settings.advanced.services", "Servicos")}</h4>
 
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -749,6 +779,41 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           {t("settings.advanced.service_overlay_tooltip")}
                         </TooltipContent>
                       </Tooltip>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      {t("settings.webpages.scope_hint", "As opcoes abaixo afetam apenas paginas abertas no proprio app.")}
+                    </p>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label htmlFor="advanced-webpages-adblock">{t("webpages.adblock", "Usar Adblock")}</Label>
+                        <p className="text-xs text-muted-foreground">
+                          {t("webpages.adblock_desc", "Bloqueia anuncios nas paginas.")}
+                        </p>
+                      </div>
+                      <Switch
+                        id="advanced-webpages-adblock"
+                        checked={Boolean(webPagesSettings.useAdblock)}
+                        onCheckedChange={(checked) => {
+                          void handleWebPagesSettings({ useAdblock: Boolean(checked) });
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label htmlFor="advanced-webpages-block-windows">{t("webpages.block_new_windows", "Bloquear novas janelas")}</Label>
+                        <p className="text-xs text-muted-foreground">
+                          {t("webpages.block_new_windows_desc", "Impede abrir novas janelas.")}
+                        </p>
+                      </div>
+                      <Switch
+                        id="advanced-webpages-block-windows"
+                        checked={Boolean(webPagesSettings.blockNewWindows)}
+                        onCheckedChange={(checked) => {
+                          void handleWebPagesSettings({ blockNewWindows: Boolean(checked) });
+                        }}
+                      />
                     </div>
                   </div>
 
@@ -960,7 +1025,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                               variant="secondary"
                               size="icon-sm"
                               rounded="xl"
-                              onClick={() => void handleClearLogFile("shortcuts")}
+                              onClick={() => void handleClearLogFile("obs")}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -1013,7 +1078,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                               variant="secondary"
                               size="icon-sm"
                               rounded="xl"
-                              onClick={() => void handleClearLogFile("shortcuts")}
+                              onClick={() => void handleClearLogFile("soundpad")}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -1066,7 +1131,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                               variant="secondary"
                               size="icon-sm"
                               rounded="xl"
-                              onClick={() => void handleClearLogFile("shortcuts")}
+                              onClick={() => void handleClearLogFile("webdeck")}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -1119,7 +1184,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                               variant="secondary"
                               size="icon-sm"
                               rounded="xl"
-                              onClick={() => void handleClearLogFile("shortcuts")}
+                              onClick={() => void handleClearLogFile("socket")}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -1135,6 +1200,59 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                               checked={logsSettings.webdeck}
                               onCheckedChange={(checked) => {
                                 void handleLogsSettings({ webdeck: Boolean(checked) });
+                              }}
+                            />
+                          </TooltipTrigger>
+                        <TooltipContent>
+                          {t("settings.logs.enable_category_tooltip")}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </div>)}
+
+                    {logsSettings.enabled && (<div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="advanced-logs-webpages">{t("settings.logs.webpages", "Paginas Webs")}</Label>
+                      <div className="flex items-center gap-2">
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              rounded="xl"
+                              size="icon-sm"
+                              onClick={() => void openLogFile("webpages")}
+                              disabled={!logsSettings.webpages}
+                            >
+                              <FolderOpen className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {t("settings.logs.open_file_tooltip")}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="icon-sm"
+                              rounded="xl"
+                              onClick={() => void handleClearLogFile("webpages")}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {t("settings.logs.clear_webpages", "Limpar logs de paginas webs")}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Switch
+                              id="advanced-logs-webpages"
+                              checked={logsSettings.webpages}
+                              onCheckedChange={(checked) => {
+                                void handleLogsSettings({ webpages: Boolean(checked) });
                               }}
                             />
                           </TooltipTrigger>
@@ -1172,7 +1290,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                               variant="secondary"
                               size="icon-sm"
                               rounded="xl"
-                              onClick={() => void handleClearLogFile("shortcuts")}
+                              onClick={() => void handleClearLogFile("updates")}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -1225,7 +1343,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                               variant="secondary"
                               size="icon-sm"
                               rounded="xl"
-                              onClick={() => void handleClearLogFile("shortcuts")}
+                              onClick={() => void handleClearLogFile("app")}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -1327,3 +1445,6 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
     </>
   );
 }
+
+
+

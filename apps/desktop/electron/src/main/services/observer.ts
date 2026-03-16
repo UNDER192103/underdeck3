@@ -15,6 +15,14 @@ export const ObserverChannels = {
     APP_ADDED: "app:added",
     APP_UPDATED: "app:updated",
     APP_DELETED: "app:deleted",
+    CATEGORIES_CHANGED: "categories:changed",
+    CATEGORY_ADDED: "category:added",
+    CATEGORY_UPDATED: "category:updated",
+    CATEGORY_DELETED: "category:deleted",
+    WEBPAGES_CHANGED: "webpages:changed",
+    WEBPAGE_ADDED: "webpage:added",
+    WEBPAGE_UPDATED: "webpage:updated",
+    WEBPAGE_DELETED: "webpage:deleted",
 
     // OBS related channels
     OBS_STATE_CHANGED: "obs:state-changed",
@@ -65,6 +73,14 @@ export interface ObserverEventDataMap {
     "app:added": { app: unknown };
     "app:updated": { app: unknown };
     "app:deleted": { appId: string };
+    "categories:changed": { type: "added" | "updated" | "deleted"; category?: unknown; categories?: unknown[] };
+    "category:added": { category: unknown };
+    "category:updated": { category: unknown };
+    "category:deleted": { categoryId: string };
+    "webpages:changed": { type: "added" | "updated" | "deleted"; page?: unknown; pages?: unknown[] };
+    "webpage:added": { page: unknown };
+    "webpage:updated": { page: unknown };
+    "webpage:deleted": { pageId: string };
 
     // OBS events
     "obs:state-changed": { state: unknown };

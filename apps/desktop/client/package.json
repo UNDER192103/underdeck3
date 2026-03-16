@@ -1,6 +1,6 @@
 {
   "name": "underdeck-desktop-client",
-  "version": "3.0.17",
+  "version": "3.0.18",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -60,7 +60,7 @@
     "immer": "^11.1.3",
     "input-otp": "^1.4.2",
     "lodash": "^4.17.21",
-    "lucide-react": "^0.453.0",
+    "lucide-react": "^0.577.0",
     "mongodb": "^6.8.0",
     "multer": "^2.0.2",
     "nanoid": "^5.1.5",
@@ -121,7 +121,8 @@
       "wouter@3.7.1": "patches/wouter@3.7.1.patch"
     },
     "overrides": {
-      "tailwindcss>nanoid": "3.3.7"
+      "tailwindcss>nanoid": "3.3.7",
+      "prebuild-install": "^7.1.3"
     },
     "ignoredBuiltDependencies": [
       "sharp"

@@ -9,6 +9,7 @@ import { SearchableSelect } from "@/components/SearchableSelect";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -58,10 +59,11 @@ export function AddShortcutModal({
 
   const resetForm = () => {
     if (shortcutToEdit) {
-      const normalizedKeys = Array.isArray(shortcutToEdit.meta_data.keys)
-        ? shortcutToEdit.meta_data.keys.map(toShortcutKey)
+      const meta = shortcutToEdit.meta_data ?? { appId: "", keys: [] };
+      const normalizedKeys = Array.isArray(meta.keys)
+        ? meta.keys.map(toShortcutKey)
         : [];
-      setAppId(shortcutToEdit.meta_data.appId);
+      setAppId(meta.appId || "");
       setKeys(normalizedKeys);
       setKeysLabel(formatKeyCombo(normalizedKeys));
       return;
@@ -111,7 +113,7 @@ export function AddShortcutModal({
     }
 
     if (!isEditing) {
-      const duplicateForApp = shortcuts.some((shortcut) => shortcut.meta_data.appId === appId);
+      const duplicateForApp = shortcuts.some((shortcut) => shortcut.meta_data?.appId === appId);
       if (duplicateForApp) {
         toast.error(t("shortcuts.app.duplicate", "Este aplicativo ja possui atalho."));
         return;
@@ -137,7 +139,7 @@ export function AddShortcutModal({
 
     if (!shortcutToEdit) return;
     const duplicateForApp = shortcuts.some((shortcut) => (
-      shortcut.id !== shortcutToEdit.id && shortcut.meta_data.appId === appId
+      shortcut.id !== shortcutToEdit.id && shortcut.meta_data?.appId === appId
     ));
     if (duplicateForApp) {
       toast.error(t("shortcuts.app.duplicate", "Este aplicativo ja possui atalho."));
@@ -182,6 +184,9 @@ export function AddShortcutModal({
               ? t("shortcuts.modal.edit_title", "Editar Atalho")
               : t("shortcuts.modal.add_title", "Adicionar Atalho")}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t("shortcuts.modal.description", "Selecione um app e defina as teclas do atalho.")}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <div className="grid gap-2">

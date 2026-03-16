@@ -12,6 +12,7 @@ export type LogsSettings = {
     obs: boolean;
     soundpad: boolean;
     webdeck: boolean;
+    webpages: boolean;
     socket: boolean;
     updates: boolean;
 };
@@ -26,6 +27,7 @@ const DEFAULT_SETTINGS: LogsSettings = {
     obs: false,
     soundpad: false,
     webdeck: false,
+    webpages: false,
     socket: false,
     updates: false,
 };
@@ -40,6 +42,7 @@ const resolveSettings = (value: unknown): LogsSettings => {
         obs: Boolean(source.obs),
         soundpad: Boolean(source.soundpad),
         webdeck: Boolean(source.webdeck),
+        webpages: Boolean(source.webpages),
         socket: Boolean(source.socket),
         updates: Boolean(source.updates),
     };

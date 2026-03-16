@@ -1,4 +1,6 @@
 import type { App } from "./apps";
+import type { AppCategory } from "./categories";
+import type { WebPage, WebPagesSettings } from "./webpages";
 import type { Shortcut } from "./shortcuts";
 
 export interface FileDialogFilter {
@@ -249,6 +251,7 @@ export interface LogsSettings {
   obs: boolean;
   soundpad: boolean;
   webdeck: boolean;
+  webpages: boolean;
   socket: boolean;
   updates: boolean;
 }
@@ -286,6 +289,26 @@ export interface UnderDeckApi {
     execute: (id: string) => Promise<unknown>;
     reposition: (id: string, toPosition: number) => Promise<App[]>;
     onChanged: (listener: (payload: { type: string; data?: unknown; timestamp: number }) => void) => () => void;
+  };
+  categories: {
+    list: () => Promise<AppCategory[]>;
+    add: (category: AppCategory) => Promise<AppCategory>;
+    update: (category: AppCategory) => Promise<AppCategory | null>;
+    find: (id: string) => Promise<AppCategory | null>;
+    delete: (id: string) => Promise<unknown>;
+    setApp: (appId: string, categoryId: string | null) => Promise<AppCategory[]>;
+  };
+  webPages: {
+    list: () => Promise<WebPage[]>;
+    add: (page: WebPage) => Promise<WebPage>;
+    update: (page: WebPage) => Promise<WebPage | null>;
+    find: (id: string) => Promise<WebPage | null>;
+    delete: (id: string) => Promise<unknown>;
+    open: (id: string) => Promise<unknown>;
+    openUrl: (url: string, title?: string) => Promise<unknown>;
+    closeAll: () => Promise<void>;
+    getSettings: () => Promise<WebPagesSettings>;
+    updateSettings: (patch: Partial<WebPagesSettings>) => Promise<WebPagesSettings>;
   };
   shortcuts: {
     getComboKeys: () => Promise<string[]>;

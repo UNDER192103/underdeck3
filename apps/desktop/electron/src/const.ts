@@ -1,7 +1,7 @@
 export type RendererSourceMode = "auto" | "local" | "url";
 
 export const RendererTargetConfig = {
-    sourceMode: "local" as RendererSourceMode,
+    sourceMode: "url" as RendererSourceMode,
     devBaseUrl: "http://localhost:3404",
 };
 
@@ -31,7 +31,9 @@ export const BaseConfig = {
     storage: {
         baseFolder: 'underdeck',
         appIconsFolder: 'apps-icons',
-        shortcutIconsFolder: 'shortcuts-icons'
+        shortcutIconsFolder: 'shortcuts-icons',
+        categoryIconsFolder: 'categories-icons',
+        webPagesIconsFolder: 'webpages-icons'
     },
     shortcuts: {
         enalbed: false,
@@ -57,6 +59,7 @@ export const BaseConfig = {
         obs: false,
         soundpad: false,
         webdeck: false,
+        webpages: false,
         socket: false,
         updates: false,
     },
@@ -67,5 +70,9 @@ export const BaseConfig = {
     },
     device: {
         hwid: "",
+    },
+    webPages: {
+        useAdblock: true,
+        blockNewWindows: true,
     },
 }

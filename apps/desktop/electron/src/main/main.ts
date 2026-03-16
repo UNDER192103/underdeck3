@@ -39,6 +39,7 @@ import { ThemeService } from "./services/theme.js";
 import { SoundPadService } from "./services/soundpad.js";
 import { ObsService } from "./services/obs.js";
 import { WebDeckService } from "./services/webdeck.js";
+import { WebPagesService } from "./services/web-pages.js";
 import { AlternativeShortcut } from "../types/shortcuts.js";
 import { TranslationService } from "./services/translations.js";
 import { LoadingState, UpdateDebugLog, UpdaterService } from "./services/updater.js";
@@ -51,7 +52,8 @@ import { logsService } from "./services/logs.js";
 const soundPadService = new SoundPadService();
 const obsService = new ObsService();
 const webDeckService = new WebDeckService();
-const AppService = new MainAppService(soundPadService, obsService);
+const webPagesService = new WebPagesService();
+const AppService = new MainAppService(soundPadService, obsService, webPagesService);
 const expressService = new ExpressServer(
   Settings.get("express").port,
   AppService,
@@ -90,6 +92,7 @@ const requestAppShutdown = async () => {
   isShuttingDown = true;
   logsService.log("app", "shutdown.requested");
   windowManager.prepareForQuit();
+  webPagesService.closeAllWindows();
   await stopRuntimeServicesForUpdate();
   trayService.destroy();
   windowManager.closeAllAndQuit();
@@ -275,6 +278,7 @@ const ipcmainService = new IpcmainService(
   soundPadService,
   obsService,
   webDeckService,
+  webPagesService,
   updaterService,
   async () => { await syncOverlayShortcut(); },
   () => { trayService.refreshMenu(); },

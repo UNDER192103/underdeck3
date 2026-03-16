@@ -9,7 +9,9 @@ import { MainAppService } from "./main-app.js";
 import { ExpressServer } from "./express.js";
 import { Shortcutkey, normalizeShortcutKeys } from "./shortcutkeys.js";
 import { App } from "../../types/apps.js";
+import { AppCategory } from "../../types/categories.js";
 import { Shortcut } from "../../types/shortcuts.js";
+import { WebPage, WebPagesSettings } from "../../types/webpages.js";
 import { FileDialogService } from "./file-dialog.js";
 import { SaveFileOptions, SelectFileOptions } from "../../types/file-dialog.js";
 import { TranslationService } from "./translations.js";
@@ -19,6 +21,7 @@ import { Settings } from "./settings.js";
 import { SoundPadService } from "./soundpad.js";
 import { ObsService, ObsState } from "./obs.js";
 import { WebDeckService } from "./webdeck.js";
+import { WebPagesService } from "./web-pages.js";
 import { OverlaySettings } from "../../types/overlay.js";
 import { UpdaterService } from "./updater.js";
 import { logsService, LogsSettings, LogCategory } from "./logs.js";
@@ -53,6 +56,7 @@ export class IpcmainService {
     private soundPadService: SoundPadService;
     private obsService: ObsService;
     private webDeckService: WebDeckService;
+    private webPagesService: WebPagesService;
     private updaterService: UpdaterService;
     private onOverlaySettingsChanged?: () => Promise<void> | void;
     private onLocaleChanged?: () => Promise<void> | void;
@@ -71,6 +75,7 @@ export class IpcmainService {
         soundPadService: SoundPadService,
         obsService: ObsService,
         webDeckService: WebDeckService,
+        webPagesService: WebPagesService,
         updaterService: UpdaterService,
         onOverlaySettingsChanged?: () => Promise<void> | void,
         onLocaleChanged?: () => Promise<void> | void,
@@ -86,6 +91,7 @@ export class IpcmainService {
         this.soundPadService = soundPadService;
         this.obsService = obsService;
         this.webDeckService = webDeckService;
+        this.webPagesService = webPagesService;
         this.updaterService = updaterService;
         this.onOverlaySettingsChanged = onOverlaySettingsChanged;
         this.onLocaleChanged = onLocaleChanged;
@@ -538,6 +544,42 @@ export class IpcmainService {
             observerService.publish("apps:changed", { type: "repositioned" as const, apps: [{ id, position: toPosition }] } as any, "IPCMAIN");
             return result;
         });
+
+        ipcMain.handle("CategoriesSV-List", async () => await this.AppService.listCategories());
+        ipcMain.handle("CategoriesSV-add", async (_event, category: AppCategory) => {
+            const result = await this.AppService.addCategory(category);
+            return result;
+        });
+        ipcMain.handle("CategoriesSV-update", async (_event, category: AppCategory) => {
+            const result = await this.AppService.updateCategory(category);
+            return result;
+        });
+        ipcMain.handle("CategoriesSV-find", async (_event, id: string) => await this.AppService.findCategory(id));
+        ipcMain.handle("CategoriesSV-delete", async (_event, id: string) => {
+            const result = await this.AppService.deleteCategory(id);
+            return result;
+        });
+        ipcMain.handle("CategoriesSV-SetApp", async (_event, appId: string, categoryId: string | null) => {
+            const result = await this.AppService.setAppCategory(appId, categoryId);
+            return result;
+        });
+
+        ipcMain.handle("WebPagesSV-List", async () => await this.webPagesService.listPages());
+        ipcMain.handle("WebPagesSV-add", async (_event, page: WebPage) => await this.webPagesService.addPage(page));
+        ipcMain.handle("WebPagesSV-update", async (_event, page: WebPage) => await this.webPagesService.updatePage(page));
+        ipcMain.handle("WebPagesSV-find", async (_event, id: string) => await this.webPagesService.findPage(id));
+        ipcMain.handle("WebPagesSV-delete", async (_event, id: string) => await this.webPagesService.deletePage(id));
+        ipcMain.handle("WebPagesSV-open", async (_event, id: string) => {
+            await this.webPagesService.openPage(id);
+            return true;
+        });
+        ipcMain.handle("WebPagesSV-openUrl", async (_event, url: string, title?: string) => {
+            await this.webPagesService.openUrl(url, title);
+            return true;
+        });
+        ipcMain.handle("WebPagesSV-closeAll", async () => this.webPagesService.closeAllWindows());
+        ipcMain.handle("WebPagesSV-GetSettings", async () => this.webPagesService.getSettingsSnapshot());
+        ipcMain.handle("WebPagesSV-UpdateSettings", async (_event, patch: Partial<WebPagesSettings>) => this.webPagesService.updateSettings(patch));
 
         ipcMain.handle("HortcutSV-GetComboKeys", async () => await this.hortcutService.getComboKeys());
         ipcMain.handle("HortcutSV-List", async () => await this.AppService.listShortcuts());

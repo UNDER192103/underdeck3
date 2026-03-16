@@ -24,11 +24,14 @@ import {
 import { SearchableSelect } from "@/components/SearchableSelect";
 import type { App, AppMetaDataSystem, AppTypes } from "@/types/apps";
 import type { ObsAudioInput, ObsScene, SoundPadAudio } from "@/types/electron";
+import { CreateCategoryModal } from "@/components/apps/create/CreateCategoryModal";
+import { Switch } from "@/components/ui/switch";
 
 type FormState = {
   name: string;
   icon: string;
   type: AppTypes;
+  categoryId: string;
   executablePath: string;
   executableArgs: string;
   systemOs: AppMetaDataSystem["os"];
@@ -37,6 +40,7 @@ type FormState = {
   soundpadAction: "play-sound" | "play-current-again" | "stop" | "toggle-pause";
   soundpadAudioIndex: string;
   webUrl: string;
+  webUrlOpenInApp: boolean;
   cmdCommand: string;
   cmdArgs: string;
   obsTarget: "stream" | "record" | "scene" | "audio";
@@ -342,11 +346,24 @@ function getAppTypeDefinitions(
             }
             placeholder="https://example.com"
           />
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="app-web-open-in-app">
+              {t("apps.modal.url.open_in_app", "Abrir no app")}
+            </Label>
+            <Switch
+              id="app-web-open-in-app"
+              checked={state.webUrlOpenInApp}
+              onCheckedChange={(checked) =>
+                setState((prev) => ({ ...prev, webUrlOpenInApp: Boolean(checked) }))
+              }
+            />
+          </div>
         </div>
       ),
       validate: (state) => (state.webUrl.trim() ? null : t("apps.modal.url_required", "Informe uma URL.")),
       buildMetaData: (state) => ({
         url: state.webUrl.trim(),
+        openInApp: state.webUrlOpenInApp,
       }),
     },
     {
@@ -575,6 +592,7 @@ const DEFAULT_FORM_STATE: FormState = {
   name: "",
   icon: "",
   type: 1,
+  categoryId: "",
   executablePath: "",
   executableArgs: "",
   systemOs: "windows",
@@ -583,6 +601,7 @@ const DEFAULT_FORM_STATE: FormState = {
   soundpadAction: "play-sound",
   soundpadAudioIndex: "",
   webUrl: "",
+  webUrlOpenInApp: false,
   cmdCommand: "",
   cmdArgs: "",
   obsTarget: "stream",
@@ -606,7 +625,7 @@ export function AddAppModal({
   onOpenChange,
   initialState,
 }: AddAppModalProps) {
-  const { createApp, updateApp } = useUnderDeck();
+  const { createApp, updateApp, categories, setAppCategory } = useUnderDeck();
   const { t } = useI18n();
   const [localOpen, setLocalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -672,10 +691,12 @@ export function AddAppModal({
       return;
     }
 
+    const existingCategoryId = categories.find((category) => category.apps.includes(appToEdit.id))?.id ?? "";
     const nextState: FormState = {
       name: appToEdit.name ?? "",
       icon: "",
       type: appToEdit.type,
+      categoryId: existingCategoryId,
       executablePath: "",
       executableArgs: "",
       systemOs: "windows",
@@ -703,6 +724,7 @@ export function AddAppModal({
     }
     if (appToEdit.type === 4 && "url" in appToEdit.meta_data) {
       nextState.webUrl = appToEdit.meta_data.url ?? "";
+      nextState.webUrlOpenInApp = Boolean((appToEdit.meta_data as any)?.openInApp);
     }
     if (appToEdit.type === 6 && "command" in appToEdit.meta_data) {
       nextState.cmdCommand = appToEdit.meta_data.command ?? "";
@@ -865,6 +887,8 @@ export function AddAppModal({
       if (!createdApp) {
         return;
       }
+      const categoryId = state.categoryId.trim() || null;
+      await setAppCategory(createdApp.id, categoryId);
       setDialogOpen(false);
       resetForm();
     } finally {
@@ -951,6 +975,46 @@ export function AddAppModal({
                 />
               </div>
             )}
+          </div>
+
+          <div className="grid gap-2">
+            <Label>{t("categories.label", "Categoria")}</Label>
+            <div className="flex items-center gap-2">
+              <Select
+                value={state.categoryId || "none"}
+                onValueChange={(value) =>
+                  setState((prev) => ({ ...prev, categoryId: value === "none" ? "" : value }))
+                }
+              >
+                <SelectTrigger rounded="xl" className="w-full border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white">
+                  <SelectValue placeholder={t("categories.select_placeholder", "Sem categoria")} />
+                </SelectTrigger>
+                <SelectContent rounded="lg" className="border-border/80 bg-popover/95 text-popover-foreground shadow-xl backdrop-blur-md transparent:bg-black/85 transparent:text-white">
+                  <SelectItem value="none">{t("categories.none", "Sem categoria")}</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <CreateCategoryModal
+                trigger={
+                  <Button variant="outline-primary" rounded="xl" type="button">
+                    <Plus className="h-4 w-4" />
+                    {t("categories.add_short", "Criar")}
+                  </Button>
+                }
+                defaultAppIds={appToEdit?.id ? [appToEdit.id] : []}
+                showAppSelect={false}
+                onCreated={async (created) => {
+                  setState((prev) => ({ ...prev, categoryId: created.id }));
+                  if (appToEdit?.id) {
+                    await setAppCategory(appToEdit.id, created.id);
+                  }
+                }}
+              />
+            </div>
           </div>
 
           <div className="grid gap-2">
