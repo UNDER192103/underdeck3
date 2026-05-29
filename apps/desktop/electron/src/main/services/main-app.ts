@@ -1,7 +1,7 @@
 import logger from "../../communs/logger.js";
 import { getDb } from "./database.js";
 import { Settings } from './settings.js';
-import { App } from "../../types/apps.js";
+import { App, AppShortcutRequest, AppShortcutResult } from "../../types/apps.js";
 import { Shortcut } from "../../types/shortcuts.js";
 import { AppCategory } from "../../types/categories.js";
 import EventEmitter from "events";
@@ -9,6 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
 import electron from "electron";
+import { createHash } from "node:crypto";
 import { exec, spawn } from "node:child_process";
 import rebotjs from "robotjs";
 import { SoundPadService } from "./soundpad.js";
@@ -16,8 +17,10 @@ import { ObsService } from "./obs.js";
 import { WebPagesService } from "./web-pages.js";
 import { logsService } from "./logs.js";
 import { observerService, ObserverChannels } from "./observer.js";
+import { getAssetPath } from "../../communs/commun.js";
 
-const { app: electronApp, protocol } = electron;
+const { app: electronApp, protocol, nativeImage, shell } = electron;
+const ACTION_PROTOCOL = "underdeck";
 
 
 export class MainAppService extends EventEmitter {
@@ -704,6 +707,150 @@ export class MainAppService extends EventEmitter {
         }
     }
 
+    createShortcut(request: AppShortcutRequest): AppShortcutResult {
+        if (process.platform !== "win32") {
+            return { ok: false, error: "Shortcuts are only supported on Windows right now." };
+        }
+
+        const targetApp = this.findApp(String(request.appId || ""));
+        if (!targetApp) {
+            return { ok: false, error: "App not found." };
+        }
+
+        const shortcutName = this.sanitizeShortcutName(request.name || targetApp.name || "Under Deck");
+        const destination = request.destination === "startMenu" ? "startMenu" : request.destination === "custom" ? "custom" : "desktop";
+        const directory = this.getShortcutDirectory(destination, request.customDirectory);
+        if (!directory) {
+            return { ok: false, error: "Shortcut destination not found." };
+        }
+
+        try {
+            fs.mkdirSync(directory, { recursive: true });
+        } catch {
+            return { ok: false, error: "Could not create shortcut destination." };
+        }
+
+        const shortcutPath = path.join(directory, `${shortcutName}.lnk`);
+        const actionUrl = `${ACTION_PROTOCOL}://action?type=open-app&appId=${encodeURIComponent(targetApp.id)}`;
+        const icon = this.resolveShortcutIcon(request.iconPath || targetApp.icon, targetApp.id);
+        const success = shell.writeShortcutLink(shortcutPath, "create", {
+            target: "C:\\Windows\\explorer.exe",
+            args: `"${actionUrl}"`,
+            icon,
+            iconIndex: 0,
+            description: `Open ${targetApp.name} in Under Deck`,
+        });
+
+        return success ? { ok: true, path: shortcutPath } : { ok: false, error: "Windows could not create the shortcut." };
+    }
+
+    private sanitizeShortcutName(name: string) {
+        const safeName = String(name || "Under Deck").replace(/[<>:"/\\|?*\x00-\x1F]/g, " ").replace(/\s+/g, " ").trim();
+        return safeName || "Under Deck";
+    }
+
+    private getShortcutDirectory(destination: AppShortcutRequest["destination"], customDirectory?: string | null) {
+        if (destination === "startMenu") {
+            return path.join(electronApp.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs");
+        }
+        if (destination === "custom") {
+            const target = String(customDirectory || "").trim();
+            return target || electronApp.getPath("desktop");
+        }
+        return electronApp.getPath("desktop");
+    }
+
+    private resolveShortcutIcon(icon: string | null | undefined, appId: string) {
+        const absoluteIcon = this.resolveIconToAbsolutePath(icon);
+        if (absoluteIcon && fs.existsSync(absoluteIcon)) {
+            if (path.extname(absoluteIcon).toLowerCase() === ".ico") return absoluteIcon;
+            const converted = this.convertImageToShortcutIcon(absoluteIcon, appId);
+            if (converted) return converted;
+        }
+        if (icon?.startsWith("data:")) {
+            const converted = this.convertDataUrlToShortcutIcon(icon, appId);
+            if (converted) return converted;
+        }
+        return getAssetPath("img", "icon.ico");
+    }
+
+    private getShortcutIconsFolder() {
+        const folder = path.join(electronApp.getPath("userData"), "shortcut-icons");
+        fs.mkdirSync(folder, { recursive: true });
+        return folder;
+    }
+
+    private getShortcutIconCachePath(sourceKey: string, appId: string) {
+        const hash = createHash("sha1").update(appId).update(sourceKey).digest("hex");
+        return path.join(this.getShortcutIconsFolder(), `${hash}.ico`);
+    }
+
+    private getFileSourceKey(filePath: string, appId: string) {
+        try {
+            const stats = fs.statSync(filePath);
+            return `${appId}:${filePath}:${stats.mtimeMs}:${stats.size}`;
+        } catch {
+            return `${appId}:${filePath}`;
+        }
+    }
+
+    private convertImageToShortcutIcon(filePath: string, appId: string) {
+        const cachePath = this.getShortcutIconCachePath(this.getFileSourceKey(filePath, appId), appId);
+        if (fs.existsSync(cachePath)) return cachePath;
+
+        const image = nativeImage.createFromPath(filePath);
+        if (image.isEmpty()) return null;
+        return this.writeNativeImageAsIcon(image, cachePath);
+    }
+
+    private convertDataUrlToShortcutIcon(dataUrl: string, appId: string) {
+        const cachePath = this.getShortcutIconCachePath(dataUrl, appId);
+        if (fs.existsSync(cachePath)) return cachePath;
+
+        const image = nativeImage.createFromDataURL(dataUrl);
+        if (image.isEmpty()) return null;
+        return this.writeNativeImageAsIcon(image, cachePath);
+    }
+
+    private writeNativeImageAsIcon(image: electron.NativeImage, targetPath: string) {
+        try {
+            const sizes = [16, 24, 32, 48, 64, 128, 256];
+            const images = sizes.map((size) => ({
+                size,
+                buffer: image.resize({ width: size, height: size, quality: "best" }).toPNG(),
+            })).filter((entry) => entry.buffer.length > 0);
+
+            if (images.length === 0) return null;
+
+            const headerSize = 6;
+            const directorySize = images.length * 16;
+            let offset = headerSize + directorySize;
+            const header = Buffer.alloc(headerSize);
+            header.writeUInt16LE(0, 0);
+            header.writeUInt16LE(1, 2);
+            header.writeUInt16LE(images.length, 4);
+
+            const entries = images.map(({ size, buffer }) => {
+                const entry = Buffer.alloc(16);
+                entry.writeUInt8(size >= 256 ? 0 : size, 0);
+                entry.writeUInt8(size >= 256 ? 0 : size, 1);
+                entry.writeUInt8(0, 2);
+                entry.writeUInt8(0, 3);
+                entry.writeUInt16LE(1, 4);
+                entry.writeUInt16LE(32, 6);
+                entry.writeUInt32LE(buffer.length, 8);
+                entry.writeUInt32LE(offset, 12);
+                offset += buffer.length;
+                return entry;
+            });
+
+            fs.writeFileSync(targetPath, Buffer.concat([header, ...entries, ...images.map((entry) => entry.buffer)]));
+            return targetPath;
+        } catch {
+            return null;
+        }
+    }
+
     async executeApp(id: string) {
         const app = this.findApp(id);
         if (!app) {
@@ -922,7 +1069,11 @@ export class MainAppService extends EventEmitter {
                     return false;
                 }
                 if (process.platform !== "win32") return false;
-                const commandBase = String(app.meta_data.command);
+                const commandBase = String(app.meta_data.command).trim();
+                if (!commandBase) {
+                    logsService.log("app", "execute.command.invalid", { id: app.id }, "warn");
+                    return false;
+                }
                 const args = Array.isArray(app.meta_data.args) ? app.meta_data.args : [];
                 const quoteArg = (value: string) => {
                     if (value.length === 0) return "\"\"";
@@ -932,7 +1083,7 @@ export class MainAppService extends EventEmitter {
                     return value;
                 };
                 const argsString = args.map((arg: unknown) => quoteArg(String(arg))).join(" ");
-                const fullCommand = `"${commandBase}" ${argsString}`.trim();
+                const fullCommand = `${commandBase} ${argsString}`.trim();
                 logsService.log("app", "execute.command", { id: app.id, command: fullCommand, args });
                 exec(
                     fullCommand,

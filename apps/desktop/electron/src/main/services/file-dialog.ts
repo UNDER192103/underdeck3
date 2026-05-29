@@ -81,6 +81,12 @@ export class FileDialogService {
     const buffer = fs.readFileSync(filePath);
     return `data:${mimeType};base64,${buffer.toString("base64")}`;
   }
+
+  async writeTextFile(filePath: string, content: string) {
+    if (!filePath) return false;
+    fs.writeFileSync(filePath, content, "utf-8");
+    return true;
+  }
 }
 
 export const fileDialogService = new FileDialogService();

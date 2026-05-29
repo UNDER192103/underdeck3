@@ -8,7 +8,7 @@ import qrcode from "qrcode";
 import { MainAppService } from "./main-app.js";
 import { ExpressServer } from "./express.js";
 import { Shortcutkey, normalizeShortcutKeys } from "./shortcutkeys.js";
-import { App } from "../../types/apps.js";
+import { App, AppShortcutRequest } from "../../types/apps.js";
 import { AppCategory } from "../../types/categories.js";
 import { Shortcut } from "../../types/shortcuts.js";
 import { WebPage, WebPageShortcutRequest, WebPagesSettings } from "../../types/webpages.js";
@@ -544,6 +544,9 @@ export class IpcmainService {
             observerService.publish("apps:changed", { type: "repositioned" as const, apps: [{ id, position: toPosition }] } as any, "IPCMAIN");
             return result;
         });
+        ipcMain.handle("AppsSV-CreateShortcut", async (_event, request: AppShortcutRequest) => {
+            return this.AppService.createShortcut(request);
+        });
 
         ipcMain.handle("CategoriesSV-List", async () => await this.AppService.listCategories());
         ipcMain.handle("CategoriesSV-add", async (_event, category: AppCategory) => {
@@ -687,6 +690,9 @@ export class IpcmainService {
         });
         ipcMain.handle("DialogSV-ReadFileAsDataUrl", async (_event, filePath: string) => {
             return this.fileDialog.readFileAsDataUrl(filePath);
+        });
+        ipcMain.handle("DialogSV-WriteTextFile", async (_event, filePath: string, content: string) => {
+            return this.fileDialog.writeTextFile(filePath, content);
         });
         ipcMain.handle("StorageSV-ImportFileToMediaUrl", async (_event, sourcePath: string, folderName: string, targetFileName?: string) => {
             const imported = this.AppService.importFileToStorage(sourcePath, folderName, targetFileName);

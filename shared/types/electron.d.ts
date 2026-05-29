@@ -1,4 +1,4 @@
-import type { App } from "./apps";
+import type { App, AppShortcutRequest, AppShortcutResult } from "./apps";
 import type { AppCategory } from "./categories";
 import type { WebPage, WebPageShortcutRequest, WebPageShortcutResult, WebPagesSettings } from "./webpages";
 import type { Shortcut } from "./shortcuts";
@@ -288,6 +288,7 @@ export interface UnderDeckApi {
     delete: (id: string) => Promise<unknown>;
     execute: (id: string) => Promise<unknown>;
     reposition: (id: string, toPosition: number) => Promise<App[]>;
+    createShortcut: (request: AppShortcutRequest) => Promise<AppShortcutResult>;
     onChanged: (listener: (payload: { type: string; data?: unknown; timestamp: number }) => void) => () => void;
   };
   categories: {
@@ -385,6 +386,7 @@ export interface UnderDeckApi {
     selectFile: (options?: SelectFileOptions) => Promise<string | string[] | null>;
     selectSaveFile: (options?: SaveFileOptions) => Promise<string | null>;
     readFileAsDataUrl: (filePath: string) => Promise<string | null>;
+    writeTextFile: (filePath: string, content: string) => Promise<boolean>;
   };
   media: {
     importFileToMediaUrl: (sourcePath: string, folderName: string, targetFileName?: string) => Promise<string | null>;

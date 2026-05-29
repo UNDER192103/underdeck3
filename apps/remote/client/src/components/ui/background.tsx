@@ -69,8 +69,8 @@ export function BackgroundComp(props: BackgroundProps) {
   const neuralColors =
     variant === "neural"
       ? {
-          center: props.neuralColors?.center ?? "rgba(21, 25, 100, 0.53)",
-          middle: props.neuralColors?.middle ?? "rgb(2, 26, 75)",
+          center: props.neuralColors?.center ?? "rgba(11, 13, 53, 0.53)",
+          middle: props.neuralColors?.middle ?? "rgb(0, 0, 0)",
           edge: props.neuralColors?.edge ?? "rgb(3, 9, 29)",
           link: props.neuralColors?.link ?? "rgba(125, 211, 252, 1)",
           dot: props.neuralColors?.dot ?? "rgba(147, 197, 253, 0.9)",

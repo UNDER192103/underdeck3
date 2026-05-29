@@ -19,6 +19,7 @@ import { useGlobalObserver } from "@/contexts/GlobalObserverContext";
 import UpdatePage from '@/components/dashboard/update';
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import type { ShortcutKey } from "@/types/shortcuts";
+import { builtinByLocale } from "@/i18n/builtin";
 
 const getKeyLabel = (key: ShortcutKey | string) => (typeof key === "string" ? key : key.key);
 const toShortcutKey = (key: ShortcutKey | string): ShortcutKey =>
@@ -36,6 +37,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
   const { t, locale, locales, setLocale, importLocaleFile, removeLocale } = useI18n();
   const [currentSection, setCurrentSection] = useState<"theme" | "language" | "obs" | "soundpad" | "overlay" | "updates" | "advanced">("updates");
   const [isImportingLocale, setIsImportingLocale] = useState(false);
+  const [isExportingLocale, setIsExportingLocale] = useState(false);
   const [removingLocale, setRemovingLocale] = useState<string | null>(null);
   const [overlayEnabled, setOverlayEnabled] = useState(false);
   const [overlayKeys, setOverlayKeys] = useState<ShortcutKey[]>([]);
@@ -112,6 +114,43 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
       toast.error(t("settings.language.importError"));
     } finally {
       setIsImportingLocale(false);
+    }
+  };
+
+  const handleExportLocaleTemplate = async () => {
+    setIsExportingLocale(true);
+    try {
+      const currentLocaleOption = locales.find((option) => option.locale === locale);
+      const baseMessages =
+        currentLocaleOption?.source === "external"
+          ? await window.underdeck.i18n.getExternalMessages(locale)
+          : (builtinByLocale.get(locale)?.messages ?? {});
+
+      const payload = {
+        locale,
+        name: currentLocaleOption?.name ?? locale,
+        messages: baseMessages,
+      };
+      const selectedPath = await window.underdeck.dialog.selectSaveFile({
+        title: t("settings.language.export_pick_file", "Exportar template de idioma"),
+        buttonLabel: t("common.export", "Exportar"),
+        defaultPath: `${locale}-template.json`,
+        filters: [
+          {
+            name: "JSON",
+            extensions: ["json"],
+          },
+        ],
+      });
+      if (!selectedPath) return;
+
+      const saved = await window.underdeck.dialog.writeTextFile(selectedPath, `${JSON.stringify(payload, null, 2)}\n`);
+      if (!saved) throw new Error("Failed to save locale template.");
+      toast.success(t("settings.language.exportSuccess", "Template de idioma exportado."));
+    } catch {
+      toast.error(t("settings.language.exportError", "Falha ao exportar template de idioma."));
+    } finally {
+      setIsExportingLocale(false);
     }
   };
 
@@ -587,6 +626,19 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                       rounded="xl"
                       className="w-full"
                       onClick={() => {
+                        void handleExportLocaleTemplate();
+                      }}
+                      disabled={isExportingLocale}
+                    >
+                      {isExportingLocale ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      {t("settings.language.export", "Exportar template do idioma atual")}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline-primary"
+                      rounded="xl"
+                      className="w-full"
+                      onClick={() => {
                         void handleImportLocale();
                       }}
                       disabled={isImportingLocale}
@@ -720,14 +772,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         </p>
                       </div>
                       <Tooltip>
-                        <TooltipTrigger>
-                          <Switch
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Switch
                             id="advanced-service-obs"
                             checked={obsStartOnStartup}
                             onCheckedChange={(checked) => {
                               void handleObsService(Boolean(checked));
                             }}
-                          />
+                            />
+                          </span>
                         </TooltipTrigger>
                         <TooltipContent>
                           {t("settings.advanced.service_obs_tooltip")}
@@ -743,14 +797,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         </p>
                       </div>
                       <Tooltip>
-                        <TooltipTrigger>
-                          <Switch
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Switch
                             id="advanced-service-shortcuts"
                             checked={isShortcutsEnabled}
                             onCheckedChange={(checked) => {
                               void handleShortcutsService(Boolean(checked));
                             }}
-                          />
+                            />
+                          </span>
                         </TooltipTrigger>
                         <TooltipContent>
                           {t("settings.advanced.service_shortcuts_tooltip")}
@@ -766,14 +822,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         </p>
                       </div>
                       <Tooltip>
-                        <TooltipTrigger>
-                          <Switch
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Switch
                             id="advanced-service-overlay"
                             checked={overlayEnabled}
                             onCheckedChange={(checked) => {
                               void handleOverlayEnabled(Boolean(checked));
                             }}
-                          />
+                            />
+                          </span>
                         </TooltipTrigger>
                         <TooltipContent>
                           {t("settings.advanced.service_overlay_tooltip")}
@@ -823,14 +881,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                     <div className="flex items-center justify-between gap-3">
                       <Label htmlFor="advanced-start-minimized">{t("settings.advanced.start_minimized", "Iniciar minimizado")}</Label>
                       <Tooltip>
-                        <TooltipTrigger>
-                          <Switch
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Switch
                             id="advanced-start-minimized"
                             checked={electronSettings.startMinimized}
                             onCheckedChange={(checked) => {
                               void handleElectronSettings({ startMinimized: Boolean(checked) });
                             }}
-                          />
+                            />
+                          </span>
                         </TooltipTrigger>
                         <TooltipContent>
                           {t("settings.advanced.start_minimized_tooltip")}
@@ -841,14 +901,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                     <div className="flex items-center justify-between gap-3">
                       <Label htmlFor="advanced-close-to-tray">{t("settings.advanced.close_to_tray", "Fechar para bandeja")}</Label>
                       <Tooltip>
-                        <TooltipTrigger>
-                          <Switch
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Switch
                             id="advanced-close-to-tray"
                             checked={electronSettings.closeToTray}
                             onCheckedChange={(checked) => {
                               void handleElectronSettings({ closeToTray: Boolean(checked) });
                             }}
-                          />
+                            />
+                          </span>
                         </TooltipTrigger>
                         <TooltipContent>
                           {t("settings.advanced.close_to_tray_tooltip")}
@@ -859,14 +921,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                     <div className="flex items-center justify-between gap-3">
                       <Label htmlFor="advanced-devtools">{t("settings.advanced.devtools", "DevTools")}</Label>
                       <Tooltip>
-                        <TooltipTrigger>
-                          <Switch
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Switch
                             id="advanced-devtools"
                             checked={electronSettings.devTools}
                             onCheckedChange={(checked) => {
                               void handleElectronSettings({ devTools: Boolean(checked) });
                             }}
-                          />
+                            />
+                          </span>
                         </TooltipTrigger>
                         <TooltipContent>
                           {t("settings.advanced.devtools_tooltip")}
@@ -879,14 +943,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         {t("settings.advanced.open_links_in_browser", "Abrir links no navegador")}
                       </Label>
                       <Tooltip>
-                        <TooltipTrigger>
-                          <Switch
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Switch
                             id="advanced-open-links-browser"
                             checked={electronSettings.openLinksInBrowser}
                             onCheckedChange={(checked) => {
                               void handleElectronSettings({ openLinksInBrowser: Boolean(checked) });
                             }}
-                          />
+                            />
+                          </span>
                         </TooltipTrigger>
                         <TooltipContent>
                           {t(
@@ -900,14 +966,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                     <div className="flex items-center justify-between gap-3">
                       <Label htmlFor="advanced-auto-start">{t("settings.advanced.auto_start", "Iniciar com sistema operacional")}</Label>
                       <Tooltip>
-                        <TooltipTrigger>
-                          <Switch
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Switch
                             id="advanced-auto-start"
                             checked={windowsSettings.autoStart}
                             onCheckedChange={(checked) => {
                               void handleWindowsSettings({ autoStart: Boolean(checked) });
                             }}
-                          />
+                            />
+                          </span>
                         </TooltipTrigger>
                         <TooltipContent>
                           {t("settings.advanced.auto_start_tooltip")}
@@ -918,14 +986,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                     <div className="flex items-center justify-between gap-3">
                       <Label htmlFor="advanced-enable-notifications">{t("settings.advanced.notifications", "Notificações")}</Label>
                       <Tooltip>
-                        <TooltipTrigger>
-                          <Switch
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Switch
                             id="advanced-enable-notifications"
                             checked={windowsSettings.enableNotifications}
                             onCheckedChange={(checked) => {
                               void handleWindowsSettings({ enableNotifications: Boolean(checked) });
                             }}
-                          />
+                            />
+                          </span>
                         </TooltipTrigger>
                         <TooltipContent>
                           {t("settings.advanced.notifications_tooltip")}
@@ -936,14 +1006,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                     <div className="flex items-center justify-between gap-3">
                       <Label htmlFor="advanced-auto-download-updates">{t("settings.advanced.auto_download_updates", "Baixar atualizações automaticamente")}</Label>
                       <Tooltip>
-                        <TooltipTrigger>
-                          <Switch
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Switch
                             id="advanced-auto-download-updates"
                             checked={updatesAutoDownload}
                             onCheckedChange={(checked) => {
                               void handleUpdatesAutoDownload(Boolean(checked));
                             }}
-                          />
+                            />
+                          </span>
                         </TooltipTrigger>
                         <TooltipContent>
                           {t("settings.advanced.auto_download_updates_tooltip")}
@@ -966,7 +1038,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                       </div>
                       <div className="flex items-center gap-2">
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -982,14 +1054,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
-                            <Switch
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                              <Switch
                               id="advanced-logs-enabled"
                               checked={logsSettings.enabled}
                               onCheckedChange={(checked) => {
                                 void handleLogsSettings({ enabled: Boolean(checked) });
                               }}
-                            />
+                              />
+                            </span>
                           </TooltipTrigger>
                           <TooltipContent>
                             {t("settings.logs.enable_tooltip")}
@@ -1002,7 +1076,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                       <Label htmlFor="advanced-logs-shortcuts">{t("settings.logs.shortcuts")}</Label>
                       <div className="flex items-center gap-2">
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1019,7 +1093,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1035,14 +1109,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
-                            <Switch
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                              <Switch
                               id="advanced-logs-shortcuts"
                               checked={logsSettings.shortcuts}
                               onCheckedChange={(checked) => {
                                 void handleLogsSettings({ shortcuts: Boolean(checked) });
                               }}
-                            />
+                              />
+                            </span>
                           </TooltipTrigger>
                           <TooltipContent>
                             {t("settings.logs.enable_category_tooltip")}
@@ -1055,7 +1131,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                       <Label htmlFor="advanced-logs-obs">{t("settings.logs.obs")}</Label>
                       <div className="flex items-center gap-2">
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1072,7 +1148,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1088,14 +1164,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
-                            <Switch
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                              <Switch
                               id="advanced-logs-obs"
                               checked={logsSettings.obs}
                               onCheckedChange={(checked) => {
                                 void handleLogsSettings({ obs: Boolean(checked) });
                               }}
-                            />
+                              />
+                            </span>
                           </TooltipTrigger>
                           <TooltipContent>
                             {t("settings.logs.enable_category_tooltip")}
@@ -1108,7 +1186,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                       <Label htmlFor="advanced-logs-soundpad">{t("settings.logs.soundpad")}</Label>
                       <div className="flex items-center gap-2">
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1125,7 +1203,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1141,14 +1219,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
-                            <Switch
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                              <Switch
                               id="advanced-logs-soundpad"
                               checked={logsSettings.soundpad}
                               onCheckedChange={(checked) => {
                                 void handleLogsSettings({ soundpad: Boolean(checked) });
                               }}
-                            />
+                              />
+                            </span>
                           </TooltipTrigger>
                           <TooltipContent>
                             {t("settings.logs.enable_category_tooltip")}
@@ -1161,7 +1241,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                       <Label htmlFor="advanced-logs-webdeck">{t("settings.logs.webdeck")}</Label>
                       <div className="flex items-center gap-2">
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1178,7 +1258,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1194,14 +1274,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
-                            <Switch
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                              <Switch
                               id="advanced-logs-webdeck"
                               checked={logsSettings.webdeck}
                               onCheckedChange={(checked) => {
                                 void handleLogsSettings({ webdeck: Boolean(checked) });
                               }}
-                            />
+                              />
+                            </span>
                           </TooltipTrigger>
                         <TooltipContent>
                           {t("settings.logs.enable_category_tooltip")}
@@ -1214,7 +1296,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                       <Label htmlFor="advanced-logs-webpages">{t("settings.logs.webpages", "Paginas Webs")}</Label>
                       <div className="flex items-center gap-2">
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1231,7 +1313,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1247,14 +1329,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
-                            <Switch
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                              <Switch
                               id="advanced-logs-webpages"
                               checked={logsSettings.webpages}
                               onCheckedChange={(checked) => {
                                 void handleLogsSettings({ webpages: Boolean(checked) });
                               }}
-                            />
+                              />
+                            </span>
                           </TooltipTrigger>
                           <TooltipContent>
                             {t("settings.logs.enable_category_tooltip")}
@@ -1267,7 +1351,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                       <Label htmlFor="advanced-logs-socket">{t("settings.logs.socket")}</Label>
                       <div className="flex items-center gap-2">
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1284,7 +1368,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1300,14 +1384,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
-                            <Switch
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                              <Switch
                               id="advanced-logs-socket"
                               checked={logsSettings.socket}
                               onCheckedChange={(checked) => {
                                 void handleLogsSettings({ socket: Boolean(checked) });
                               }}
-                            />
+                              />
+                            </span>
                           </TooltipTrigger>
                           <TooltipContent>
                             {t("settings.logs.enable_category_tooltip")}
@@ -1320,7 +1406,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                       <Label htmlFor="advanced-logs-updates">{t("settings.logs.updates")}</Label>
                       <div className="flex items-center gap-2">
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1337,7 +1423,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1353,14 +1439,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
-                            <Switch
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                              <Switch
                               id="advanced-logs-updates"
                               checked={logsSettings.updates}
                               onCheckedChange={(checked) => {
                                 void handleLogsSettings({ updates: Boolean(checked) });
                               }}
-                            />
+                              />
+                            </span>
                           </TooltipTrigger>
                           <TooltipContent>
                             {t("settings.logs.enable_category_tooltip")}
@@ -1373,7 +1461,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                       <Label htmlFor="advanced-logs-app">{t("settings.logs.app")}</Label>
                       <div className="flex items-center gap-2">
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1390,7 +1478,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Button
                               type="button"
                               variant="secondary"
@@ -1406,14 +1494,16 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger>
-                            <Switch
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                              <Switch
                               id="advanced-logs-app"
                               checked={logsSettings.app}
                               onCheckedChange={(checked) => {
                                 void handleLogsSettings({ app: Boolean(checked) });
                               }}
-                            />
+                              />
+                            </span>
                           </TooltipTrigger>
                           <TooltipContent>
                             {t("settings.logs.enable_category_tooltip")}

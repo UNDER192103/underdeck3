@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { App } from "@/types/apps";
+import { App, AppShortcutRequest, AppShortcutResult } from "@/types/apps";
 import { AppCategory } from "@/types/categories";
 import { WebPage, WebPageShortcutRequest, WebPageShortcutResult, WebPagesSettings } from "@/types/webpages";
 import { Shortcut } from "@/types/shortcuts";
@@ -14,6 +14,7 @@ interface UnderDeckContextType {
     executeApp: (id: string) => Promise<void>;
     deleteApp: (id: string) => Promise<void>;
     repositionApp: (sourceId: string, toIndex: number) => Promise<void>;
+    createAppShortcut: (request: AppShortcutRequest) => Promise<AppShortcutResult | null>;
 
     categories: AppCategory[];
     createCategory: (category: AppCategory) => Promise<AppCategory | null>;
@@ -348,6 +349,28 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const createAppShortcut = async (request: AppShortcutRequest) => {
+        try {
+            const result = await window.underdeck.apps.createShortcut(request);
+            if (!result?.ok) {
+                toast.error(result?.error || t("underdeck.apps.shortcut_failed", "Falha ao criar atalho."));
+                return result ?? null;
+            }
+            if (request.destination === "startMenu") {
+                toast.success(t(
+                    "underdeck.apps.shortcut_created_start_menu",
+                    "Atalho criado no Menu Iniciar. Para fixar, procure pelo nome no Start e use Fixar em Iniciar."
+                ));
+            } else {
+                toast.success(t("underdeck.apps.shortcut_created", "Atalho criado."));
+            }
+            return result;
+        } catch {
+            toast.error(t("underdeck.apps.shortcut_failed", "Falha ao criar atalho."));
+            return null;
+        }
+    };
+
     const updateWebPagesSettings = async (patch: Partial<WebPagesSettings>) => {
         try {
             const next = await window.underdeck.webPages.updateSettings(patch);
@@ -479,10 +502,11 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
                 apps,
                 createApp,
                 updateApp,
-                executeApp,
-                deleteApp,
-                repositionApp,
-                categories,
+            executeApp,
+            deleteApp,
+            repositionApp,
+            createAppShortcut,
+            categories,
                 createCategory,
                 updateCategory,
                 deleteCategory,

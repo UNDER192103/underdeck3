@@ -1,5 +1,15 @@
 import React, { useMemo, useState } from "react";
-import { ExternalLink, ImagePlus, Link, Loader2, Pencil, Plus, Search, Settings2, Trash2 } from "lucide-react";
+import {
+  ExternalLink,
+  ImagePlus,
+  Link,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Settings2,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useUnderDeck } from "@/contexts/UnderDeckContext";
 import { useI18n } from "@/contexts/I18nContext";
@@ -9,7 +19,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { DropdownUp, DropdownUpContent, DropdownUpTrigger } from "@/components/ui/dropdown-up";
+import {
+  DropdownUp,
+  DropdownUpContent,
+  DropdownUpTrigger,
+} from "@/components/ui/dropdown-up";
 import { ModalConfirm } from "@/components/ModalConfirm";
 import {
   Dialog,
@@ -96,7 +110,8 @@ function WebPageModal({
       return;
     }
     const timeoutId = window.setTimeout(async () => {
-      const previewDataUrl = await window.underdeck.dialog.readFileAsDataUrl(iconValue);
+      const previewDataUrl =
+        await window.underdeck.dialog.readFileAsDataUrl(iconValue);
       setIconPreview(previewDataUrl ?? null);
     }, 250);
     return () => window.clearTimeout(timeoutId);
@@ -109,7 +124,16 @@ function WebPageModal({
       filters: [
         {
           name: t("common.images", "Imagens"),
-          extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp", "ico", "svg"],
+          extensions: [
+            "png",
+            "jpg",
+            "jpeg",
+            "webp",
+            "gif",
+            "bmp",
+            "ico",
+            "svg",
+          ],
         },
       ],
     });
@@ -117,13 +141,16 @@ function WebPageModal({
     if (!selectedPath || Array.isArray(selectedPath)) return;
     setState((prev) => ({ ...prev, icon: selectedPath }));
 
-    const previewDataUrl = await window.underdeck.dialog.readFileAsDataUrl(selectedPath);
+    const previewDataUrl =
+      await window.underdeck.dialog.readFileAsDataUrl(selectedPath);
     setIconPreview(previewDataUrl ?? null);
   };
 
   const handleSave = async () => {
     if (!state.name.trim()) {
-      toast.error(t("webpages.modal.name_required", "Informe o nome da pagina."));
+      toast.error(
+        t("webpages.modal.name_required", "Informe o nome da pagina."),
+      );
       return;
     }
     if (!state.url.trim()) {
@@ -142,7 +169,9 @@ function WebPageModal({
 
     setSaving(true);
     try {
-      const result = pageToEdit ? await updateWebPage(payload) : await createWebPage(payload);
+      const result = pageToEdit
+        ? await updateWebPage(payload)
+        : await createWebPage(payload);
       if (!result) return;
       setDialogOpen(false);
       resetForm();
@@ -172,10 +201,15 @@ function WebPageModal({
       <DialogContent className="max-w-lg rounded-xl more-dark select-none">
         <DialogHeader>
           <DialogTitle>
-            {pageToEdit ? t("webpages.edit_title", "Editar pagina") : t("webpages.add_title", "Adicionar pagina")}
+            {pageToEdit
+              ? t("webpages.edit_title", "Editar pagina")
+              : t("webpages.add_title", "Adicionar pagina")}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            {t("webpages.modal.description", "Configure nome, icone e URL da pagina.")}
+            {t(
+              "webpages.modal.description",
+              "Configure nome, icone e URL da pagina.",
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -187,23 +221,40 @@ function WebPageModal({
               rounded="xl"
               className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
               value={state.name}
-              onChange={(event) => setState((prev) => ({ ...prev, name: event.target.value }))}
-              placeholder={t("webpages.modal.name_placeholder", "Nome da pagina")}
+              onChange={(event) =>
+                setState((prev) => ({ ...prev, name: event.target.value }))
+              }
+              placeholder={t(
+                "webpages.modal.name_placeholder",
+                "Nome da pagina",
+              )}
             />
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="webpage-icon">{t("webpages.modal.icon_label", "Icone (opcional)")}</Label>
+            <Label htmlFor="webpage-icon">
+              {t("webpages.modal.icon_label", "Icone (opcional)")}
+            </Label>
             <div className="flex items-center gap-2">
               <Input
                 id="webpage-icon"
                 rounded="xl"
                 className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
                 value={state.icon}
-                onChange={(event) => setState((prev) => ({ ...prev, icon: event.target.value }))}
-                placeholder="C:\\icon.png (opcional)"
+                onChange={(event) =>
+                  setState((prev) => ({ ...prev, icon: event.target.value }))
+                }
+                placeholder={t(
+                  "webpages.modal.icon_placeholder",
+                  "C:\\icon.png (opcional)",
+                )}
               />
-              <Button type="button" variant="outline-primary" rounded="xl" onClick={handleSelectIcon}>
+              <Button
+                type="button"
+                variant="outline-primary"
+                rounded="xl"
+                onClick={handleSelectIcon}
+              >
                 <ImagePlus className="h-4 w-4" />
                 {t("common.choose", "Escolher")}
               </Button>
@@ -220,24 +271,33 @@ function WebPageModal({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="webpage-url">URL</Label>
+            <Label htmlFor="webpage-url">{t("common.url", "URL")}</Label>
             <Input
               id="webpage-url"
               rounded="xl"
               className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
               value={state.url}
-              onChange={(event) => setState((prev) => ({ ...prev, url: event.target.value }))}
+              onChange={(event) =>
+                setState((prev) => ({ ...prev, url: event.target.value }))
+              }
               placeholder="https://example.com"
             />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="ghost-destructive" rounded="xl" onClick={() => setDialogOpen(false)} disabled={saving}>
+          <Button
+            variant="ghost-destructive"
+            rounded="xl"
+            onClick={() => setDialogOpen(false)}
+            disabled={saving}
+          >
             {t("common.cancel", "Cancelar")}
           </Button>
           <Button rounded="xl" onClick={handleSave} disabled={saving}>
-            {saving ? t("common.saving", "Salvando...") : t("common.save", "Salvar")}
+            {saving
+              ? t("common.saving", "Salvando...")
+              : t("common.save", "Salvar")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -293,7 +353,8 @@ function WebPageShortcutModal({
       return;
     }
     const timeoutId = window.setTimeout(async () => {
-      const previewDataUrl = await window.underdeck.dialog.readFileAsDataUrl(iconValue);
+      const previewDataUrl =
+        await window.underdeck.dialog.readFileAsDataUrl(iconValue);
       setIconPreview(previewDataUrl ?? null);
     }, 250);
     return () => window.clearTimeout(timeoutId);
@@ -314,7 +375,8 @@ function WebPageShortcutModal({
     if (!selectedPath || Array.isArray(selectedPath)) return;
     setIconPath(selectedPath);
 
-    const previewDataUrl = await window.underdeck.dialog.readFileAsDataUrl(selectedPath);
+    const previewDataUrl =
+      await window.underdeck.dialog.readFileAsDataUrl(selectedPath);
     setIconPreview(previewDataUrl ?? null);
   };
 
@@ -332,7 +394,9 @@ function WebPageShortcutModal({
   const handleCreate = async () => {
     if (!page) return;
     if (!name.trim()) {
-      toast.error(t("webpages.shortcut.name_required", "Informe o nome do atalho."));
+      toast.error(
+        t("webpages.shortcut.name_required", "Informe o nome do atalho."),
+      );
       return;
     }
 
@@ -342,7 +406,11 @@ function WebPageShortcutModal({
         pageId: page.id,
         name: name.trim(),
         iconPath: iconPath.trim() || page.icon || null,
-        destination: useStartMenu ? "startMenu" : customDirectory.trim() ? "custom" : "desktop",
+        destination: useStartMenu
+          ? "startMenu"
+          : customDirectory.trim()
+            ? "custom"
+            : "desktop",
         customDirectory: customDirectory.trim() || null,
       });
       if (!result?.ok) return;
@@ -363,27 +431,39 @@ function WebPageShortcutModal({
     >
       <DialogContent className="max-w-lg rounded-xl more-dark select-none">
         <DialogHeader>
-          <DialogTitle>{t("webpages.shortcut.title", "Criar atalho")}</DialogTitle>
+          <DialogTitle>
+            {t("webpages.shortcut.title", "Criar atalho")}
+          </DialogTitle>
           <DialogDescription className="sr-only">
-            {t("webpages.shortcut.description", "Configure nome, icone e destino do atalho.")}
+            {t(
+              "webpages.shortcut.description",
+              "Configure nome, icone e destino do atalho.",
+            )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="webpage-shortcut-name">{t("common.name", "Nome")}</Label>
+            <Label htmlFor="webpage-shortcut-name">
+              {t("common.name", "Nome")}
+            </Label>
             <Input
               id="webpage-shortcut-name"
               rounded="xl"
               className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder={t("webpages.shortcut.name_placeholder", "Nome do atalho")}
+              placeholder={t(
+                "webpages.shortcut.name_placeholder",
+                "Nome do atalho",
+              )}
             />
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="webpage-shortcut-icon">{t("webpages.modal.icon_label", "Icone (opcional)")}</Label>
+            <Label htmlFor="webpage-shortcut-icon">
+              {t("webpages.modal.icon_label", "Icone (opcional)")}
+            </Label>
             <div className="flex items-center gap-2">
               <Input
                 id="webpage-shortcut-icon"
@@ -391,9 +471,21 @@ function WebPageShortcutModal({
                 className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
                 value={iconPath}
                 onChange={(event) => setIconPath(event.target.value)}
-                placeholder={page?.icon ? t("webpages.shortcut.using_page_icon", "Usando icone da pagina") : "C:\\icon.ico"}
+                placeholder={
+                  page?.icon
+                    ? t(
+                        "webpages.shortcut.using_page_icon",
+                        "Usando icone da pagina",
+                      )
+                    : t("webpages.shortcut.icon_placeholder", "C:\\icon.ico")
+                }
               />
-              <Button type="button" variant="outline-primary" rounded="xl" onClick={handleSelectIcon}>
+              <Button
+                type="button"
+                variant="outline-primary"
+                rounded="xl"
+                onClick={handleSelectIcon}
+              >
                 <ImagePlus className="h-4 w-4" />
                 {t("common.choose", "Escolher")}
               </Button>
@@ -403,7 +495,7 @@ function WebPageShortcutModal({
                 <img
                   src={iconPreview}
                   alt={t("webpages.modal.icon_preview", "Preview do icone")}
-                  className="h-32 w-full rounded-xl border border-border/70 bg-black/20 object-cover"
+                  className="h-60 w-full rounded-xl border border-border/70 bg-black/20 object-cover"
                 />
               </div>
             )}
@@ -411,20 +503,27 @@ function WebPageShortcutModal({
 
           <div className="flex items-center justify-between rounded-xl border border-border/70 bg-card/70 p-3">
             <div>
-              <p className="text-sm font-medium">{t("webpages.shortcut.start_menu", "Adicionar ao Menu Iniciar")}</p>
+              <p className="text-sm font-medium">
+                {t("webpages.shortcut.start_menu", "Adicionar ao Menu Iniciar")}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {t(
                   "webpages.shortcut.desktop_default",
-                  "O Windows nao permite fixar automaticamente. Depois, procure pelo nome no Start e fixe manualmente."
+                  "O Windows nao permite fixar automaticamente. Depois, procure pelo nome no Start e fixe manualmente.",
                 )}
               </p>
             </div>
-            <Switch checked={useStartMenu} onCheckedChange={(checked) => setUseStartMenu(Boolean(checked))} />
+            <Switch
+              checked={useStartMenu}
+              onCheckedChange={(checked) => setUseStartMenu(Boolean(checked))}
+            />
           </div>
 
           {!useStartMenu && (
             <div className="grid gap-2">
-              <Label htmlFor="webpage-shortcut-destination">{t("webpages.shortcut.destination", "Destino")}</Label>
+              <Label htmlFor="webpage-shortcut-destination">
+                {t("webpages.shortcut.destination", "Destino")}
+              </Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="webpage-shortcut-destination"
@@ -432,9 +531,17 @@ function WebPageShortcutModal({
                   className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
                   value={customDirectory}
                   onChange={(event) => setCustomDirectory(event.target.value)}
-                  placeholder={t("webpages.shortcut.desktop", "Area de Trabalho")}
+                  placeholder={t(
+                    "webpages.shortcut.desktop",
+                    "Area de Trabalho",
+                  )}
                 />
-                <Button type="button" variant="outline-primary" rounded="xl" onClick={handleSelectDirectory}>
+                <Button
+                  type="button"
+                  variant="outline-primary"
+                  rounded="xl"
+                  onClick={handleSelectDirectory}
+                >
                   {t("common.choose", "Escolher")}
                 </Button>
               </div>
@@ -443,11 +550,18 @@ function WebPageShortcutModal({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost-destructive" rounded="xl" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button
+            variant="ghost-destructive"
+            rounded="xl"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
             {t("common.cancel", "Cancelar")}
           </Button>
           <Button rounded="xl" onClick={handleCreate} disabled={saving}>
-            {saving ? t("webpages.shortcut.creating", "Criando...") : t("webpages.shortcut.create", "Criar atalho")}
+            {saving
+              ? t("webpages.shortcut.creating", "Criando...")
+              : t("webpages.shortcut.create", "Criar atalho")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -456,7 +570,15 @@ function WebPageShortcutModal({
 }
 
 export default function WebPages() {
-  const { webPages, webPagesSettings, updateWebPagesSettings, deleteWebPage, openWebPage, closeAllWebPages, loading } = useUnderDeck();
+  const {
+    webPages,
+    webPagesSettings,
+    updateWebPagesSettings,
+    deleteWebPage,
+    openWebPage,
+    closeAllWebPages,
+    loading,
+  } = useUnderDeck();
   const { t } = useI18n();
   const [search, setSearch] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -470,16 +592,25 @@ export default function WebPages() {
   }, [webPages, search]);
 
   const editingPage = useMemo(
-    () => (editingPageId ? webPages.find((page) => page.id === editingPageId) ?? null : null),
-    [webPages, editingPageId]
+    () =>
+      editingPageId
+        ? (webPages.find((page) => page.id === editingPageId) ?? null)
+        : null,
+    [webPages, editingPageId],
   );
 
   const shortcutPage = useMemo(
-    () => (shortcutPageId ? webPages.find((page) => page.id === shortcutPageId) ?? null : null),
-    [webPages, shortcutPageId]
+    () =>
+      shortcutPageId
+        ? (webPages.find((page) => page.id === shortcutPageId) ?? null)
+        : null,
+    [webPages, shortcutPageId],
   );
 
-  const addCacheBuster = (url: string | null | undefined, timestamp?: number): string | null => {
+  const addCacheBuster = (
+    url: string | null | undefined,
+    timestamp?: number,
+  ): string | null => {
     if (!url) return null;
     const safeTimestamp = Number(timestamp ?? 0) || Date.now();
     const hasQuery = url.includes("?");
@@ -509,12 +640,19 @@ export default function WebPages() {
               rounded="xl"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder={t("webpages.search_placeholder", "Buscar paginas...")}
+              placeholder={t(
+                "webpages.search_placeholder",
+                "Buscar paginas...",
+              )}
               className="pl-9 border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
             />
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline-primary" rounded="xl" onClick={() => void closeAllWebPages()}>
+            <Button
+              variant="outline-primary"
+              rounded="xl"
+              onClick={() => void closeAllWebPages()}
+            >
               {t("webpages.close_all", "Fechar todas")}
             </Button>
             <WebPageModal trigger={undefined} />
@@ -524,22 +662,39 @@ export default function WebPages() {
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="flex items-center justify-between rounded-xl border border-border/70 bg-card/70 p-3">
             <div>
-              <p className="text-sm font-medium">{t("webpages.adblock", "Usar Adblock")}</p>
-              <p className="text-xs text-muted-foreground">{t("webpages.adblock_desc", "Bloqueia anuncios nas paginas.")}</p>
+              <p className="text-sm font-medium">
+                {t("webpages.adblock", "Usar Adblock")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("webpages.adblock_desc", "Bloqueia anuncios nas paginas.")}
+              </p>
             </div>
             <Switch
               checked={Boolean(webPagesSettings?.useAdblock)}
-              onCheckedChange={(checked) => void updateWebPagesSettings({ useAdblock: Boolean(checked) })}
+              onCheckedChange={(checked) =>
+                void updateWebPagesSettings({ useAdblock: Boolean(checked) })
+              }
             />
           </div>
           <div className="flex items-center justify-between rounded-xl border border-border/70 bg-card/70 p-3">
             <div>
-              <p className="text-sm font-medium">{t("webpages.block_new_windows", "Bloquear novas janelas")}</p>
-              <p className="text-xs text-muted-foreground">{t("webpages.block_new_windows_desc", "Impede abrir novas janelas.")}</p>
+              <p className="text-sm font-medium">
+                {t("webpages.block_new_windows", "Bloquear novas janelas")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  "webpages.block_new_windows_desc",
+                  "Impede abrir novas janelas.",
+                )}
+              </p>
             </div>
             <Switch
               checked={Boolean(webPagesSettings?.blockNewWindows)}
-              onCheckedChange={(checked) => void updateWebPagesSettings({ blockNewWindows: Boolean(checked) })}
+              onCheckedChange={(checked) =>
+                void updateWebPagesSettings({
+                  blockNewWindows: Boolean(checked),
+                })
+              }
             />
           </div>
         </div>
@@ -566,7 +721,9 @@ export default function WebPages() {
               {page.icon ? (
                 <BackgroundComp
                   variant="image"
-                  imageSrc={addCacheBuster(page.icon, page.updatedAt) ?? page.icon}
+                  imageSrc={
+                    addCacheBuster(page.icon, page.updatedAt) ?? page.icon
+                  }
                   imageAlt={page.name}
                   fullScreen={false}
                   className="absolute inset-0 transition-transform duration-300 group-hover:scale-115"
@@ -583,7 +740,7 @@ export default function WebPages() {
                     center: "rgba(20, 80, 120, 0.55)",
                     middle: "rgb(18, 30, 52)",
                     edge: "rgb(8, 14, 22)",
-                    dot: "rgba(120, 220, 255, 0.9)"
+                    dot: "rgba(120, 220, 255, 0.9)",
                   }}
                 />
               )}
@@ -648,7 +805,9 @@ export default function WebPages() {
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent" />
               <div className="relative z-10 flex h-full flex-col justify-end p-4">
-                <h3 className="line-clamp-2 text-base font-semibold text-white">{page.name}</h3>
+                <h3 className="line-clamp-2 text-base font-semibold text-white">
+                  {page.name}
+                </h3>
                 <p className="text-sm text-white/80">{page.url}</p>
               </div>
             </Card>
@@ -659,7 +818,10 @@ export default function WebPages() {
       <ModalConfirm
         isOpen={!!confirmDeleteId}
         title={t("webpages.delete.title", "Deletar pagina")}
-        content={t("webpages.delete.content", "Tem certeza que deseja deletar esta pagina?")}
+        content={t(
+          "webpages.delete.content",
+          "Tem certeza que deseja deletar esta pagina?",
+        )}
         confirmText={t("common.delete", "Deletar")}
         cancelText={t("common.cancel", "Cancelar")}
         onResult={async (confirmed) => {

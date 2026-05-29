@@ -4,9 +4,14 @@
  * Exibe a lista de templates salvos e controles da sidebar.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import React, { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,19 +26,23 @@ import {
   Download,
   Radio,
   LayoutTemplate,
-  Music2
-} from 'lucide-react';
+  Music2,
+} from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { useNavigation } from "@/contexts/NavigationContext";
-import { ProfilePreviewCard } from '@/components/user/ProfilePreviewCard';
-import { UserProfileEditorModal } from '@/components/user/UserProfileEditorModal';
-import { AppUser } from '@/types/user';
-import { DropdownUp, DropdownUpContent, DropdownUpTrigger } from '@/components/ui/dropdown-up';
-import { ModalSettings } from '@/components/settings/modalSettings';
-import { UserProfileModal } from './user/UserProfileModal';
-import { TITLE_BAR_HEIGHT } from './WindowTitleBar';
-import { Img } from './ui/img';
+import { ProfilePreviewCard } from "@/components/user/ProfilePreviewCard";
+import { UserProfileEditorModal } from "@/components/user/UserProfileEditorModal";
+import { AppUser } from "@/types/user";
+import {
+  DropdownUp,
+  DropdownUpContent,
+  DropdownUpTrigger,
+} from "@/components/ui/dropdown-up";
+import { ModalSettings } from "@/components/settings/modalSettings";
+import { UserProfileModal } from "./user/UserProfileModal";
+import { TITLE_BAR_HEIGHT } from "./WindowTitleBar";
+import { Img } from "./ui/img";
 
 interface SidebarProps {
   onCollapsedChange?: (isCollapsed: boolean) => void;
@@ -45,7 +54,7 @@ interface BuildSidebarOptionProps {
   focusing?: boolean;
   description?: string;
   buttonClassName?: string;
-  buttonSize?: 'default' | 'sm' | 'lg' | 'icon';
+  buttonSize?: "default" | "sm" | "lg" | "icon";
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
@@ -103,27 +112,40 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
     onCollapsedChange?.(newCollapsedState);
   };
 
-  const BuildSidebarOption: React.FC<BuildSidebarOptionProps> = (
-    { icon, title, focusing, description, onClick, buttonSize, buttonClassName }
-  ) => {
+  const BuildSidebarOption: React.FC<BuildSidebarOptionProps> = ({
+    icon,
+    title,
+    focusing,
+    description,
+    onClick,
+    buttonSize,
+    buttonClassName,
+  }) => {
     return (
       <Tooltip delayDuration={100}>
         <TooltipTrigger asChild>
-          <div className={`group relative rounded border border-sidebar-border transition-colors`}>
+          <div
+            className={`group relative rounded border border-sidebar-border transition-colors`}
+          >
             <Button
               onClick={onClick}
-              variant={focusing ? 'default' : 'ghost'}
-              size={buttonSize || 'sm'}
-              className={`w-full text-left px-3 py-2 h-9 text-xs font-medium text-sidebar-foreground truncate flex items-center gap-2 ${buttonClassName || ''}`}
+              variant={focusing ? "default" : "ghost"}
+              size={buttonSize || "sm"}
+              className={`w-full text-left px-3 py-2 h-9 text-xs font-medium text-sidebar-foreground truncate flex items-center gap-2 ${buttonClassName || ""}`}
             >
-              {icon || ''} {!isCollapsed && <span className="truncate flex-1">{title}</span>}
+              {icon || ""}{" "}
+              {!isCollapsed && <span className="truncate flex-1">{title}</span>}
             </Button>
           </div>
         </TooltipTrigger>
-        {(description || isCollapsed) && <TooltipContent side="right" sideOffset={5}><p>{description || title}</p></TooltipContent>}
+        {(description || isCollapsed) && (
+          <TooltipContent side="right" sideOffset={5}>
+            <p>{description || title}</p>
+          </TooltipContent>
+        )}
       </Tooltip>
-    )
-  }
+    );
+  };
 
   return (
     <TooltipProvider>
@@ -142,17 +164,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
       >
         <div className="flex items-center justify-between p-2 border-b border-sidebar-border h-13">
           {!isCollapsed && (
-            <div className='flex items-center w-full text-center gap-2'>
-              <h2 className="text-xl font-bold w-full text-sidebar-foreground">Under Deck</h2>
+            <div className="flex items-center w-full text-center gap-2">
+              <h2 className="text-xl font-bold w-full text-sidebar-foreground">
+                Under Deck
+              </h2>
             </div>
           )}
           <button
             onClick={handleToggleCollapse}
             className={`
-              ${isCollapsed ? 'p-3' : 'p-2'} hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded transition-colors
+              ${isCollapsed ? "p-3" : "p-2"} hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded transition-colors
             `}
           >
-            {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+            {isCollapsed ? (
+              <ChevronRight size={20} />
+            ) : (
+              <ChevronLeft size={20} />
+            )}
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -186,7 +214,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
             />
             <BuildSidebarOption
               icon={<Globe size={14} />}
-              title={t("sidebar.webpages", "Paginas Webs")}
+              title={t("sidebar.webpages", "Páginas Webs")}
               focusing={CurrentTab === "webpages"}
               onClick={() => {
                 set("pages", "home");
@@ -241,12 +269,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
         </div>
 
         <div className="p-2 border-t border-sidebar-border h-14">
-          <div className='w-full h-full flex items-center gap-1 justify-between'>
+          <div className="w-full h-full flex items-center gap-1 justify-between">
             {user ? (
               !isCollapsed && (
                 <DropdownUp>
                   <DropdownUpTrigger asChild>
-                    <div className='w-full h-full flex items-center gap-1 cursor-pointer'>
+                    <div className="w-full h-full flex items-center gap-1 cursor-pointer">
                       <img
                         src={getAvatar()}
                         alt={user.displayName || user.username}
@@ -271,9 +299,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
                 </DropdownUp>
               )
             ) : (
-              <div className='w-full h-full'>
-                <Button onClick={modalLogin} variant="outline" size="sm" rounded="xl" className={`w-full h-full`}>
-                  <LogIn size={16} /> <div className="flex items-center gap-2"> <span>{t("auth.login", "Login")}</span> </div>
+              <div className="w-full h-full">
+                <Button
+                  onClick={modalLogin}
+                  variant="outline"
+                  size="sm"
+                  rounded="xl"
+                  className={`w-full h-full`}
+                >
+                  <LogIn size={16} />{" "}
+                  <div className="flex items-center gap-2">
+                    {" "}
+                    <span>{t("auth.login", "Login")}</span>{" "}
+                  </div>
                 </Button>
               </div>
             )}
@@ -281,16 +319,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
               onClick={() => setShowSettingsModal(true)}
               variant="outline"
               size="icon"
-              rounded="full">
+              rounded="full"
+            >
               <Settings size={26} />
             </Button>
           </div>
         </div>
       </div>
 
-      {user && <UserProfileEditorModal open={showProfileEditor} onClose={() => setShowProfileEditor(false)} />}
-      {user && <UserProfileModal isOpen={showMoreProfile} onClose={() => setShowMoreProfile(false)} onLogout={logout} />}
-      <ModalSettings isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
+      {user && (
+        <UserProfileEditorModal
+          open={showProfileEditor}
+          onClose={() => setShowProfileEditor(false)}
+        />
+      )}
+      {user && (
+        <UserProfileModal
+          isOpen={showMoreProfile}
+          onClose={() => setShowMoreProfile(false)}
+          onLogout={logout}
+        />
+      )}
+      <ModalSettings
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
     </TooltipProvider>
   );
 };

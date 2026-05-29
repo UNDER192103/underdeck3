@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useUnderDeck } from '@/contexts/UnderDeckContext';
 import { useI18n } from '@/contexts/I18nContext';
-import { ArrowLeft, Folder, Loader2, Search, Settings2 } from "lucide-react";
+import { ArrowLeft, Edit3, Folder, FolderInput, ImagePlus, Keyboard, Link, Loader2, Play, Search, Settings2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { AddAppModal } from '@/components/apps/create/AddAppModal';
@@ -14,11 +14,220 @@ import { ModalConfirm } from '@/components/ModalConfirm';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Shortcut } from '@/types/shortcuts';
+import type { App } from '@/types/apps';
 
 const PENDING_EDIT_SHORTCUT_KEY = "underdeck:shortcut-edit-id";
+
+function AppShortcutModal({
+    app,
+    open,
+    onOpenChange,
+}: {
+    app?: App | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    const { t } = useI18n();
+    const { createAppShortcut } = useUnderDeck();
+    const [name, setName] = useState("");
+    const [iconPath, setIconPath] = useState("");
+    const [iconPreview, setIconPreview] = useState<string | null>(null);
+    const [useStartMenu, setUseStartMenu] = useState(false);
+    const [customDirectory, setCustomDirectory] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    const resetForm = () => {
+        setName(app?.name ?? "");
+        setIconPath("");
+        setIconPreview(app?.icon ?? null);
+        setUseStartMenu(false);
+        setCustomDirectory("");
+    };
+
+    useEffect(() => {
+        if (!open) return;
+        resetForm();
+    }, [open, app]);
+
+    useEffect(() => {
+        const iconValue = iconPath.trim();
+        if (!iconValue) {
+            setIconPreview(app?.icon ?? null);
+            return;
+        }
+        const isRenderableUrl =
+            iconValue.startsWith("http://") ||
+            iconValue.startsWith("https://") ||
+            iconValue.startsWith("data:") ||
+            iconValue.startsWith("underdeck-media://") ||
+            iconValue.startsWith("file://");
+        if (isRenderableUrl) {
+            setIconPreview(iconValue);
+            return;
+        }
+        const timeoutId = window.setTimeout(async () => {
+            const previewDataUrl = await window.underdeck.dialog.readFileAsDataUrl(iconValue);
+            setIconPreview(previewDataUrl ?? null);
+        }, 250);
+        return () => window.clearTimeout(timeoutId);
+    }, [iconPath, app]);
+
+    const handleSelectIcon = async () => {
+        const selectedPath = await window.underdeck.dialog.selectFile({
+            title: t("apps.shortcut.pick_icon", "Selecionar icone"),
+            buttonLabel: t("common.select", "Selecionar"),
+            filters: [
+                {
+                    name: t("common.images", "Imagens"),
+                    extensions: ["ico", "png", "jpg", "jpeg", "webp", "bmp"],
+                },
+            ],
+        });
+
+        if (!selectedPath || Array.isArray(selectedPath)) return;
+        setIconPath(selectedPath);
+
+        const previewDataUrl = await window.underdeck.dialog.readFileAsDataUrl(selectedPath);
+        setIconPreview(previewDataUrl ?? null);
+    };
+
+    const handleSelectDirectory = async () => {
+        const selectedPath = await window.underdeck.dialog.selectFile({
+            title: t("apps.shortcut.pick_folder", "Selecionar pasta"),
+            buttonLabel: t("common.select", "Selecionar"),
+            includeDirectories: true,
+        });
+
+        if (!selectedPath || Array.isArray(selectedPath)) return;
+        setCustomDirectory(selectedPath);
+    };
+
+    const handleCreate = async () => {
+        if (!app) return;
+        if (!name.trim()) {
+            toast.error(t("apps.shortcut.name_required", "Informe o nome do atalho."));
+            return;
+        }
+
+        setSaving(true);
+        try {
+            const result = await createAppShortcut({
+                appId: app.id,
+                name: name.trim(),
+                iconPath: iconPath.trim() || app.icon || null,
+                destination: useStartMenu ? "startMenu" : customDirectory.trim() ? "custom" : "desktop",
+                customDirectory: customDirectory.trim() || null,
+            });
+            if (!result?.ok) return;
+            onOpenChange(false);
+            resetForm();
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <Dialog
+            open={open}
+            onOpenChange={(nextOpen) => {
+                onOpenChange(nextOpen);
+                if (!nextOpen) resetForm();
+            }}
+        >
+            <DialogContent className="max-w-lg rounded-xl more-dark select-none">
+                <DialogHeader>
+                    <DialogTitle>{t("apps.shortcut.title", "Criar atalho do Windows")}</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        {t("apps.shortcut.description", "Configure nome, icone e destino do atalho do app.")}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid gap-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="app-shortcut-name">{t("common.name", "Nome")}</Label>
+                        <Input
+                            id="app-shortcut-name"
+                            rounded="xl"
+                            className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
+                            value={name}
+                            onChange={(event) => setName(event.target.value)}
+                            placeholder={t("apps.shortcut.name_placeholder", "Nome do atalho")}
+                        />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="app-shortcut-icon">{t("apps.modal.icon_label", "Icone (opcional)")}</Label>
+                        <div className="flex items-center gap-2">
+                            <Input
+                                id="app-shortcut-icon"
+                                rounded="xl"
+                                className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
+                                value={iconPath}
+                                onChange={(event) => setIconPath(event.target.value)}
+                                placeholder={app?.icon ? t("apps.shortcut.using_app_icon", "Usando icone do app") : t("apps.shortcut.icon_placeholder", "C:\\icon.ico")}
+                            />
+                            <Button type="button" variant="outline-primary" rounded="xl" onClick={handleSelectIcon}>
+                                <ImagePlus className="h-4 w-4" />
+                                {t("common.choose", "Escolher")}
+                            </Button>
+                        </div>
+                        {iconPreview && (
+                            <div className="w-fill">
+                                <img
+                                    src={iconPreview}
+                                    alt={t("apps.modal.icon_preview", "Preview do icone")}
+                                    className="h-60 w-full rounded-xl border border-border/70 bg-black/20 object-cover"
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-xl border border-border/70 bg-card/70 p-3">
+                        <div>
+                            <p className="text-sm font-medium">{t("apps.shortcut.start_menu", "Adicionar ao Menu Iniciar")}</p>
+                            <p className="text-xs text-muted-foreground">
+                                {t("apps.shortcut.desktop_default", "O Windows nao permite fixar automaticamente. Depois, procure pelo nome no Start e fixe manualmente.")}
+                            </p>
+                        </div>
+                        <Switch checked={useStartMenu} onCheckedChange={(checked) => setUseStartMenu(Boolean(checked))} />
+                    </div>
+
+                    {!useStartMenu && (
+                        <div className="grid gap-2">
+                            <Label htmlFor="app-shortcut-destination">{t("apps.shortcut.destination", "Destino")}</Label>
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    id="app-shortcut-destination"
+                                    rounded="xl"
+                                    className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
+                                    value={customDirectory}
+                                    onChange={(event) => setCustomDirectory(event.target.value)}
+                                    placeholder={t("apps.shortcut.desktop", "Area de Trabalho")}
+                                />
+                                <Button type="button" variant="outline-primary" rounded="xl" onClick={handleSelectDirectory}>
+                                    {t("common.choose", "Escolher")}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <DialogFooter>
+                    <Button variant="ghost-destructive" rounded="xl" onClick={() => onOpenChange(false)} disabled={saving}>
+                        {t("common.cancel", "Cancelar")}
+                    </Button>
+                    <Button rounded="xl" onClick={handleCreate} disabled={saving}>
+                        {saving ? t("apps.shortcut.creating", "Criando...") : t("apps.shortcut.create", "Criar atalho")}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export default function Apps() {
     const { apps, categories, shortcuts, loading, executeApp, deleteApp, repositionApp, createShortcut, setAppCategory, updateCategory, deleteCategory } = useUnderDeck();
@@ -30,6 +239,7 @@ export default function Apps() {
     const [openDropdownAppId, setOpenDropdownAppId] = useState<string | null>(null);
     const [openDropdownCategoryId, setOpenDropdownCategoryId] = useState<string | null>(null);
     const [editingAppId, setEditingAppId] = useState<string | null>(null);
+    const [shortcutAppId, setShortcutAppId] = useState<string | null>(null);
     const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
     const [moveAppId, setMoveAppId] = useState<string | null>(null);
     const [moveCategoryId, setMoveCategoryId] = useState<string>("none");
@@ -91,6 +301,10 @@ export default function Apps() {
     const editingApp = useMemo(
         () => (editingAppId ? apps.find((app) => app.id === editingAppId) ?? null : null),
         [apps, editingAppId]
+    );
+    const shortcutApp = useMemo(
+        () => (shortcutAppId ? apps.find((app) => app.id === shortcutAppId) ?? null : null),
+        [apps, shortcutAppId]
     );
     const activeCategory = useMemo(
         () => (activeCategoryId ? categories.find((category) => category.id === activeCategoryId) ?? null : null),
@@ -168,7 +382,7 @@ export default function Apps() {
         await repositionApp(sourceId, toIndex);
     };
 
-    const handleCreateShortcut = async (appId: string) => {
+    const handleCreateKeyboardShortcut = async (appId: string) => {
         const targetApp = apps.find((app) => app.id === appId);
         if (!targetApp) return;
 
@@ -342,6 +556,7 @@ export default function Apps() {
                                                     }}
                                                     className="w-full"
                                                 >
+                                                    <Edit3 className="h-4 w-4" />
                                                     {t("common.edit", "Editar")}
                                                 </Button>
                                                 <Button
@@ -355,6 +570,7 @@ export default function Apps() {
                                                     }}
                                                     className="w-full"
                                                 >
+                                                    <Trash2 className="h-4 w-4" />
                                                     {t("common.delete", "Deletar")}
                                                 </Button>
                                             </DropdownUpContent>
@@ -433,7 +649,7 @@ export default function Apps() {
                                             mode="automatic"
                                             direction="down"
                                             align="end"
-                                            className="w-40 gap-1 rounded-xl border-border/70 bg-popover/95 p-1 shadow-xl backdrop-blur-md transparent:bg-black/85 select-none"
+                                            className="w-56 gap-1 rounded-xl border-border/70 bg-popover/95 p-1 shadow-xl backdrop-blur-md transparent:bg-black/85 select-none"
                                         >
                                             <Button
                                                 type="button"
@@ -445,6 +661,7 @@ export default function Apps() {
                                                 }}
                                                 className="w-full"
                                             >
+                                                <Play className="h-4 w-4" />
                                                 {t("common.execute", "Executar")}
                                             </Button>
                                             <Button
@@ -453,11 +670,25 @@ export default function Apps() {
                                                 rounded="xl"
                                                 onClick={() => {
                                                     setOpenDropdownAppId(null);
-                                                    handleCreateShortcut(app.id);
+                                                    handleCreateKeyboardShortcut(app.id);
                                                 }}
                                                 className="w-full"
                                             >
-                                                {t("apps.menu.create_shortcut", "Criar Atalho")}
+                                                <Keyboard className="h-4 w-4" />
+                                                {t("apps.menu.create_keyboard_shortcut", "Criar tecla de atalho")}
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost-secondary"
+                                                rounded="xl"
+                                                onClick={() => {
+                                                    setOpenDropdownAppId(null);
+                                                    setShortcutAppId(app.id);
+                                                }}
+                                                className="w-full"
+                                            >
+                                                <Link className="h-4 w-4" />
+                                                {t("apps.menu.create_windows_shortcut", "Criar atalho do Windows")}
                                             </Button>
                                             <Button
                                                 type="button"
@@ -469,7 +700,8 @@ export default function Apps() {
                                                 }}
                                                 className="w-full"
                                             >
-                                                {t("categories.move", "Mover categoria")}
+                                                <FolderInput className="h-4 w-4" />
+                                                {t("categories.move", "Mover para categoria")}
                                             </Button>
                                             <Button
                                                 type="button"
@@ -481,6 +713,7 @@ export default function Apps() {
                                                 }}
                                                 className="w-full"
                                             >
+                                                <Edit3 className="h-4 w-4" />
                                                 {t("common.edit", "Editar")}
                                             </Button>
                                             <Button
@@ -493,6 +726,7 @@ export default function Apps() {
                                                 }}
                                                 className="w-full"
                                             >
+                                                <Trash2 className="h-4 w-4" />
                                                 {t("common.delete", "Deletar")}
                                             </Button>
                                         </DropdownUpContent>
@@ -542,6 +776,13 @@ export default function Apps() {
                 }}
                 trigger={null}
             />
+            <AppShortcutModal
+                app={shortcutApp}
+                open={!!shortcutApp}
+                onOpenChange={(open) => {
+                    if (!open) setShortcutAppId(null);
+                }}
+            />
 
             <Dialog
                 open={!!moveAppId}
@@ -549,7 +790,7 @@ export default function Apps() {
                     if (!open) setMoveAppId(null);
                 }}
             >
-                <DialogContent className="max-w-md rounded-xl select-none">
+                <DialogContent className="max-w-md rounded-xl select-none more-dark">
                     <DialogHeader>
                         <DialogTitle>{t("categories.move_title", "Mover app para categoria")}</DialogTitle>
                         <DialogDescription className="sr-only">

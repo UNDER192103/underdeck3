@@ -5,8 +5,8 @@ export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 // - true: usa mesma origem ("/")
 const FRONTEND_USE_LOCAL_SOCKET_SOURCE = false;
 const DEV_SOCKET_URL = `http://localhost:3404`;
-const PROD_SOCKET_URL = "https://io.undernouzen.shop";
-const PROD_API_URL = "https://io.undernouzen.shop";
+const PROD_SOCKET_URL = "https://io.undernouzen.com.br";
+const PROD_API_URL = "https://io.undernouzen.com.br";
 
 const getRuntimeMode = () => {
   if (typeof window === "undefined") return "";

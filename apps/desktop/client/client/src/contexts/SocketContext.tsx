@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { io, ManagerOptions, Socket, SocketOptions } from "socket.io-client";
-import { useUser } from "@/contexts/UserContext";
+import { useOptionalUser } from "@/contexts/UserContext";
 import { toast } from "sonner";
 import { SocketSettings } from "@/const";
 import { useI18n } from "@/contexts/I18nContext";
@@ -22,7 +22,9 @@ export const useSocket = () => {
 };
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, loading } = useUser();
+    const userContext = useOptionalUser();
+    const user = userContext?.user ?? null;
+    const loading = userContext?.loading ?? false;
     const { t } = useI18n();
     const { subscribe: subscribeGlobal } = useGlobalObserver();
 

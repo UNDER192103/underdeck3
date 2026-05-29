@@ -583,6 +583,24 @@ const processActionProtocolCommand = (argv: string[]) => {
           });
           break;
         }
+        case "open-app": {
+          const appId = String(url.searchParams.get("appId") || "").trim();
+          if (!appId) {
+            logsService.log("app", "protocol.open_app_missing_id", undefined, "warn");
+            console.log("[underdeck:protocol] open_app_missing_id");
+            break;
+          }
+          logsService.log("app", "protocol.open_app", { appId });
+          console.log("[underdeck:protocol] open_app", appId);
+          void AppService.executeApp(appId).then((opened) => {
+            logsService.log("app", "protocol.open_app_result", { appId, opened });
+            console.log("[underdeck:protocol] open_app_result", { appId, opened });
+          }).catch((error) => {
+            logsService.log("app", "protocol.open_app_failed", { appId, error: String(error) }, "error");
+            console.log("[underdeck:protocol] open_app_failed", { appId, error });
+          });
+          break;
+        }
         default:
           logsService.log("app", "protocol.unknown_action", { actionType }, "warn");
           console.log("[underdeck:protocol] unknown_action", actionType);

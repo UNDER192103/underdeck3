@@ -64,3 +64,19 @@ export interface App {
     | AppMetaDataObsStudio;
   updatedAt?: number;
 }
+
+export type AppShortcutDestination = "desktop" | "startMenu" | "custom";
+
+export interface AppShortcutRequest {
+  appId: string;
+  name: string;
+  iconPath?: string | null;
+  destination: AppShortcutDestination;
+  customDirectory?: string | null;
+}
+
+export interface AppShortcutResult {
+  ok: boolean;
+  path?: string;
+  error?: string;
+}

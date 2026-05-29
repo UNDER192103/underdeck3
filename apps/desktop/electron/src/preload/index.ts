@@ -1,5 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 type App = import("../types/apps.js").App;
+type AppShortcutRequest = import("../types/apps.js").AppShortcutRequest;
+type AppShortcutResult = import("../types/apps.js").AppShortcutResult;
 type AppCategory = import("../types/categories.js").AppCategory;
 type WebPage = import("../types/webpages.js").WebPage;
 type WebPageShortcutRequest = import("../types/webpages.js").WebPageShortcutRequest;
@@ -108,6 +110,7 @@ interface UnderDeckApi {
     delete: (id: string) => Promise<unknown>;
     execute: (id: string) => Promise<unknown>;
     reposition: (id: string, toPosition: number) => Promise<App[]>;
+    createShortcut: (request: AppShortcutRequest) => Promise<AppShortcutResult>;
     onChanged: (listener: (payload: AppsChangedPayload) => void) => () => void;
   };
   categories: {
@@ -205,6 +208,7 @@ interface UnderDeckApi {
     selectFile: (options?: SelectFileOptions) => Promise<string | string[] | null>;
     selectSaveFile: (options?: SaveFileOptions) => Promise<string | null>;
     readFileAsDataUrl: (filePath: string) => Promise<string | null>;
+    writeTextFile: (filePath: string, content: string) => Promise<boolean>;
   };
   media: {
     importFileToMediaUrl: (sourcePath: string, folderName: string, targetFileName?: string) => Promise<string | null>;
@@ -416,6 +420,7 @@ const underdeckApi: UnderDeckApi = {
     delete: (id) => ipcRenderer.invoke("AppsSV-delete", id),
     execute: (id) => ipcRenderer.invoke("AppsSV-execute", id),
     reposition: (id, toPosition) => ipcRenderer.invoke("AppsSV-reposition", id, toPosition),
+    createShortcut: (request) => ipcRenderer.invoke("AppsSV-CreateShortcut", request),
     onChanged: (listener) => {
       appsChangedListeners.add(listener);
       if (!appsChangedSubscribed) {
@@ -616,6 +621,7 @@ const underdeckApi: UnderDeckApi = {
     selectFile: (options) => ipcRenderer.invoke("DialogSV-SelectFile", options),
     selectSaveFile: (options) => ipcRenderer.invoke("DialogSV-SelectSaveFile", options),
     readFileAsDataUrl: (filePath) => ipcRenderer.invoke("DialogSV-ReadFileAsDataUrl", filePath),
+    writeTextFile: (filePath, content) => ipcRenderer.invoke("DialogSV-WriteTextFile", filePath, content),
   },
   media: {
     importFileToMediaUrl: (sourcePath, folderName, targetFileName) =>

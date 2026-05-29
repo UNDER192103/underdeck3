@@ -124,6 +124,7 @@ const underdeckApi = {
     delete: (id) => ipcRenderer.invoke("AppsSV-delete", id),
     execute: (id) => ipcRenderer.invoke("AppsSV-execute", id),
     reposition: (id, toPosition) => ipcRenderer.invoke("AppsSV-reposition", id, toPosition),
+    createShortcut: (request) => ipcRenderer.invoke("AppsSV-CreateShortcut", request),
   },
   categories: {
     list: () => ipcRenderer.invoke("CategoriesSV-List"),
@@ -308,6 +309,7 @@ const underdeckApi = {
     selectFile: (options) => ipcRenderer.invoke("DialogSV-SelectFile", options),
     selectSaveFile: (options) => ipcRenderer.invoke("DialogSV-SelectSaveFile", options),
     readFileAsDataUrl: (filePath) => ipcRenderer.invoke("DialogSV-ReadFileAsDataUrl", filePath),
+    writeTextFile: (filePath, content) => ipcRenderer.invoke("DialogSV-WriteTextFile", filePath, content),
   },
   media: {
     importFileToMediaUrl: (sourcePath, folderName, targetFileName) =>
