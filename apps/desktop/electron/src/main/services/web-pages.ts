@@ -2,15 +2,18 @@ import electron from "electron";
 import EventEmitter from "events";
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { ElectronBlocker } from "@ghostery/adblocker-electron";
 import fetch from "cross-fetch";
 import { getDb } from "./database.js";
 import { Settings } from "./settings.js";
 import { logsService } from "./logs.js";
 import { observerService, ObserverChannels } from "./observer.js";
-import type { WebPage, WebPagesSettings } from "../../types/webpages.js";
+import { getAssetPath } from "../../communs/commun.js";
+import type { WebPage, WebPageShortcutRequest, WebPageShortcutResult, WebPagesSettings } from "../../types/webpages.js";
 
-const { BrowserWindow, session: electronSession } = electron;
+const { BrowserWindow, nativeImage, session: electronSession, shell } = electron;
+const ACTION_PROTOCOL = "underdeck";
 
 export class WebPagesService extends EventEmitter {
     private blocker: ElectronBlocker | null = null;
@@ -325,6 +328,151 @@ export class WebPagesService extends EventEmitter {
     async openUrl(url: string, title?: string) {
         await this.openWindow(url, title ?? "Under Deck");
         return true;
+    }
+
+    createShortcut(request: WebPageShortcutRequest): WebPageShortcutResult {
+        if (process.platform !== "win32") {
+            return { ok: false, error: "Shortcuts are only supported on Windows right now." };
+        }
+
+        const page = this.findPage(String(request.pageId || ""));
+        if (!page) {
+            return { ok: false, error: "Web page not found." };
+        }
+
+        const shortcutName = this.sanitizeShortcutName(request.name || page.name || "Under Deck");
+        const destination = request.destination === "startMenu" ? "startMenu" : request.destination === "custom" ? "custom" : "desktop";
+        const directory = this.getShortcutDirectory(destination, request.customDirectory);
+        if (!directory) {
+            return { ok: false, error: "Shortcut destination not found." };
+        }
+
+        try {
+            fs.mkdirSync(directory, { recursive: true });
+        } catch {
+            return { ok: false, error: "Could not create shortcut destination." };
+        }
+
+        const shortcutPath = path.join(directory, `${shortcutName}.lnk`);
+        const actionUrl = `${ACTION_PROTOCOL}://action?type=open-webpage&pageId=${encodeURIComponent(page.id)}`;
+        const icon = this.resolveShortcutIcon(request.iconPath || page.icon, page.id);
+        const success = shell.writeShortcutLink(shortcutPath, "create", {
+            target: "C:\\Windows\\explorer.exe",
+            args: `"${actionUrl}"`,
+            icon,
+            iconIndex: 0,
+            description: `Abrir ${page.name} no Under Deck`,
+        });
+
+        return success ? { ok: true, path: shortcutPath } : { ok: false, error: "Windows could not create the shortcut." };
+    }
+
+    private sanitizeShortcutName(name: string) {
+        const safeName = String(name || "Under Deck").replace(/[<>:"/\\|?*\x00-\x1F]/g, " ").replace(/\s+/g, " ").trim();
+        return safeName || "Under Deck";
+    }
+
+    private getShortcutDirectory(destination: WebPageShortcutRequest["destination"], customDirectory?: string | null) {
+        if (destination === "startMenu") {
+            return path.join(electron.app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs");
+        }
+        if (destination === "custom") {
+            const target = String(customDirectory || "").trim();
+            return target || electron.app.getPath("desktop");
+        }
+        return electron.app.getPath("desktop");
+    }
+
+    private resolveShortcutIcon(icon: string | null | undefined, pageId: string) {
+        const absoluteIcon = this.resolveIconToAbsolutePath(icon);
+        if (absoluteIcon && fs.existsSync(absoluteIcon)) {
+            if (path.extname(absoluteIcon).toLowerCase() === ".ico") return absoluteIcon;
+            const converted = this.convertImageToShortcutIcon(absoluteIcon, pageId);
+            if (converted) return converted;
+        }
+        if (icon?.startsWith("data:")) {
+            const converted = this.convertDataUrlToShortcutIcon(icon, pageId);
+            if (converted) return converted;
+        }
+        return getAssetPath("img", "icon.ico");
+    }
+
+    private getShortcutIconsFolder() {
+        const folder = path.join(electron.app.getPath("userData"), "shortcut-icons");
+        fs.mkdirSync(folder, { recursive: true });
+        return folder;
+    }
+
+    private getShortcutIconCachePath(sourceKey: string, pageId: string) {
+        const hash = createHash("sha1").update(pageId).update(sourceKey).digest("hex");
+        return path.join(this.getShortcutIconsFolder(), `${hash}.ico`);
+    }
+
+    private getFileSourceKey(filePath: string, pageId: string) {
+        try {
+            const stats = fs.statSync(filePath);
+            return `${pageId}:${filePath}:${stats.mtimeMs}:${stats.size}`;
+        } catch {
+            return `${pageId}:${filePath}`;
+        }
+    }
+
+    private convertImageToShortcutIcon(filePath: string, pageId: string) {
+        const cachePath = this.getShortcutIconCachePath(this.getFileSourceKey(filePath, pageId), pageId);
+        if (fs.existsSync(cachePath)) return cachePath;
+
+        const image = nativeImage.createFromPath(filePath);
+        if (image.isEmpty()) return null;
+        return this.writeNativeImageAsIcon(image, cachePath);
+    }
+
+    private convertDataUrlToShortcutIcon(dataUrl: string, pageId: string) {
+        const cachePath = this.getShortcutIconCachePath(dataUrl, pageId);
+        if (fs.existsSync(cachePath)) return cachePath;
+
+        const image = nativeImage.createFromDataURL(dataUrl);
+        if (image.isEmpty()) return null;
+        return this.writeNativeImageAsIcon(image, cachePath);
+    }
+
+    private writeNativeImageAsIcon(image: electron.NativeImage, targetPath: string) {
+        try {
+            const sizes = [16, 24, 32, 48, 64, 128, 256];
+            const images = sizes.map((size) => ({
+                size,
+                buffer: image.resize({ width: size, height: size, quality: "best" }).toPNG(),
+            })).filter((entry) => entry.buffer.length > 0);
+
+            if (images.length === 0) return null;
+
+            const headerSize = 6;
+            const directorySize = images.length * 16;
+            let offset = headerSize + directorySize;
+            const header = Buffer.alloc(headerSize);
+            header.writeUInt16LE(0, 0);
+            header.writeUInt16LE(1, 2);
+            header.writeUInt16LE(images.length, 4);
+
+            const entries = images.map(({ size, buffer }) => {
+                const entry = Buffer.alloc(16);
+                entry.writeUInt8(size >= 256 ? 0 : size, 0);
+                entry.writeUInt8(size >= 256 ? 0 : size, 1);
+                entry.writeUInt8(0, 2);
+                entry.writeUInt8(0, 3);
+                entry.writeUInt16LE(1, 4);
+                entry.writeUInt16LE(32, 6);
+                entry.writeUInt32LE(buffer.length, 8);
+                entry.writeUInt32LE(offset, 12);
+                offset += buffer.length;
+                return entry;
+            });
+
+            fs.writeFileSync(targetPath, Buffer.concat([header, ...entries, ...images.map((entry) => entry.buffer)]));
+            return targetPath;
+        } catch (error) {
+            logsService.log("webpages", "shortcut_icon.convert_failed", { error: String(error) }, "warn");
+            return null;
+        }
     }
 
     private async openWindow(url: string, title?: string) {

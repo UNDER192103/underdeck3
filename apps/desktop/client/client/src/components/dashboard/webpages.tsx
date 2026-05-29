@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ImagePlus, Loader2, Plus, Search, Settings2 } from "lucide-react";
+import { ExternalLink, ImagePlus, Link, Loader2, Pencil, Plus, Search, Settings2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useUnderDeck } from "@/contexts/UnderDeckContext";
 import { useI18n } from "@/contexts/I18nContext";
@@ -245,12 +245,223 @@ function WebPageModal({
   );
 }
 
+function WebPageShortcutModal({
+  page,
+  open,
+  onOpenChange,
+}: {
+  page?: WebPage | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useI18n();
+  const { createWebPageShortcut } = useUnderDeck();
+  const [name, setName] = useState("");
+  const [iconPath, setIconPath] = useState("");
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
+  const [useStartMenu, setUseStartMenu] = useState(false);
+  const [customDirectory, setCustomDirectory] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const resetForm = () => {
+    setName(page?.name ?? "");
+    setIconPath("");
+    setIconPreview(page?.icon ?? null);
+    setUseStartMenu(false);
+    setCustomDirectory("");
+  };
+
+  React.useEffect(() => {
+    if (!open) return;
+    resetForm();
+  }, [open, page]);
+
+  React.useEffect(() => {
+    const iconValue = iconPath.trim();
+    if (!iconValue) {
+      setIconPreview(page?.icon ?? null);
+      return;
+    }
+    const isRenderableUrl =
+      iconValue.startsWith("http://") ||
+      iconValue.startsWith("https://") ||
+      iconValue.startsWith("data:") ||
+      iconValue.startsWith("underdeck-media://") ||
+      iconValue.startsWith("file://");
+    if (isRenderableUrl) {
+      setIconPreview(iconValue);
+      return;
+    }
+    const timeoutId = window.setTimeout(async () => {
+      const previewDataUrl = await window.underdeck.dialog.readFileAsDataUrl(iconValue);
+      setIconPreview(previewDataUrl ?? null);
+    }, 250);
+    return () => window.clearTimeout(timeoutId);
+  }, [iconPath, page]);
+
+  const handleSelectIcon = async () => {
+    const selectedPath = await window.underdeck.dialog.selectFile({
+      title: t("webpages.shortcut.pick_icon", "Selecionar icone"),
+      buttonLabel: t("common.select", "Selecionar"),
+      filters: [
+        {
+          name: t("common.images", "Imagens"),
+          extensions: ["ico", "png", "jpg", "jpeg", "webp", "bmp"],
+        },
+      ],
+    });
+
+    if (!selectedPath || Array.isArray(selectedPath)) return;
+    setIconPath(selectedPath);
+
+    const previewDataUrl = await window.underdeck.dialog.readFileAsDataUrl(selectedPath);
+    setIconPreview(previewDataUrl ?? null);
+  };
+
+  const handleSelectDirectory = async () => {
+    const selectedPath = await window.underdeck.dialog.selectFile({
+      title: t("webpages.shortcut.pick_folder", "Selecionar pasta"),
+      buttonLabel: t("common.select", "Selecionar"),
+      includeDirectories: true,
+    });
+
+    if (!selectedPath || Array.isArray(selectedPath)) return;
+    setCustomDirectory(selectedPath);
+  };
+
+  const handleCreate = async () => {
+    if (!page) return;
+    if (!name.trim()) {
+      toast.error(t("webpages.shortcut.name_required", "Informe o nome do atalho."));
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const result = await createWebPageShortcut({
+        pageId: page.id,
+        name: name.trim(),
+        iconPath: iconPath.trim() || page.icon || null,
+        destination: useStartMenu ? "startMenu" : customDirectory.trim() ? "custom" : "desktop",
+        customDirectory: customDirectory.trim() || null,
+      });
+      if (!result?.ok) return;
+      onOpenChange(false);
+      resetForm();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        onOpenChange(nextOpen);
+        if (!nextOpen) resetForm();
+      }}
+    >
+      <DialogContent className="max-w-lg rounded-xl more-dark select-none">
+        <DialogHeader>
+          <DialogTitle>{t("webpages.shortcut.title", "Criar atalho")}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {t("webpages.shortcut.description", "Configure nome, icone e destino do atalho.")}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="webpage-shortcut-name">{t("common.name", "Nome")}</Label>
+            <Input
+              id="webpage-shortcut-name"
+              rounded="xl"
+              className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={t("webpages.shortcut.name_placeholder", "Nome do atalho")}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="webpage-shortcut-icon">{t("webpages.modal.icon_label", "Icone (opcional)")}</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="webpage-shortcut-icon"
+                rounded="xl"
+                className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
+                value={iconPath}
+                onChange={(event) => setIconPath(event.target.value)}
+                placeholder={page?.icon ? t("webpages.shortcut.using_page_icon", "Usando icone da pagina") : "C:\\icon.ico"}
+              />
+              <Button type="button" variant="outline-primary" rounded="xl" onClick={handleSelectIcon}>
+                <ImagePlus className="h-4 w-4" />
+                {t("common.choose", "Escolher")}
+              </Button>
+            </div>
+            {iconPreview && (
+              <div className="w-fill">
+                <img
+                  src={iconPreview}
+                  alt={t("webpages.modal.icon_preview", "Preview do icone")}
+                  className="h-32 w-full rounded-xl border border-border/70 bg-black/20 object-cover"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-border/70 bg-card/70 p-3">
+            <div>
+              <p className="text-sm font-medium">{t("webpages.shortcut.start_menu", "Adicionar ao Menu Iniciar")}</p>
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  "webpages.shortcut.desktop_default",
+                  "O Windows nao permite fixar automaticamente. Depois, procure pelo nome no Start e fixe manualmente."
+                )}
+              </p>
+            </div>
+            <Switch checked={useStartMenu} onCheckedChange={(checked) => setUseStartMenu(Boolean(checked))} />
+          </div>
+
+          {!useStartMenu && (
+            <div className="grid gap-2">
+              <Label htmlFor="webpage-shortcut-destination">{t("webpages.shortcut.destination", "Destino")}</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="webpage-shortcut-destination"
+                  rounded="xl"
+                  className="border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"
+                  value={customDirectory}
+                  onChange={(event) => setCustomDirectory(event.target.value)}
+                  placeholder={t("webpages.shortcut.desktop", "Area de Trabalho")}
+                />
+                <Button type="button" variant="outline-primary" rounded="xl" onClick={handleSelectDirectory}>
+                  {t("common.choose", "Escolher")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost-destructive" rounded="xl" onClick={() => onOpenChange(false)} disabled={saving}>
+            {t("common.cancel", "Cancelar")}
+          </Button>
+          <Button rounded="xl" onClick={handleCreate} disabled={saving}>
+            {saving ? t("webpages.shortcut.creating", "Criando...") : t("webpages.shortcut.create", "Criar atalho")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function WebPages() {
   const { webPages, webPagesSettings, updateWebPagesSettings, deleteWebPage, openWebPage, closeAllWebPages, loading } = useUnderDeck();
   const { t } = useI18n();
   const [search, setSearch] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  const [shortcutPageId, setShortcutPageId] = useState<string | null>(null);
 
   const filteredPages = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -261,6 +472,11 @@ export default function WebPages() {
   const editingPage = useMemo(
     () => (editingPageId ? webPages.find((page) => page.id === editingPageId) ?? null : null),
     [webPages, editingPageId]
+  );
+
+  const shortcutPage = useMemo(
+    () => (shortcutPageId ? webPages.find((page) => page.id === shortcutPageId) ?? null : null),
+    [webPages, shortcutPageId]
   );
 
   const addCacheBuster = (url: string | null | undefined, timestamp?: number): string | null => {
@@ -385,7 +601,7 @@ export default function WebPages() {
                     mode="automatic"
                     direction="down"
                     align="end"
-                    className="w-32 gap-1 rounded-xl border-border/70 bg-popover/95 p-1 shadow-xl backdrop-blur-md transparent:bg-black/85 select-none"
+                    className="w-40 gap-1 rounded-xl border-border/70 bg-popover/95 p-1 shadow-xl backdrop-blur-md transparent:bg-black/85 select-none"
                   >
                     <Button
                       type="button"
@@ -394,6 +610,7 @@ export default function WebPages() {
                       onClick={() => void openWebPage(page.id)}
                       className="w-full"
                     >
+                      <ExternalLink className="h-4 w-4" />
                       {t("common.open", "Abrir")}
                     </Button>
                     <Button
@@ -403,7 +620,18 @@ export default function WebPages() {
                       onClick={() => setEditingPageId(page.id)}
                       className="w-full"
                     >
+                      <Pencil className="h-4 w-4" />
                       {t("common.edit", "Editar")}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost-secondary"
+                      rounded="xl"
+                      onClick={() => setShortcutPageId(page.id)}
+                      className="w-full"
+                    >
+                      <Link className="h-4 w-4" />
+                      {t("webpages.shortcut.menu", "Criar Atalho")}
                     </Button>
                     <Button
                       type="button"
@@ -412,6 +640,7 @@ export default function WebPages() {
                       onClick={() => setConfirmDeleteId(page.id)}
                       className="w-full"
                     >
+                      <Trash2 className="h-4 w-4" />
                       {t("common.delete", "Deletar")}
                     </Button>
                   </DropdownUpContent>
@@ -448,6 +677,13 @@ export default function WebPages() {
           if (!open) setEditingPageId(null);
         }}
         trigger={null}
+      />
+      <WebPageShortcutModal
+        page={shortcutPage}
+        open={!!shortcutPage}
+        onOpenChange={(open) => {
+          if (!open) setShortcutPageId(null);
+        }}
       />
     </div>
   );

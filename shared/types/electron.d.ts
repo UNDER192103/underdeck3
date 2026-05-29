@@ -1,6 +1,6 @@
 import type { App } from "./apps";
 import type { AppCategory } from "./categories";
-import type { WebPage, WebPagesSettings } from "./webpages";
+import type { WebPage, WebPageShortcutRequest, WebPageShortcutResult, WebPagesSettings } from "./webpages";
 import type { Shortcut } from "./shortcuts";
 
 export interface FileDialogFilter {
@@ -306,6 +306,7 @@ export interface UnderDeckApi {
     delete: (id: string) => Promise<unknown>;
     open: (id: string) => Promise<unknown>;
     openUrl: (url: string, title?: string) => Promise<unknown>;
+    createShortcut: (request: WebPageShortcutRequest) => Promise<WebPageShortcutResult>;
     closeAll: () => Promise<void>;
     getSettings: () => Promise<WebPagesSettings>;
     updateSettings: (patch: Partial<WebPagesSettings>) => Promise<WebPagesSettings>;

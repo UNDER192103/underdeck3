@@ -2,7 +2,7 @@
   "name": "underdeck",
   "description": "UnderDeck Application",
   "productName": "Under Deck",
-  "version": "3.0.18",
+  "version": "3.0.20",
   "main": "dist/main/main.js",
   "type": "module",
   "author": "Under",
@@ -15,7 +15,7 @@
   },
   "scripts": {
     "start": "set NODE_OPTIONS=--import tsx && electron src/main/main.ts",
-    "nodemon": "nodemon --watch src --ext ts --exec \"cls && npm start\" --delay 1",
+    "nodemon": "nodemon --exitcrash --watch src --ext ts --exec \"cls && npm start\" --delay 1",
     "clean": "rimraf dist build",
     "compile": "tsc",
     "build:prepare": "npm run clean && npm --prefix ..\\client run build && npm run compile",

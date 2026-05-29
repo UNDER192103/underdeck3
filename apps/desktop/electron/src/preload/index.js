@@ -141,6 +141,7 @@ const underdeckApi = {
     delete: (id) => ipcRenderer.invoke("WebPagesSV-delete", id),
     open: (id) => ipcRenderer.invoke("WebPagesSV-open", id),
     openUrl: (url, title) => ipcRenderer.invoke("WebPagesSV-openUrl", url, title),
+    createShortcut: (request) => ipcRenderer.invoke("WebPagesSV-CreateShortcut", request),
     closeAll: () => ipcRenderer.invoke("WebPagesSV-closeAll"),
     getSettings: () => ipcRenderer.invoke("WebPagesSV-GetSettings"),
     updateSettings: (patch) => ipcRenderer.invoke("WebPagesSV-UpdateSettings", patch),

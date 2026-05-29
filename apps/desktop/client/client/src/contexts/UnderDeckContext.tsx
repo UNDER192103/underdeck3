@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { App } from "@/types/apps";
 import { AppCategory } from "@/types/categories";
-import { WebPage, WebPagesSettings } from "@/types/webpages";
+import { WebPage, WebPageShortcutRequest, WebPageShortcutResult, WebPagesSettings } from "@/types/webpages";
 import { Shortcut } from "@/types/shortcuts";
 import { toast } from "sonner";
 import { useI18n } from "@/contexts/I18nContext";
@@ -27,6 +27,7 @@ interface UnderDeckContextType {
     updateWebPage: (page: WebPage) => Promise<WebPage | null>;
     deleteWebPage: (id: string) => Promise<void>;
     openWebPage: (id: string) => Promise<void>;
+    createWebPageShortcut: (request: WebPageShortcutRequest) => Promise<WebPageShortcutResult | null>;
     closeAllWebPages: () => Promise<void>;
     updateWebPagesSettings: (patch: Partial<WebPagesSettings>) => Promise<WebPagesSettings | null>;
 
@@ -325,6 +326,28 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const createWebPageShortcut = async (request: WebPageShortcutRequest) => {
+        try {
+            const result = await window.underdeck.webPages.createShortcut(request);
+            if (!result?.ok) {
+                toast.error(result?.error || t("underdeck.webpages.shortcut_failed", "Falha ao criar atalho."));
+                return result ?? null;
+            }
+            if (request.destination === "startMenu") {
+                toast.success(t(
+                    "underdeck.webpages.shortcut_created_start_menu",
+                    "Atalho criado no Menu Iniciar. Para fixar, procure pelo nome no Start e use Fixar em Iniciar."
+                ));
+            } else {
+                toast.success(t("underdeck.webpages.shortcut_created", "Atalho criado."));
+            }
+            return result;
+        } catch {
+            toast.error(t("underdeck.webpages.shortcut_failed", "Falha ao criar atalho."));
+            return null;
+        }
+    };
+
     const updateWebPagesSettings = async (patch: Partial<WebPagesSettings>) => {
         try {
             const next = await window.underdeck.webPages.updateSettings(patch);
@@ -470,6 +493,7 @@ export function UnderDeckProvider({ children }: { children: React.ReactNode }) {
                 updateWebPage,
                 deleteWebPage,
                 openWebPage,
+                createWebPageShortcut,
                 closeAllWebPages,
                 updateWebPagesSettings,
                 shortcuts,

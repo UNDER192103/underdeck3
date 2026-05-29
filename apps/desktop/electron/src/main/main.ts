@@ -1,10 +1,14 @@
 import electron from "electron";
 import dotenv from "dotenv";
 import path from "path";
+import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import { VelopackApp } from "velopack";
 
 const { app, BrowserWindow, ipcMain, protocol, session } = electron;
 const isDev = !app.isPackaged && process.env.NODE_ENV !== "production";
+const ACTION_PROTOCOL = "underdeck";
+const ACTION_PROTOCOL_HOST = "action";
 if (isDev) {
   const envPath = path.join(process.cwd(), ".env");
   dotenv.config({ path: envPath });
@@ -435,14 +439,176 @@ const waitForLoadingRendererReady = async (timeoutMs = 10000) => {
   return loadingRendererReady;
 };
 
+const getStableVelopackExecutable = () => {
+  let currentExecutable = process.execPath;
+  try {
+    currentExecutable = app.getPath("exe");
+  } catch {
+    currentExecutable = process.execPath;
+  }
+  const executableName = path.basename(currentExecutable);
+  const currentDirectory = path.dirname(currentExecutable);
+  const currentParts = currentDirectory.split(path.sep);
+  const versionFolderIndex = currentParts.findIndex((part) => /^app-/i.test(part));
+  if (versionFolderIndex >= 0) {
+    return path.resolve(currentDirectory, "..", executableName);
+  }
+  return currentExecutable;
+};
+
+const registerActionProtocol = () => {
+  try {
+    if (process.defaultApp && process.argv.length >= 2) {
+      const entryPoint = path.resolve(process.argv[1]);
+      const tsxLoader = path.resolve(process.cwd(), "node_modules", "tsx", "dist", "loader.mjs");
+      const devArgs = fs.existsSync(tsxLoader)
+        ? ["--import", tsxLoader, entryPoint]
+        : [entryPoint];
+      const registered = app.setAsDefaultProtocolClient(ACTION_PROTOCOL, app.getPath("exe"), devArgs);
+      ensureDevProtocolRegistry(app.getPath("exe"), entryPoint);
+      logsService.log("app", "protocol.register_dev", {
+        protocol: ACTION_PROTOCOL,
+        exe: app.getPath("exe"),
+        args: devArgs,
+        registered,
+      });
+      console.log("[underdeck:protocol] register_dev", {
+        protocol: ACTION_PROTOCOL,
+        exe: app.getPath("exe"),
+        args: devArgs,
+        registered,
+      });
+      return;
+    }
+    const exe = getStableVelopackExecutable();
+    const registered = app.setAsDefaultProtocolClient(ACTION_PROTOCOL, exe);
+    logsService.log("app", "protocol.register_packaged", {
+      protocol: ACTION_PROTOCOL,
+      exe,
+      registered,
+    });
+    console.log("[underdeck:protocol] register_packaged", {
+      protocol: ACTION_PROTOCOL,
+      exe,
+      registered,
+    });
+  } catch (error) {
+    logsService.log("app", "protocol.register_failed", { protocol: ACTION_PROTOCOL, error: String(error) }, "warn");
+    console.log("[underdeck:protocol] register_failed", { protocol: ACTION_PROTOCOL, error });
+  }
+};
+
+const normalizeProtocolArgument = (value: unknown) => String(value ?? "").trim().replace(/^"|"$/g, "");
+
+const quoteRegistryArg = (value: string) => `"${String(value).replace(/"/g, '\\"')}"`;
+
+const escapeVbsString = (value: string) => String(value).replace(/"/g, '""');
+
+const ensureDevProtocolRegistry = (exe: string, entryPoint: string) => {
+  if (process.platform !== "win32") return;
+  try {
+    const protocolRoot = `Software\\Classes\\${ACTION_PROTOCOL}`;
+    const commandKey = `${protocolRoot}\\shell\\open\\command`;
+    const launcherPath = path.join(app.getPath("userData"), "underdeck-protocol-dev.vbs");
+    const electronExe = path.resolve(exe);
+    const mainEntryPoint = path.resolve(entryPoint);
+    const launcherContent = [
+      'Set shell = CreateObject("WScript.Shell")',
+      `shell.CurrentDirectory = "${escapeVbsString(process.cwd())}"`,
+      'shell.Environment("Process")("NODE_OPTIONS") = "--import tsx"',
+      "args = \"\"",
+      "For Each arg In WScript.Arguments",
+      "  args = args & \" \" & Chr(34) & arg & Chr(34)",
+      "Next",
+      `command = Chr(34) & "${escapeVbsString(electronExe)}" & Chr(34) & " " & Chr(34) & "${escapeVbsString(mainEntryPoint)}" & Chr(34) & args`,
+      "shell.Run command, 0, False",
+      "",
+    ].join("\r\n");
+    fs.writeFileSync(launcherPath, launcherContent, "utf8");
+
+    const wscriptPath = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "wscript.exe");
+    const command = `${quoteRegistryArg(wscriptPath)} //B ${quoteRegistryArg(launcherPath)} "%1"`;
+    execFileSync("reg.exe", ["add", `HKCU\\${protocolRoot}`, "/ve", "/d", `URL:${ACTION_PROTOCOL}`, "/f"], { windowsHide: true });
+    execFileSync("reg.exe", ["add", `HKCU\\${protocolRoot}`, "/v", "URL Protocol", "/d", "", "/f"], { windowsHide: true });
+    execFileSync("reg.exe", ["add", `HKCU\\${commandKey}`, "/ve", "/d", command, "/f"], { windowsHide: true });
+    console.log("[underdeck:protocol] registry_dev_command", command);
+    console.log("[underdeck:protocol] registry_dev_launcher", launcherPath);
+  } catch (error) {
+    console.log("[underdeck:protocol] registry_dev_failed", error);
+  }
+};
+
+const processActionProtocolCommand = (argv: string[]) => {
+  logsService.log("app", "protocol.process_args", { argv });
+  console.log("[underdeck:protocol] process_args", argv);
+  for (const rawArg of argv) {
+    const arg = normalizeProtocolArgument(rawArg);
+    if (!arg.toLowerCase().startsWith(`${ACTION_PROTOCOL}://`)) continue;
+
+    try {
+      logsService.log("app", "protocol.received", { arg });
+      console.log("[underdeck:protocol] received", arg);
+      const url = new URL(arg);
+      if (url.hostname !== ACTION_PROTOCOL_HOST) {
+        logsService.log("app", "protocol.unknown_host", { host: url.hostname }, "warn");
+        console.log("[underdeck:protocol] unknown_host", url.hostname);
+        continue;
+      }
+
+      const actionType = String(url.searchParams.get("type") || "").trim();
+      logsService.log("app", "protocol.route", {
+        actionType,
+        params: Object.fromEntries(url.searchParams.entries()),
+      });
+      console.log("[underdeck:protocol] route", {
+        actionType,
+        params: Object.fromEntries(url.searchParams.entries()),
+      });
+      switch (actionType) {
+        case "open-webpage": {
+          const pageId = String(url.searchParams.get("pageId") || "").trim();
+          if (!pageId) {
+            logsService.log("app", "protocol.open_webpage_missing_id", undefined, "warn");
+            console.log("[underdeck:protocol] open_webpage_missing_id");
+            break;
+          }
+          logsService.log("app", "protocol.open_webpage", { pageId });
+          console.log("[underdeck:protocol] open_webpage", pageId);
+          void webPagesService.openPage(pageId).then((opened) => {
+            logsService.log("app", "protocol.open_webpage_result", { pageId, opened });
+            console.log("[underdeck:protocol] open_webpage_result", { pageId, opened });
+          }).catch((error) => {
+            logsService.log("app", "protocol.open_webpage_failed", { pageId, error: String(error) }, "error");
+            console.log("[underdeck:protocol] open_webpage_failed", { pageId, error });
+          });
+          break;
+        }
+        default:
+          logsService.log("app", "protocol.unknown_action", { actionType }, "warn");
+          console.log("[underdeck:protocol] unknown_action", actionType);
+          break;
+      }
+    } catch (error) {
+      logsService.log("app", "protocol.process_failed", { arg, error: String(error) }, "warn");
+      console.log("[underdeck:protocol] process_failed", { arg, error });
+    }
+  }
+};
+
+const hasActionProtocolCommand = (argv: string[]) => {
+  return argv.some((rawArg) => normalizeProtocolArgument(rawArg).toLowerCase().startsWith(`${ACTION_PROTOCOL}://`));
+};
+
 let gotSingleInstanceLock = true;
 gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.exit();
 } else {
-  app.on("second-instance", () => {
-    if (!mainWindow) return;
-    windowManager.showWindow("main");
+  app.on("second-instance", (_event, commandLine) => {
+    if (mainWindow && !hasActionProtocolCommand(commandLine)) {
+      windowManager.showWindow("main");
+    }
+    processActionProtocolCommand(commandLine);
   });
 }
 
@@ -461,6 +627,8 @@ protocol.registerSchemesAsPrivileged([
 
 if (gotSingleInstanceLock) app.whenReady().then(async () => {
   logsService.log("app", "ready");
+  registerActionProtocol();
+
   ipcMain.on("ObserverSV-Publish", (_event, payload: { id?: string; channel?: string }) => {
     if (String(payload?.id || "") !== "main.ready") return;
     mainRendererReady = true;
@@ -520,6 +688,7 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
 
   AppService.registerMediaProtocol();
   createMainApplicationWindow();
+  processActionProtocolCommand(process.argv);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

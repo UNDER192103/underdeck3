@@ -11,7 +11,7 @@ import { Shortcutkey, normalizeShortcutKeys } from "./shortcutkeys.js";
 import { App } from "../../types/apps.js";
 import { AppCategory } from "../../types/categories.js";
 import { Shortcut } from "../../types/shortcuts.js";
-import { WebPage, WebPagesSettings } from "../../types/webpages.js";
+import { WebPage, WebPageShortcutRequest, WebPagesSettings } from "../../types/webpages.js";
 import { FileDialogService } from "./file-dialog.js";
 import { SaveFileOptions, SelectFileOptions } from "../../types/file-dialog.js";
 import { TranslationService } from "./translations.js";
@@ -576,6 +576,9 @@ export class IpcmainService {
         ipcMain.handle("WebPagesSV-openUrl", async (_event, url: string, title?: string) => {
             await this.webPagesService.openUrl(url, title);
             return true;
+        });
+        ipcMain.handle("WebPagesSV-CreateShortcut", async (_event, request: WebPageShortcutRequest) => {
+            return this.webPagesService.createShortcut(request);
         });
         ipcMain.handle("WebPagesSV-closeAll", async () => this.webPagesService.closeAllWindows());
         ipcMain.handle("WebPagesSV-GetSettings", async () => this.webPagesService.getSettingsSnapshot());

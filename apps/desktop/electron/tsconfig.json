@@ -5,7 +5,6 @@
     "moduleResolution": "Bundler",       /* Melhor para ferramentas modernas e ESM */
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": ".",
     "paths": {
       "@shared/*": ["../../../shared/*"]
     },
