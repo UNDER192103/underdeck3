@@ -27,6 +27,7 @@ import {
   Radio,
   LayoutTemplate,
   Music2,
+  MessagesSquare,
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useI18n } from "@/contexts/I18nContext";
@@ -216,6 +217,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
               onClick={() => {
                 set("pages", "home");
                 set("homePages", "discord");
+              }}
+            />
+            <BuildSidebarOption
+              icon={<MessagesSquare size={14} />}
+              title={t("sidebar.live_chat", "Chat ao vivo")}
+              focusing={CurrentTab === "live-chat"}
+              onClick={() => {
+                set("pages", "home");
+                set("homePages", "live-chat");
               }}
             />
             <BuildSidebarOption

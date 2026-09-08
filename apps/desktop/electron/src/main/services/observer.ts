@@ -33,6 +33,12 @@ export const ObserverChannels = {
     // Discord RPC related channels
     DISCORD_STATE_CHANGED: "discord:state-changed",
 
+    // Desktop live-chat related channels
+    LIVE_CHAT_SETTINGS_CHANGED: "live-chat:settings-changed",
+    LIVE_CHAT_STATE_CHANGED: "live-chat:state-changed",
+    LIVE_CHAT_CLEAR_REQUESTED: "live-chat:clear-requested",
+    LIVE_CHAT_OVERLAY_CHANGED: "live-chat:overlay-changed",
+
     // SoundPad related channels
     SOUNDPAD_AUDIOS_CHANGED: "soundpad:audios-changed",
 
@@ -93,6 +99,12 @@ export interface ObserverEventDataMap {
 
     // Discord events
     "discord:state-changed": { state: unknown };
+
+    // Live chat events. Chat messages themselves use a dedicated IPC subscription.
+    "live-chat:settings-changed": { settings: unknown };
+    "live-chat:state-changed": { state: unknown };
+    "live-chat:clear-requested": { scope?: string };
+    "live-chat:overlay-changed": { state: unknown };
 
     // SoundPad events
     "soundpad:audios-changed": { audios: unknown[] };

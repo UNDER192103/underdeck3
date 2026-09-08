@@ -14,6 +14,11 @@ export class WindowManagerService {
 
   private mainCloseHandler: ((event: Electron.Event) => void) | null = null;
   private forceClosingAll = false;
+  private beforeQuitHandler: (() => void) | null = null;
+
+  setBeforeQuitHandler(handler: (() => void) | null) {
+    this.beforeQuitHandler = handler;
+  }
 
   setWindow(name: ManagedWindowName, win: electron.BrowserWindow | null) {
     this.windows[name] = win;
@@ -53,6 +58,7 @@ export class WindowManagerService {
 
   closeAllAndQuit() {
     this.prepareForQuit();
+    this.beforeQuitHandler?.();
     const allWindows = electron.BrowserWindow.getAllWindows();
     allWindows.forEach((win) => {
       if (win.isDestroyed()) return;

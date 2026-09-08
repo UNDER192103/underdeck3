@@ -211,6 +211,111 @@ export interface DiscordCommandResult {
   message: string;
 }
 
+export type LiveChatProvider = "twitch" | "tiktok";
+export type LiveChatOverlayScope = "combined" | LiveChatProvider;
+export type LiveChatOverlayMode = "combined" | "separate";
+export interface LiveChatWindowBounds {
+  x?: number;
+  y?: number;
+  width: number;
+  height: number;
+}
+export interface LiveChatChannelAppearance {
+  label: string;
+  icon: string | null;
+  eventsEnabled: boolean;
+}
+export interface TwitchLiveChatSettings {
+  enabled: boolean;
+  anonymous: boolean;
+  username: string;
+  hasPassword: boolean;
+  channels: string[];
+  channelOverrides: Record<string, LiveChatChannelAppearance>;
+  reconnect: boolean;
+}
+export interface LiveChatSettings {
+  enabled: boolean;
+  twitch: TwitchLiveChatSettings;
+  tiktok: { enabled: boolean; available: false };
+  overlay: {
+    mode: LiveChatOverlayMode;
+    paused: boolean;
+    locked: boolean;
+    alwaysOnTop: boolean;
+    maxMessages: number;
+    showSelfMessages: boolean;
+    showTimestamp: boolean;
+    showBadges: boolean;
+    showProvider: boolean;
+    showChannel: boolean;
+    background: StoredThemeBackground;
+    backgroundPresets: ThemeEffectBackgrounds;
+    openScopes: LiveChatOverlayScope[];
+    bounds: Partial<Record<LiveChatOverlayScope, LiveChatWindowBounds>>;
+  };
+}
+export interface LiveChatSettingsPatch {
+  enabled?: boolean;
+  twitch?: Partial<Omit<TwitchLiveChatSettings, "hasPassword">> & {
+    password?: string;
+    clearPassword?: boolean;
+  };
+  tiktok?: { enabled?: boolean };
+  overlay?: Partial<Omit<LiveChatSettings["overlay"], "bounds">> & {
+    bounds?: Partial<Record<LiveChatOverlayScope, LiveChatWindowBounds>>;
+  };
+}
+export interface LiveChatProviderState {
+  connected: boolean;
+  connecting: boolean;
+  reconnecting: boolean;
+  joinedChannels: string[];
+  lastError: string | null;
+}
+export interface LiveChatState {
+  enabled: boolean;
+  settings: LiveChatSettings;
+  providers: {
+    twitch: LiveChatProviderState;
+    tiktok: LiveChatProviderState & { available: false };
+  };
+}
+export type TwitchChatTags = Record<string, unknown> & {
+  id?: string;
+  color?: string;
+  badges?: Record<string, string>;
+  emotes?: Record<string, string[]>;
+  username?: string;
+  "display-name"?: string;
+  "room-id"?: string;
+  "message-type"?: string;
+  "user-id"?: string;
+};
+export interface LiveChatEvent {
+  id: string;
+  provider: LiveChatProvider;
+  event: string;
+  timestamp: number;
+  channel?: string;
+  message?: string;
+  self?: boolean;
+  tags?: TwitchChatTags;
+  args?: unknown[];
+}
+export interface LiveChatCommandResult {
+  ok: boolean;
+  message: string;
+  code?: string;
+}
+export interface LiveChatOverlayWindowState {
+  open: boolean;
+  scope: LiveChatOverlayScope;
+  paused: boolean;
+  locked: boolean;
+  alwaysOnTop: boolean;
+}
+
 export type WebDeckItemType = "back" | "page" | "app" | "soundpad" | "obs" | "discord";
 
 export interface WebDeckItem {
@@ -517,6 +622,32 @@ export interface UnderDeckApi {
     setDeafen: (deaf: boolean) => Promise<DiscordCommandResult>;
     toggleDeafen: () => Promise<DiscordCommandResult>;
     onStateChanged: (listener: (state: DiscordState) => void) => () => void;
+  };
+  liveChat: {
+    getSettings: () => Promise<LiveChatSettings>;
+    getState: () => Promise<LiveChatState>;
+    updateSettings: (
+      patch: LiveChatSettingsPatch,
+    ) => Promise<LiveChatCommandResult>;
+    connect: (provider?: LiveChatProvider) => Promise<LiveChatCommandResult>;
+    disconnect: (provider?: LiveChatProvider) => Promise<LiveChatCommandResult>;
+    openOverlay: (
+      scope?: LiveChatOverlayScope,
+    ) => Promise<LiveChatOverlayWindowState>;
+    closeOverlay: (
+      scope?: LiveChatOverlayScope,
+    ) => Promise<LiveChatOverlayWindowState>;
+    getOverlayState: (
+      scope?: LiveChatOverlayScope,
+    ) => Promise<LiveChatOverlayWindowState>;
+    setOverlayPaused: (paused: boolean) => Promise<LiveChatOverlayWindowState>;
+    setOverlayLocked: (locked: boolean) => Promise<LiveChatOverlayWindowState>;
+    setOverlayAlwaysOnTop: (
+      alwaysOnTop: boolean,
+    ) => Promise<LiveChatOverlayWindowState>;
+    clear: (scope?: LiveChatOverlayScope) => Promise<boolean>;
+    onStateChanged: (listener: (state: LiveChatState) => void) => () => void;
+    onEvent: (listener: (event: LiveChatEvent) => void) => () => void;
   };
   webdeck: {
     listPages: () => Promise<WebDeckPage[]>;

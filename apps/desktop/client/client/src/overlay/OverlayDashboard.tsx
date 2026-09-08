@@ -4,6 +4,7 @@ import Shortcuts from "@/components/dashboard/shortcuts";
 import SoundPad from "@/components/dashboard/soundpad";
 import ObsStudio from "@/components/dashboard/obs";
 import Discord from "@/components/dashboard/discord";
+import LiveChat from "@/components/dashboard/live-chat";
 import WebDeckEditor from "@/components/dashboard/webdeck";
 import WebPages from "@/components/dashboard/webpages";
 import OverlayDeckView from "@/overlay/OverlayDeckView";
@@ -18,7 +19,8 @@ import {
   Radio,
   LayoutTemplate,
   Music2,
-  Pencil
+  Pencil,
+  MessagesSquare,
 } from 'lucide-react';
 import { useNavigation } from "@/contexts/NavigationContext";
 import { useI18n } from "@/contexts/I18nContext";
@@ -76,6 +78,9 @@ export default function OverlayDashboard() {
               <TabsTrigger value="discord">
                 <DiscordIcon className="size-4" /> {t("sidebar.discord", "Discord")}
               </TabsTrigger>
+              <TabsTrigger value="live-chat">
+                <MessagesSquare /> {t("sidebar.live_chat", "Chat ao vivo")}
+              </TabsTrigger>
               <TabsTrigger value="webpages">
                 <Globe /> {t("sidebar.webpages", "Paginas Webs")}
               </TabsTrigger>
@@ -129,6 +134,9 @@ export default function OverlayDashboard() {
             </TabsContent>
             <TabsContent value="discord" className="h-[calc(100%-56px)] min-h-0 overflow-y-auto">
               <Discord className="border-none" />
+            </TabsContent>
+            <TabsContent value="live-chat" className="h-[calc(100%-56px)] min-h-0 overflow-y-auto">
+              <LiveChat className="border-none" />
             </TabsContent>
             <TabsContent value="webpages" className="h-[calc(100%-56px)] min-h-0 overflow-y-auto">
               <WebPages />

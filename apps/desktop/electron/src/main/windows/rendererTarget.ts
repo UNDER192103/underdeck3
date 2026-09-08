@@ -7,7 +7,7 @@ import { Settings } from "../services/settings.js";
 
 const { app, shell } = electron;
 
-type RendererPage = "main" | "overlay" | "webdeck" | "applauncher";
+type RendererPage = "main" | "overlay" | "webdeck" | "applauncher" | "livechat";
 
 const DEFAULT_SOURCE_MODE: RendererSourceMode = RendererTargetConfig.sourceMode;
 
@@ -153,18 +153,25 @@ const lockNavigationToBaseUrl = (win: Electron.BrowserWindow, baseUrl: string) =
     attachNavigationLock(win, shouldAllowUrl);
 };
 
-const loadRendererPage = (win: Electron.BrowserWindow, isDev: boolean, page: RendererPage) => {
+const loadRendererPage = (
+    win: Electron.BrowserWindow,
+    isDev: boolean,
+    page: RendererPage,
+    query?: Record<string, string>
+) => {
     if (useRemoteUrl(isDev)) {
         const baseUrl = getBaseUrl(isDev);
         const remotePath = page === "main" ? "/" : `/${page}/`;
-        const target = new URL(remotePath, baseUrl).toString();
+        const targetUrl = new URL(remotePath, baseUrl);
+        Object.entries(query ?? {}).forEach(([key, value]) => targetUrl.searchParams.set(key, value));
+        const target = targetUrl.toString();
         lockNavigationToBaseUrl(win, baseUrl);
         void win.loadURL(target);
         return;
     }
     const rendererIndexPath = getLocalIndexPath(isDev, page);
     lockNavigationToIndexFile(win, rendererIndexPath);
-    void win.loadFile(rendererIndexPath);
+    void win.loadFile(rendererIndexPath, query ? { query } : undefined);
 };
 
 export const loadMainRenderer = (win: Electron.BrowserWindow, isDev: boolean) => {
@@ -177,6 +184,14 @@ export const loadOverlayRenderer = (win: Electron.BrowserWindow, isDev: boolean)
 
 export const loadAppLauncherRenderer = (win: Electron.BrowserWindow, isDev: boolean) => {
     loadRendererPage(win, isDev, "applauncher");
+};
+
+export const loadLiveChatRenderer = (
+    win: Electron.BrowserWindow,
+    isDev: boolean,
+    scope: "combined" | "twitch" | "tiktok"
+) => {
+    loadRendererPage(win, isDev, "livechat", { scope });
 };
 
 export const getRendererLoadMode = () => parseSourceMode(process.env.ELECTRON_RENDERER_SOURCE_MODE);

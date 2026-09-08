@@ -29,6 +29,14 @@ type ObsState = import("../main/services/obs.js").ObsState;
 type DiscordCommandResult = import("../main/services/discord.js").DiscordCommandResult;
 type DiscordSettings = import("../main/services/discord.js").DiscordSettings;
 type DiscordState = import("../main/services/discord.js").DiscordState;
+type LiveChatCommandResult = import("../types/live-chat.js").LiveChatCommandResult;
+type LiveChatEvent = import("../types/live-chat.js").LiveChatEvent;
+type LiveChatOverlayScope = import("../types/live-chat.js").LiveChatOverlayScope;
+type LiveChatOverlayWindowState = import("../types/live-chat.js").LiveChatOverlayWindowState;
+type LiveChatProvider = import("../types/live-chat.js").LiveChatProvider;
+type LiveChatSettings = import("../types/live-chat.js").LiveChatSettings;
+type LiveChatSettingsPatch = import("../types/live-chat.js").LiveChatSettingsPatch;
+type LiveChatState = import("../types/live-chat.js").LiveChatState;
 type WebDeckItem = import("../main/services/webdeck.js").WebDeckItem;
 type WebDeckPage = import("../main/services/webdeck.js").WebDeckPage;
 type WebDeckAutoIcons = import("../main/services/webdeck.js").WebDeckAutoIcons;
@@ -288,6 +296,22 @@ interface UnderDeckApi {
     toggleDeafen: () => Promise<DiscordCommandResult>;
     onStateChanged: (listener: (state: DiscordState) => void) => () => void;
   };
+  liveChat: {
+    getSettings: () => Promise<LiveChatSettings>;
+    getState: () => Promise<LiveChatState>;
+    updateSettings: (patch: LiveChatSettingsPatch) => Promise<LiveChatCommandResult>;
+    connect: (provider?: LiveChatProvider) => Promise<LiveChatCommandResult>;
+    disconnect: (provider?: LiveChatProvider) => Promise<LiveChatCommandResult>;
+    openOverlay: (scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
+    closeOverlay: (scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
+    getOverlayState: (scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
+    setOverlayPaused: (paused: boolean) => Promise<LiveChatOverlayWindowState>;
+    setOverlayLocked: (locked: boolean) => Promise<LiveChatOverlayWindowState>;
+    setOverlayAlwaysOnTop: (alwaysOnTop: boolean) => Promise<LiveChatOverlayWindowState>;
+    clear: (scope?: LiveChatOverlayScope) => Promise<boolean>;
+    onStateChanged: (listener: (state: LiveChatState) => void) => () => void;
+    onEvent: (listener: (event: LiveChatEvent) => void) => () => void;
+  };
   webdeck: {
     listPages: () => Promise<WebDeckPage[]>;
     findPage: (id: string) => Promise<WebDeckPage | null>;
@@ -335,6 +359,17 @@ const discordStateEventHandler = (_event: unknown, state: DiscordState) => {
   discordStateListeners.forEach((listener) => {
     listener(state);
   });
+};
+
+const liveChatStateListeners = new Set<(state: LiveChatState) => void>();
+let liveChatStateSubscribed = false;
+const liveChatStateEventHandler = (_event: unknown, state: LiveChatState) => {
+  liveChatStateListeners.forEach((listener) => listener(state));
+};
+const liveChatEventListeners = new Set<(payload: LiveChatEvent) => void>();
+let liveChatEventsSubscribed = false;
+const liveChatEventHandler = (_event: unknown, payload: LiveChatEvent) => {
+  liveChatEventListeners.forEach((listener) => listener(payload));
 };
 
 const observerListeners = new Set<(payload: ObserverEventPayload) => void>();
@@ -792,6 +827,52 @@ const underdeckApi: UnderDeckApi = {
           ipcRenderer.removeListener("DiscordSV-StateChanged", discordStateEventHandler);
           ipcRenderer.send("DiscordSV-UnsubscribeStateChanged");
           discordStateSubscribed = false;
+        }
+      };
+    },
+  },
+  liveChat: {
+    getSettings: () => ipcRenderer.invoke("LiveChatSV-GetSettings"),
+    getState: () => ipcRenderer.invoke("LiveChatSV-GetState"),
+    updateSettings: (patch) => ipcRenderer.invoke("LiveChatSV-UpdateSettings", patch),
+    connect: (provider = "twitch") => ipcRenderer.invoke("LiveChatSV-Connect", provider),
+    disconnect: (provider = "twitch") => ipcRenderer.invoke("LiveChatSV-Disconnect", provider),
+    openOverlay: (scope) => ipcRenderer.invoke("LiveChatSV-OpenOverlay", scope),
+    closeOverlay: (scope) => ipcRenderer.invoke("LiveChatSV-CloseOverlay", scope),
+    getOverlayState: (scope) => ipcRenderer.invoke("LiveChatSV-GetOverlayState", scope),
+    setOverlayPaused: (paused) => ipcRenderer.invoke("LiveChatSV-SetOverlayPaused", paused),
+    setOverlayLocked: (locked) => ipcRenderer.invoke("LiveChatSV-SetOverlayLocked", locked),
+    setOverlayAlwaysOnTop: (alwaysOnTop) => ipcRenderer.invoke("LiveChatSV-SetOverlayAlwaysOnTop", alwaysOnTop),
+    clear: (scope) => ipcRenderer.invoke("LiveChatSV-Clear", scope),
+    onStateChanged: (listener) => {
+      liveChatStateListeners.add(listener);
+      if (!liveChatStateSubscribed) {
+        ipcRenderer.on("LiveChatSV-StateChanged", liveChatStateEventHandler);
+        ipcRenderer.send("LiveChatSV-SubscribeStateChanged");
+        liveChatStateSubscribed = true;
+      }
+      return () => {
+        liveChatStateListeners.delete(listener);
+        if (liveChatStateListeners.size === 0 && liveChatStateSubscribed) {
+          ipcRenderer.removeListener("LiveChatSV-StateChanged", liveChatStateEventHandler);
+          ipcRenderer.send("LiveChatSV-UnsubscribeStateChanged");
+          liveChatStateSubscribed = false;
+        }
+      };
+    },
+    onEvent: (listener) => {
+      liveChatEventListeners.add(listener);
+      if (!liveChatEventsSubscribed) {
+        ipcRenderer.on("LiveChatSV-Event", liveChatEventHandler);
+        ipcRenderer.send("LiveChatSV-SubscribeEvents");
+        liveChatEventsSubscribed = true;
+      }
+      return () => {
+        liveChatEventListeners.delete(listener);
+        if (liveChatEventListeners.size === 0 && liveChatEventsSubscribed) {
+          ipcRenderer.removeListener("LiveChatSV-Event", liveChatEventHandler);
+          ipcRenderer.send("LiveChatSV-UnsubscribeEvents");
+          liveChatEventsSubscribed = false;
         }
       };
     },

@@ -30,6 +30,7 @@ export default defineConfig({
         "overlay/index": path.resolve(import.meta.dirname, "client", "overlay", "index.html"),
         "webdeck/index": path.resolve(import.meta.dirname, "client", "webdeck", "index.html"),
         "applauncher/index": path.resolve(import.meta.dirname, "client", "applauncher", "index.html"),
+        "livechat/index": path.resolve(import.meta.dirname, "client", "livechat", "index.html"),
       },
     },
   },

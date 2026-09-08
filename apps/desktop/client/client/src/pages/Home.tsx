@@ -12,6 +12,7 @@ import Theme from '@/components/dashboard/theme';
 import SoundPad from '@/components/dashboard/soundpad';
 import ObsStudio from '@/components/dashboard/obs';
 import Discord from '@/components/dashboard/discord';
+import LiveChat from '@/components/dashboard/live-chat';
 import WebDeck from '@/components/dashboard/webdeck';
 import UpdatePage from '@/components/dashboard/update';
 import WebPages from '@/components/dashboard/webpages';
@@ -42,6 +43,8 @@ export default function Home() {
         return <ObsStudio />;
       case "discord":
         return <Discord />;
+      case "live-chat":
+        return <LiveChat />;
       case "deck":
         return <WebDeck />;
       case "updates":

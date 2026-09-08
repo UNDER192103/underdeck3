@@ -21,6 +21,7 @@ import { Settings } from "./settings.js";
 import { SoundPadService } from "./soundpad.js";
 import { ObsService, ObsState } from "./obs.js";
 import { DiscordService, DiscordState } from "./discord.js";
+import { LiveChatService } from "./live-chat.js";
 import { WebDeckService } from "./webdeck.js";
 import { WebPagesService } from "./web-pages.js";
 import { OverlaySettings } from "../../types/overlay.js";
@@ -28,6 +29,8 @@ import { UpdaterService } from "./updater.js";
 import { logsService, LogsSettings, LogCategory } from "./logs.js";
 import { NotificationService } from "./notifications.js";
 import { ObserverPayload, observerService, ObserverChannels, ObserverEventDataMap } from "./observer.js";
+import type { LiveChatEvent, LiveChatOverlayScope, LiveChatSettingsPatch, LiveChatState } from "../../types/live-chat.js";
+import type { LiveChatOverlayWindowService } from "../windows/LiveChatOverlayWindow.js";
 
 type WebDeckChangedPayload = { sourceId: string; timestamp: number };
 type ExpressStatusChangedPayload = { sourceId: string; enabled: boolean; port: number; timestamp: number };
@@ -57,6 +60,8 @@ export class IpcmainService {
     private soundPadService: SoundPadService;
     private obsService: ObsService;
     private discordService: DiscordService;
+    private liveChatService: LiveChatService;
+    private liveChatOverlayWindowService: LiveChatOverlayWindowService;
     private webDeckService: WebDeckService;
     private webPagesService: WebPagesService;
     private updaterService: UpdaterService;
@@ -67,6 +72,8 @@ export class IpcmainService {
     private soundPadSubscriptions = new Map<number, () => void>();
     private obsSubscriptions = new Map<number, () => void>();
     private discordSubscriptions = new Map<number, () => void>();
+    private liveChatStateSubscriptions = new Map<number, () => void>();
+    private liveChatEventSubscriptions = new Map<number, () => void>();
     private windowStateSubscriptions = new Map<number, () => void>();
     private devToolsGuards = new Set<number>();
 
@@ -79,6 +86,8 @@ export class IpcmainService {
         soundPadService: SoundPadService,
         obsService: ObsService,
         discordService: DiscordService,
+        liveChatService: LiveChatService,
+        liveChatOverlayWindowService: LiveChatOverlayWindowService,
         webDeckService: WebDeckService,
         webPagesService: WebPagesService,
         updaterService: UpdaterService,
@@ -96,6 +105,8 @@ export class IpcmainService {
         this.soundPadService = soundPadService;
         this.obsService = obsService;
         this.discordService = discordService;
+        this.liveChatService = liveChatService;
+        this.liveChatOverlayWindowService = liveChatOverlayWindowService;
         this.webDeckService = webDeckService;
         this.webPagesService = webPagesService;
         this.updaterService = updaterService;
@@ -213,6 +224,20 @@ export class IpcmainService {
         this.discordSubscriptions.delete(senderId);
     }
 
+    private unsubscribeLiveChatStateChangedBySenderId(senderId: number) {
+        const unsubscribe = this.liveChatStateSubscriptions.get(senderId);
+        if (!unsubscribe) return;
+        unsubscribe();
+        this.liveChatStateSubscriptions.delete(senderId);
+    }
+
+    private unsubscribeLiveChatEventsBySenderId(senderId: number) {
+        const unsubscribe = this.liveChatEventSubscriptions.get(senderId);
+        if (!unsubscribe) return;
+        unsubscribe();
+        this.liveChatEventSubscriptions.delete(senderId);
+    }
+
     private unsubscribeWindowStateChangedBySenderId(senderId: number) {
         const unsubscribe = this.windowStateSubscriptions.get(senderId);
         if (!unsubscribe) return;
@@ -278,6 +303,47 @@ export class IpcmainService {
             if (event.sender.isDestroyed()) return;
             event.sender.send("DiscordSV-StateChanged", state);
         });
+    }
+
+    private subscribeLiveChatStateChanged(event: Electron.IpcMainEvent) {
+        const senderId = event.sender.id;
+        this.unsubscribeLiveChatStateChangedBySenderId(senderId);
+        const listener = (state: LiveChatState) => {
+            if (event.sender.isDestroyed()) {
+                this.unsubscribeLiveChatStateChangedBySenderId(senderId);
+                return;
+            }
+            event.sender.send("LiveChatSV-StateChanged", state);
+        };
+        const onSenderDestroyed = () => this.unsubscribeLiveChatStateChangedBySenderId(senderId);
+        this.liveChatService.on("state-changed", listener);
+        const unsubscribe = () => {
+            this.liveChatService.off("state-changed", listener);
+            event.sender.removeListener("destroyed", onSenderDestroyed);
+        };
+        this.liveChatStateSubscriptions.set(senderId, unsubscribe);
+        event.sender.once("destroyed", onSenderDestroyed);
+        listener(this.liveChatService.getState());
+    }
+
+    private subscribeLiveChatEvents(event: Electron.IpcMainEvent) {
+        const senderId = event.sender.id;
+        this.unsubscribeLiveChatEventsBySenderId(senderId);
+        const listener = (payload: LiveChatEvent) => {
+            if (event.sender.isDestroyed()) {
+                this.unsubscribeLiveChatEventsBySenderId(senderId);
+                return;
+            }
+            event.sender.send("LiveChatSV-Event", payload);
+        };
+        const onSenderDestroyed = () => this.unsubscribeLiveChatEventsBySenderId(senderId);
+        this.liveChatService.on("event", listener);
+        const unsubscribe = () => {
+            this.liveChatService.off("event", listener);
+            event.sender.removeListener("destroyed", onSenderDestroyed);
+        };
+        this.liveChatEventSubscriptions.set(senderId, unsubscribe);
+        event.sender.once("destroyed", onSenderDestroyed);
     }
 
     private notifyWebDeckChangedClients(sourceId?: string) {
@@ -875,6 +941,47 @@ export class IpcmainService {
         ipcMain.on("DiscordSV-SubscribeStateChanged", (event) => this.subscribeDiscordStateChanged(event));
         ipcMain.on("DiscordSV-UnsubscribeStateChanged", (event) => {
             this.unsubscribeDiscordStateChangedBySenderId(event.sender.id);
+        });
+
+        ipcMain.handle("LiveChatSV-GetSettings", async () => this.liveChatService.getSettings());
+        ipcMain.handle("LiveChatSV-GetState", async () => this.liveChatService.getState());
+        ipcMain.handle("LiveChatSV-UpdateSettings", async (_event, patch: LiveChatSettingsPatch) =>
+            this.liveChatService.updateSettings(patch)
+        );
+        ipcMain.handle("LiveChatSV-Connect", async (_event, provider: "twitch" | "tiktok" = "twitch") =>
+            this.liveChatService.connect(provider)
+        );
+        ipcMain.handle("LiveChatSV-Disconnect", async (_event, provider: "twitch" | "tiktok" = "twitch") =>
+            this.liveChatService.disconnect(provider)
+        );
+        ipcMain.handle("LiveChatSV-OpenOverlay", async (_event, scope?: LiveChatOverlayScope) =>
+            this.liveChatOverlayWindowService.open(scope)
+        );
+        ipcMain.handle("LiveChatSV-CloseOverlay", async (_event, scope?: LiveChatOverlayScope) =>
+            this.liveChatOverlayWindowService.close(scope)
+        );
+        ipcMain.handle("LiveChatSV-GetOverlayState", async (_event, scope?: LiveChatOverlayScope) =>
+            this.liveChatOverlayWindowService.getState(scope)
+        );
+        ipcMain.handle("LiveChatSV-SetOverlayPaused", async (_event, paused: boolean) =>
+            this.liveChatOverlayWindowService.setPaused(Boolean(paused))
+        );
+        ipcMain.handle("LiveChatSV-SetOverlayLocked", async (_event, locked: boolean) =>
+            this.liveChatOverlayWindowService.setLocked(Boolean(locked))
+        );
+        ipcMain.handle("LiveChatSV-SetOverlayAlwaysOnTop", async (_event, alwaysOnTop: boolean) =>
+            this.liveChatOverlayWindowService.setAlwaysOnTop(Boolean(alwaysOnTop))
+        );
+        ipcMain.handle("LiveChatSV-Clear", async (_event, scope?: LiveChatOverlayScope) =>
+            this.liveChatOverlayWindowService.clear(scope)
+        );
+        ipcMain.on("LiveChatSV-SubscribeStateChanged", (event) => this.subscribeLiveChatStateChanged(event));
+        ipcMain.on("LiveChatSV-UnsubscribeStateChanged", (event) => {
+            this.unsubscribeLiveChatStateChangedBySenderId(event.sender.id);
+        });
+        ipcMain.on("LiveChatSV-SubscribeEvents", (event) => this.subscribeLiveChatEvents(event));
+        ipcMain.on("LiveChatSV-UnsubscribeEvents", (event) => {
+            this.unsubscribeLiveChatEventsBySenderId(event.sender.id);
         });
 
         // Handler para comandos do WebDeck remoto

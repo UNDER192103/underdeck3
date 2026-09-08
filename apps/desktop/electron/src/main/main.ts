@@ -14,8 +14,7 @@ if (isDev) {
   dotenv.config({ path: envPath });
 }
 
-VelopackApp
-  .build()
+VelopackApp.build()
   .setAutoApplyOnStartup(false)
   .setLogger((level, message) => {
     if (level === "error") {
@@ -43,11 +42,17 @@ import { ThemeService } from "./services/theme.js";
 import { SoundPadService } from "./services/soundpad.js";
 import { ObsService } from "./services/obs.js";
 import { DiscordService } from "./services/discord.js";
+import { LiveChatService } from "./services/live-chat.js";
+import { LiveChatOverlayWindowService } from "./windows/LiveChatOverlayWindow.js";
 import { WebDeckService } from "./services/webdeck.js";
 import { WebPagesService } from "./services/web-pages.js";
 import { AlternativeShortcut } from "../types/shortcuts.js";
 import { TranslationService } from "./services/translations.js";
-import { LoadingState, UpdateDebugLog, UpdaterService } from "./services/updater.js";
+import {
+  LoadingState,
+  UpdateDebugLog,
+  UpdaterService,
+} from "./services/updater.js";
 import { CookiePersistenceService } from "./services/cookie-persistence.js";
 import { WindowManagerService } from "./services/window-manager.js";
 import { TrayService } from "./services/tray.js";
@@ -57,16 +62,25 @@ import { logsService } from "./services/logs.js";
 const soundPadService = new SoundPadService();
 const obsService = new ObsService();
 const discordService = new DiscordService();
+const liveChatService = new LiveChatService();
+const liveChatOverlayWindowService = new LiveChatOverlayWindowService(
+  liveChatService,
+);
 const webDeckService = new WebDeckService();
 const webPagesService = new WebPagesService();
-const AppService = new MainAppService(soundPadService, obsService, discordService, webPagesService);
+const AppService = new MainAppService(
+  soundPadService,
+  obsService,
+  discordService,
+  webPagesService,
+);
 const expressService = new ExpressServer(
   Settings.get("express").port,
   AppService,
   webDeckService,
   soundPadService,
   obsService,
-  discordService
+  discordService,
 );
 const hortcutService = new Shortcutkey();
 const themeService = new ThemeService(AppService);
@@ -77,7 +91,12 @@ const systemStartupService = new SystemStartupService();
 
 updaterService.on("debug-log", (payload: UpdateDebugLog) => {
   const level = payload?.level === "error" ? "error" : "info";
-  logsService.log("updates", payload?.message ?? "update.log", payload?.data, level);
+  logsService.log(
+    "updates",
+    payload?.message ?? "update.log",
+    payload?.data,
+    level,
+  );
 });
 
 let mainWindow: InstanceType<typeof BrowserWindow> | null = null;
@@ -87,6 +106,9 @@ let overlayTransitioning = false;
 let updateRuntimeStopped = false;
 let lastUpdateNotificationVersion = "";
 const windowManager = new WindowManagerService();
+windowManager.setBeforeQuitHandler(() =>
+  liveChatOverlayWindowService.prepareForAppShutdown(),
+);
 let isShuttingDown = false;
 let mainRendererReady = false;
 let notifyMainRendererReady: (() => void) | null = null;
@@ -109,22 +131,35 @@ const requestAppShutdown = async () => {
   }, 1500);
 };
 
-const trayService = new TrayService(windowManager, translationService, () => {
-  void requestAppShutdown();
-}, () => {
-  openOverlayWindow();
-});
+const trayService = new TrayService(
+  windowManager,
+  translationService,
+  () => {
+    void requestAppShutdown();
+  },
+  () => {
+    openOverlayWindow();
+  },
+);
 
 const OVERLAY_SHORTCUT_ID = "overlay-toggle";
 
-app.commandLine.appendSwitch("disable-features", "SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure");
+app.commandLine.appendSwitch(
+  "disable-features",
+  "SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure",
+);
 app.commandLine.appendSwitch("disable-site-isolation-trials");
-app.commandLine.appendSwitch("enable-features", "SameSiteDefaultChecksMethodRigorously");
+app.commandLine.appendSwitch(
+  "enable-features",
+  "SameSiteDefaultChecksMethodRigorously",
+);
 
 const patchSetCookieHeaders = () => {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = details.responseHeaders ?? {};
-    const headerKey = Object.keys(responseHeaders).find((key) => key.toLowerCase() === "set-cookie");
+    const headerKey = Object.keys(responseHeaders).find(
+      (key) => key.toLowerCase() === "set-cookie",
+    );
     const rawSetCookies = headerKey ? responseHeaders[headerKey] : null;
     if (Array.isArray(rawSetCookies)) {
       responseHeaders[headerKey as string] = rawSetCookies.map((cookie) => {
@@ -155,8 +190,18 @@ const emitUpdateState = () => {
   });
 };
 
-const publishObserverToAllWindows = (channel: string, id: string, data?: unknown) => {
-  const payload = { id, channel, data, sourceId: "APP_ELECTRON", timestamp: Date.now() };
+const publishObserverToAllWindows = (
+  channel: string,
+  id: string,
+  data?: unknown,
+) => {
+  const payload = {
+    id,
+    channel,
+    data,
+    sourceId: "APP_ELECTRON",
+    timestamp: Date.now(),
+  };
   BrowserWindow.getAllWindows().forEach((win) => {
     if (win.isDestroyed()) return;
     try {
@@ -167,8 +212,18 @@ const publishObserverToAllWindows = (channel: string, id: string, data?: unknown
   });
 };
 
-const publishGlobalObserverToAllWindows = (channel: string, id: string, data?: unknown) => {
-  const payload = { id, channel, data, sourceId: "APP_ELECTRON", timestamp: Date.now() };
+const publishGlobalObserverToAllWindows = (
+  channel: string,
+  id: string,
+  data?: unknown,
+) => {
+  const payload = {
+    id,
+    channel,
+    data,
+    sourceId: "APP_ELECTRON",
+    timestamp: Date.now(),
+  };
   BrowserWindow.getAllWindows().forEach((win) => {
     if (win.isDestroyed()) return;
     try {
@@ -183,11 +238,41 @@ const stopRuntimeServicesForUpdate = async () => {
   if (updateRuntimeStopped) return;
   updateRuntimeStopped = true;
   logsService.log("app", "runtime.stop.begin");
-  try { hortcutService.stop(); } catch { /* ignore */ }
-  try { await obsService.disconnect(); } catch { /* ignore */ }
-  try { await discordService.disconnect(); } catch { /* ignore */ }
-  try { soundPadService.stop(); } catch { /* ignore */ }
-  try { expressService.stop(); } catch { /* ignore */ }
+  try {
+    hortcutService.stop();
+  } catch {
+    /* ignore */
+  }
+  try {
+    await obsService.disconnect();
+  } catch {
+    /* ignore */
+  }
+  try {
+    await discordService.disconnect();
+  } catch {
+    /* ignore */
+  }
+  try {
+    await liveChatService.disconnect();
+  } catch {
+    /* ignore */
+  }
+  try {
+    await liveChatOverlayWindowService.closeAll();
+  } catch {
+    /* ignore */
+  }
+  try {
+    soundPadService.stop();
+  } catch {
+    /* ignore */
+  }
+  try {
+    expressService.stop();
+  } catch {
+    /* ignore */
+  }
   logsService.log("app", "runtime.stop.done");
 };
 
@@ -195,7 +280,8 @@ const ensureLoadingWindow = () => {
   if (loadingWindow && !loadingWindow.isDestroyed()) {
     // Before the renderer reports ready, let LoadingWindow's ready-to-show
     // handler reveal it. This avoids flashing Electron's native gray canvas.
-    if (!loadingWindow.isVisible() && loadingRendererReady) loadingWindow.show();
+    if (!loadingWindow.isVisible() && loadingRendererReady)
+      loadingWindow.show();
     return loadingWindow;
   }
   loadingRendererReady = false;
@@ -252,7 +338,11 @@ const openOverlayWindow = () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
     if (!overlayWindow.isVisible()) return;
     const overlaySettings = Settings.get("overlay");
-    if (typeof overlaySettings?.closeOnBlur === "boolean" && !overlaySettings.closeOnBlur) return;
+    if (
+      typeof overlaySettings?.closeOnBlur === "boolean" &&
+      !overlaySettings.closeOnBlur
+    )
+      return;
     hideOverlayWindow();
   });
 };
@@ -261,13 +351,19 @@ const toggleOverlayWindow = () => {
   if (overlayTransitioning) return;
   overlayTransitioning = true;
   try {
-    if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
+    if (
+      overlayWindow &&
+      !overlayWindow.isDestroyed() &&
+      overlayWindow.isVisible()
+    ) {
       hideOverlayWindow();
       return;
     }
     openOverlayWindow();
   } finally {
-    setTimeout(() => { overlayTransitioning = false; }, 120);
+    setTimeout(() => {
+      overlayTransitioning = false;
+    }, 120);
   }
 };
 
@@ -275,9 +371,10 @@ const syncOverlayShortcut = async () => {
   const overlay = Settings.get("overlay");
   const overlayEnabled = Boolean(overlay?.enabled);
   const keys = normalizeShortcutKeys(overlay?.keys);
-  const payload: AlternativeShortcut[] = overlayEnabled && keys.length > 0
-    ? [{ id: OVERLAY_SHORTCUT_ID, keys }]
-    : [];
+  const payload: AlternativeShortcut[] =
+    overlayEnabled && keys.length > 0
+      ? [{ id: OVERLAY_SHORTCUT_ID, keys }]
+      : [];
   await hortcutService.updateAlternativeMacros(payload);
 };
 
@@ -290,23 +387,37 @@ const ipcmainService = new IpcmainService(
   soundPadService,
   obsService,
   discordService,
+  liveChatService,
+  liveChatOverlayWindowService,
   webDeckService,
   webPagesService,
   updaterService,
-  async () => { await syncOverlayShortcut(); },
-  () => { trayService.refreshMenu(); },
-  async (windowsSettings) => { await systemStartupService.syncWithSettings(Boolean(windowsSettings.autoStart)); },
+  async () => {
+    await syncOverlayShortcut();
+  },
+  () => {
+    trayService.refreshMenu();
+  },
+  async (windowsSettings) => {
+    await systemStartupService.syncWithSettings(
+      Boolean(windowsSettings.autoStart),
+    );
+  },
   async () => {
     ensureLoadingWindow();
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
     await updaterService.downloadAndInstall();
-  }
+  },
 );
 
-const waitForRendererCssReady = async (win: electron.BrowserWindow, timeoutMs = 6000) => {
+const waitForRendererCssReady = async (
+  win: electron.BrowserWindow,
+  timeoutMs = 6000,
+) => {
   if (win.isDestroyed()) return false;
   try {
-    const result = await win.webContents.executeJavaScript(`
+    const result = await win.webContents.executeJavaScript(
+      `
       new Promise((resolve) => {
         const timeoutId = setTimeout(() => resolve(false), ${timeoutMs});
         const complete = (value) => { clearTimeout(timeoutId); resolve(value); };
@@ -331,7 +442,9 @@ const waitForRendererCssReady = async (win: electron.BrowserWindow, timeoutMs = 
           link.addEventListener("error", done, { once: true });
         });
       });
-    `, true);
+    `,
+      true,
+    );
     return Boolean(result);
   } catch {
     return false;
@@ -392,27 +505,37 @@ const createMainApplicationWindow = () => {
 };
 
 const registerUpdateLifecycle = () => {
-  updaterService.on("loading-state-changed", (state: LoadingState) => emitLoadingState(state));
+  updaterService.on("loading-state-changed", (state: LoadingState) =>
+    emitLoadingState(state),
+  );
   updaterService.on("state-changed", () => {
     emitUpdateState();
   });
   updaterService.on("debug-log", (payload: UpdateDebugLog) => {
-    if (String(process.env.UPDATER_DEBUG_BROADCAST || "").trim() !== "1") return;
+    if (String(process.env.UPDATER_DEBUG_BROADCAST || "").trim() !== "1")
+      return;
     BrowserWindow.getAllWindows().forEach((win) => {
       if (win.isDestroyed()) return;
-      try { win.webContents.send("UpdatesSV-DebugLog", payload); } catch { /* ignore */ }
+      try {
+        win.webContents.send("UpdatesSV-DebugLog", payload);
+      } catch {
+        /* ignore */
+      }
     });
   });
-  updaterService.on("update-available-passive", (payload: { version?: string | null; releaseDate?: string | null }) => {
-    const version = String(payload?.version || "").trim();
-    if (!version) return;
-    if (lastUpdateNotificationVersion === version) return;
-    lastUpdateNotificationVersion = version;
-    publishGlobalObserverToAllWindows("updates", "updates.available", {
-      version,
-      releaseDate: payload?.releaseDate ?? null,
-    });
-  });
+  updaterService.on(
+    "update-available-passive",
+    (payload: { version?: string | null; releaseDate?: string | null }) => {
+      const version = String(payload?.version || "").trim();
+      if (!version) return;
+      if (lastUpdateNotificationVersion === version) return;
+      lastUpdateNotificationVersion = version;
+      publishGlobalObserverToAllWindows("updates", "updates.available", {
+        version,
+        releaseDate: payload?.releaseDate ?? null,
+      });
+    },
+  );
   updaterService.on("restart-required", () => {
     // A instalação Velopack só existe em builds distribuídos. Nunca permita
     // que um sinal do updater encerre ou reinicie o processo de desenvolvimento.
@@ -455,7 +578,9 @@ const getStableVelopackExecutable = () => {
   const executableName = path.basename(currentExecutable);
   const currentDirectory = path.dirname(currentExecutable);
   const currentParts = currentDirectory.split(path.sep);
-  const versionFolderIndex = currentParts.findIndex((part) => /^app-/i.test(part));
+  const versionFolderIndex = currentParts.findIndex((part) =>
+    /^app-/i.test(part),
+  );
   if (versionFolderIndex >= 0) {
     return path.resolve(currentDirectory, "..", executableName);
   }
@@ -466,11 +591,21 @@ const registerActionProtocol = () => {
   try {
     if (process.defaultApp && process.argv.length >= 2) {
       const entryPoint = path.resolve(process.argv[1]);
-      const tsxLoader = path.resolve(process.cwd(), "node_modules", "tsx", "dist", "loader.mjs");
+      const tsxLoader = path.resolve(
+        process.cwd(),
+        "node_modules",
+        "tsx",
+        "dist",
+        "loader.mjs",
+      );
       const devArgs = fs.existsSync(tsxLoader)
         ? ["--import", tsxLoader, entryPoint]
         : [entryPoint];
-      const registered = app.setAsDefaultProtocolClient(ACTION_PROTOCOL, app.getPath("exe"), devArgs);
+      const registered = app.setAsDefaultProtocolClient(
+        ACTION_PROTOCOL,
+        app.getPath("exe"),
+        devArgs,
+      );
       ensureDevProtocolRegistry(app.getPath("exe"), entryPoint);
       logsService.log("app", "protocol.register_dev", {
         protocol: ACTION_PROTOCOL,
@@ -499,14 +634,26 @@ const registerActionProtocol = () => {
       registered,
     });
   } catch (error) {
-    logsService.log("app", "protocol.register_failed", { protocol: ACTION_PROTOCOL, error: String(error) }, "warn");
-    console.log("[underdeck:protocol] register_failed", { protocol: ACTION_PROTOCOL, error });
+    logsService.log(
+      "app",
+      "protocol.register_failed",
+      { protocol: ACTION_PROTOCOL, error: String(error) },
+      "warn",
+    );
+    console.log("[underdeck:protocol] register_failed", {
+      protocol: ACTION_PROTOCOL,
+      error,
+    });
   }
 };
 
-const normalizeProtocolArgument = (value: unknown) => String(value ?? "").trim().replace(/^"|"$/g, "");
+const normalizeProtocolArgument = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .replace(/^"|"$/g, "");
 
-const quoteRegistryArg = (value: string) => `"${String(value).replace(/"/g, '\\"')}"`;
+const quoteRegistryArg = (value: string) =>
+  `"${String(value).replace(/"/g, '\\"')}"`;
 
 const escapeVbsString = (value: string) => String(value).replace(/"/g, '""');
 
@@ -515,16 +662,19 @@ const ensureDevProtocolRegistry = (exe: string, entryPoint: string) => {
   try {
     const protocolRoot = `Software\\Classes\\${ACTION_PROTOCOL}`;
     const commandKey = `${protocolRoot}\\shell\\open\\command`;
-    const launcherPath = path.join(app.getPath("userData"), "underdeck-protocol-dev.vbs");
+    const launcherPath = path.join(
+      app.getPath("userData"),
+      "underdeck-protocol-dev.vbs",
+    );
     const electronExe = path.resolve(exe);
     const mainEntryPoint = path.resolve(entryPoint);
     const launcherContent = [
       'Set shell = CreateObject("WScript.Shell")',
       `shell.CurrentDirectory = "${escapeVbsString(process.cwd())}"`,
       'shell.Environment("Process")("NODE_OPTIONS") = "--import tsx"',
-      "args = \"\"",
+      'args = ""',
       "For Each arg In WScript.Arguments",
-      "  args = args & \" \" & Chr(34) & arg & Chr(34)",
+      '  args = args & " " & Chr(34) & arg & Chr(34)',
       "Next",
       `command = Chr(34) & "${escapeVbsString(electronExe)}" & Chr(34) & " " & Chr(34) & "${escapeVbsString(mainEntryPoint)}" & Chr(34) & args`,
       "shell.Run command, 0, False",
@@ -532,11 +682,34 @@ const ensureDevProtocolRegistry = (exe: string, entryPoint: string) => {
     ].join("\r\n");
     fs.writeFileSync(launcherPath, launcherContent, "utf8");
 
-    const wscriptPath = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "wscript.exe");
+    const wscriptPath = path.join(
+      process.env.SystemRoot || "C:\\Windows",
+      "System32",
+      "wscript.exe",
+    );
     const command = `${quoteRegistryArg(wscriptPath)} //B ${quoteRegistryArg(launcherPath)} "%1"`;
-    execFileSync("reg.exe", ["add", `HKCU\\${protocolRoot}`, "/ve", "/d", `URL:${ACTION_PROTOCOL}`, "/f"], { windowsHide: true });
-    execFileSync("reg.exe", ["add", `HKCU\\${protocolRoot}`, "/v", "URL Protocol", "/d", "", "/f"], { windowsHide: true });
-    execFileSync("reg.exe", ["add", `HKCU\\${commandKey}`, "/ve", "/d", command, "/f"], { windowsHide: true });
+    execFileSync(
+      "reg.exe",
+      [
+        "add",
+        `HKCU\\${protocolRoot}`,
+        "/ve",
+        "/d",
+        `URL:${ACTION_PROTOCOL}`,
+        "/f",
+      ],
+      { windowsHide: true },
+    );
+    execFileSync(
+      "reg.exe",
+      ["add", `HKCU\\${protocolRoot}`, "/v", "URL Protocol", "/d", "", "/f"],
+      { windowsHide: true },
+    );
+    execFileSync(
+      "reg.exe",
+      ["add", `HKCU\\${commandKey}`, "/ve", "/d", command, "/f"],
+      { windowsHide: true },
+    );
     console.log("[underdeck:protocol] registry_dev_command", command);
     console.log("[underdeck:protocol] registry_dev_launcher", launcherPath);
   } catch (error) {
@@ -556,7 +729,12 @@ const processActionProtocolCommand = (argv: string[]) => {
       console.log("[underdeck:protocol] received", arg);
       const url = new URL(arg);
       if (url.hostname !== ACTION_PROTOCOL_HOST) {
-        logsService.log("app", "protocol.unknown_host", { host: url.hostname }, "warn");
+        logsService.log(
+          "app",
+          "protocol.unknown_host",
+          { host: url.hostname },
+          "warn",
+        );
         console.log("[underdeck:protocol] unknown_host", url.hostname);
         continue;
       }
@@ -574,53 +752,110 @@ const processActionProtocolCommand = (argv: string[]) => {
         case "open-webpage": {
           const pageId = String(url.searchParams.get("pageId") || "").trim();
           if (!pageId) {
-            logsService.log("app", "protocol.open_webpage_missing_id", undefined, "warn");
+            logsService.log(
+              "app",
+              "protocol.open_webpage_missing_id",
+              undefined,
+              "warn",
+            );
             console.log("[underdeck:protocol] open_webpage_missing_id");
             break;
           }
           logsService.log("app", "protocol.open_webpage", { pageId });
           console.log("[underdeck:protocol] open_webpage", pageId);
-          void webPagesService.openPage(pageId).then((opened) => {
-            logsService.log("app", "protocol.open_webpage_result", { pageId, opened });
-            console.log("[underdeck:protocol] open_webpage_result", { pageId, opened });
-          }).catch((error) => {
-            logsService.log("app", "protocol.open_webpage_failed", { pageId, error: String(error) }, "error");
-            console.log("[underdeck:protocol] open_webpage_failed", { pageId, error });
-          });
+          void webPagesService
+            .openPage(pageId)
+            .then((opened) => {
+              logsService.log("app", "protocol.open_webpage_result", {
+                pageId,
+                opened,
+              });
+              console.log("[underdeck:protocol] open_webpage_result", {
+                pageId,
+                opened,
+              });
+            })
+            .catch((error) => {
+              logsService.log(
+                "app",
+                "protocol.open_webpage_failed",
+                { pageId, error: String(error) },
+                "error",
+              );
+              console.log("[underdeck:protocol] open_webpage_failed", {
+                pageId,
+                error,
+              });
+            });
           break;
         }
         case "open-app": {
           const appId = String(url.searchParams.get("appId") || "").trim();
           if (!appId) {
-            logsService.log("app", "protocol.open_app_missing_id", undefined, "warn");
+            logsService.log(
+              "app",
+              "protocol.open_app_missing_id",
+              undefined,
+              "warn",
+            );
             console.log("[underdeck:protocol] open_app_missing_id");
             break;
           }
           logsService.log("app", "protocol.open_app", { appId });
           console.log("[underdeck:protocol] open_app", appId);
-          void AppService.executeApp(appId).then((opened) => {
-            logsService.log("app", "protocol.open_app_result", { appId, opened });
-            console.log("[underdeck:protocol] open_app_result", { appId, opened });
-          }).catch((error) => {
-            logsService.log("app", "protocol.open_app_failed", { appId, error: String(error) }, "error");
-            console.log("[underdeck:protocol] open_app_failed", { appId, error });
-          });
+          void AppService.executeApp(appId)
+            .then((opened) => {
+              logsService.log("app", "protocol.open_app_result", {
+                appId,
+                opened,
+              });
+              console.log("[underdeck:protocol] open_app_result", {
+                appId,
+                opened,
+              });
+            })
+            .catch((error) => {
+              logsService.log(
+                "app",
+                "protocol.open_app_failed",
+                { appId, error: String(error) },
+                "error",
+              );
+              console.log("[underdeck:protocol] open_app_failed", {
+                appId,
+                error,
+              });
+            });
           break;
         }
         default:
-          logsService.log("app", "protocol.unknown_action", { actionType }, "warn");
+          logsService.log(
+            "app",
+            "protocol.unknown_action",
+            { actionType },
+            "warn",
+          );
           console.log("[underdeck:protocol] unknown_action", actionType);
           break;
       }
     } catch (error) {
-      logsService.log("app", "protocol.process_failed", { arg, error: String(error) }, "warn");
+      logsService.log(
+        "app",
+        "protocol.process_failed",
+        { arg, error: String(error) },
+        "warn",
+      );
       console.log("[underdeck:protocol] process_failed", { arg, error });
     }
   }
 };
 
 const hasActionProtocolCommand = (argv: string[]) => {
-  return argv.some((rawArg) => normalizeProtocolArgument(rawArg).toLowerCase().startsWith(`${ACTION_PROTOCOL}://`));
+  return argv.some((rawArg) =>
+    normalizeProtocolArgument(rawArg)
+      .toLowerCase()
+      .startsWith(`${ACTION_PROTOCOL}://`),
+  );
 };
 
 let gotSingleInstanceLock = true;
@@ -649,89 +884,134 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-if (gotSingleInstanceLock) app.whenReady().then(async () => {
-  logsService.log("app", "ready");
-  registerActionProtocol();
-  // A janela de loading também pode renderizar imagens e vídeos locais.
-  // Registre antes de criá-la para que underdeck-media:// esteja disponível
-  // no primeiro carregamento do App Launcher.
-  AppService.registerMediaProtocol();
+if (gotSingleInstanceLock)
+  app
+    .whenReady()
+    .then(async () => {
+      logsService.log("app", "ready");
+      registerActionProtocol();
+      // A janela de loading também pode renderizar imagens e vídeos locais.
+      // Registre antes de criá-la para que underdeck-media:// esteja disponível
+      // no primeiro carregamento do App Launcher.
+      AppService.registerMediaProtocol();
 
-  ipcMain.on("ObserverSV-Publish", (_event, payload: { id?: string; channel?: string }) => {
-    if (String(payload?.id || "") !== "main.ready") return;
-    mainRendererReady = true;
-    notifyMainRendererReady?.();
-  });
+      ipcMain.on(
+        "ObserverSV-Publish",
+        (_event, payload: { id?: string; channel?: string }) => {
+          if (String(payload?.id || "") !== "main.ready") return;
+          mainRendererReady = true;
+          notifyMainRendererReady?.();
+        },
+      );
 
-  ipcMain.on("GlobalObserverSV-Publish", (_event, payload: { id?: string; channel?: string }) => {
-    if (String(payload?.id || "") === "loading.ready") {
-      loadingRendererReady = true;
-      notifyLoadingRendererReady?.();
-      return;
-    }
-    if (String(payload?.id || "") !== "main.ready") return;
-    mainRendererReady = true;
-    notifyMainRendererReady?.();
-  });
+      ipcMain.on(
+        "GlobalObserverSV-Publish",
+        (_event, payload: { id?: string; channel?: string }) => {
+          if (String(payload?.id || "") === "loading.ready") {
+            loadingRendererReady = true;
+            notifyLoadingRendererReady?.();
+            return;
+          }
+          if (String(payload?.id || "") !== "main.ready") return;
+          mainRendererReady = true;
+          notifyMainRendererReady?.();
+        },
+      );
 
-  patchSetCookieHeaders();
-  await cookiePersistenceService.init();
+      patchSetCookieHeaders();
+      await cookiePersistenceService.init();
 
-  ipcmainService.start();
-  await systemStartupService.syncWithSettings(Boolean(Settings.get("windows")?.autoStart));
+      ipcmainService.start();
+      await systemStartupService.syncWithSettings(
+        Boolean(Settings.get("windows")?.autoStart),
+      );
 
-  const trayIconPath = getAssetPath(...Settings.get("assets").tryIcon);
-  trayService.init(trayIconPath);
-  trayService.setMode("loading");
-  ensureLoadingWindow();
-  await waitForLoadingRendererReady();
+      const trayIconPath = getAssetPath(...Settings.get("assets").tryIcon);
+      trayService.init(trayIconPath);
+      trayService.setMode("loading");
+      ensureLoadingWindow();
+      await waitForLoadingRendererReady();
 
-  registerUpdateLifecycle();
+      registerUpdateLifecycle();
 
-  const startupUpdateResult = await updaterService.checkForStartupUpdates();
-  if (!startupUpdateResult.shouldContinueAppStartup) {
-    return;
-  }
+      const startupUpdateResult = await updaterService.checkForStartupUpdates();
+      if (!startupUpdateResult.shouldContinueAppStartup) {
+        return;
+      }
 
-  if (Settings.get("express").enabled) expressService.start(Settings.get("express").port);
-  await obsService.connectOnStartupIfNeeded();
-  await discordService.connectOnStartupIfNeeded();
-  const shortcutsEnabled = Boolean(Settings.get("shortcuts").enalbed);
-  hortcutService.setMacrosEnabled(shortcutsEnabled);
-  if (shortcutsEnabled) {
-    const shortcuts = await AppService.listShortcuts();
-    await hortcutService.updateDataMacros(shortcuts);
-  }
-  await syncOverlayShortcut();
-  hortcutService.start();
-
-  hortcutService.on("shortcut", (payload: any) => {
-    const appId = payload?.data?.meta_data?.appId;
-    if (!appId) return;
-    AppService.executeApp(appId);
-  });
-  hortcutService.on("alternative-shortcut", (payload: any) => {
-    if (payload?.data?.id !== OVERLAY_SHORTCUT_ID) return;
-    toggleOverlayWindow();
-  });
-
-  createMainApplicationWindow();
-  processActionProtocolCommand(process.argv);
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+      if (Settings.get("express").enabled)
+        expressService.start(Settings.get("express").port);
       createMainApplicationWindow();
-      return;
-    }
-    if (mainWindow) windowManager.showWindow("main");
-  });
-});
+      processActionProtocolCommand(process.argv);
+
+      const runStartupIntegration = (
+        name: string,
+        action: () => Promise<unknown>,
+      ) => {
+        void action().catch((error) => {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          logsService.log(
+            "app",
+            `startup.${name}.error`,
+            { error: message },
+            "error",
+          );
+          console.error(`[underdeck:startup] ${name} failed`, error);
+        });
+      };
+
+      // Network integrations must never hold the main window hostage. They keep
+      // connecting in the background and publish their state through observers.
+      runStartupIntegration("obs", () => obsService.connectOnStartupIfNeeded());
+      runStartupIntegration("discord", () =>
+        discordService.connectOnStartupIfNeeded(),
+      );
+      runStartupIntegration("live-chat", () =>
+        liveChatService.connectOnStartupIfNeeded(),
+      );
+      runStartupIntegration("live-chat-overlay", () =>
+        liveChatOverlayWindowService.restoreOnStartupIfNeeded(),
+      );
+      const shortcutsEnabled = Boolean(Settings.get("shortcuts").enalbed);
+      hortcutService.setMacrosEnabled(shortcutsEnabled);
+      if (shortcutsEnabled) {
+        const shortcuts = await AppService.listShortcuts();
+        await hortcutService.updateDataMacros(shortcuts);
+      }
+      await syncOverlayShortcut();
+      hortcutService.start();
+
+      hortcutService.on("shortcut", (payload: any) => {
+        const appId = payload?.data?.meta_data?.appId;
+        if (!appId) return;
+        AppService.executeApp(appId);
+      });
+      hortcutService.on("alternative-shortcut", (payload: any) => {
+        if (payload?.data?.id !== OVERLAY_SHORTCUT_ID) return;
+        toggleOverlayWindow();
+      });
+
+      app.on("activate", () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+          createMainApplicationWindow();
+          return;
+        }
+        if (mainWindow) windowManager.showWindow("main");
+      });
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      logsService.log("app", "startup.failed", { error: message }, "error");
+      console.error("[underdeck:startup] failed", error);
+    });
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") void requestAppShutdown();
 });
 
 app.on("before-quit", () => {
+  liveChatOverlayWindowService.prepareForAppShutdown();
   windowManager.prepareForQuit();
   trayService.destroy();
   void stopRuntimeServicesForUpdate();

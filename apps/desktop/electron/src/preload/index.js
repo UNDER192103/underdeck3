@@ -23,6 +23,16 @@ const discordStateEventHandler = (_event, state) => {
     listener(state);
   });
 };
+const liveChatStateListeners = new Set();
+let liveChatStateSubscribed = false;
+const liveChatStateEventHandler = (_event, state) => {
+  liveChatStateListeners.forEach((listener) => listener(state));
+};
+const liveChatEventListeners = new Set();
+let liveChatEventsSubscribed = false;
+const liveChatEventHandler = (_event, payload) => {
+  liveChatEventListeners.forEach((listener) => listener(payload));
+};
 
 const observerListeners = new Set();
 let observerSubscribed = false;
@@ -462,6 +472,52 @@ const underdeckApi = {
           ipcRenderer.removeListener("DiscordSV-StateChanged", discordStateEventHandler);
           ipcRenderer.send("DiscordSV-UnsubscribeStateChanged");
           discordStateSubscribed = false;
+        }
+      };
+    },
+  },
+  liveChat: {
+    getSettings: () => ipcRenderer.invoke("LiveChatSV-GetSettings"),
+    getState: () => ipcRenderer.invoke("LiveChatSV-GetState"),
+    updateSettings: (patch) => ipcRenderer.invoke("LiveChatSV-UpdateSettings", patch),
+    connect: (provider = "twitch") => ipcRenderer.invoke("LiveChatSV-Connect", provider),
+    disconnect: (provider = "twitch") => ipcRenderer.invoke("LiveChatSV-Disconnect", provider),
+    openOverlay: (scope) => ipcRenderer.invoke("LiveChatSV-OpenOverlay", scope),
+    closeOverlay: (scope) => ipcRenderer.invoke("LiveChatSV-CloseOverlay", scope),
+    getOverlayState: (scope) => ipcRenderer.invoke("LiveChatSV-GetOverlayState", scope),
+    setOverlayPaused: (paused) => ipcRenderer.invoke("LiveChatSV-SetOverlayPaused", paused),
+    setOverlayLocked: (locked) => ipcRenderer.invoke("LiveChatSV-SetOverlayLocked", locked),
+    setOverlayAlwaysOnTop: (alwaysOnTop) => ipcRenderer.invoke("LiveChatSV-SetOverlayAlwaysOnTop", alwaysOnTop),
+    clear: (scope) => ipcRenderer.invoke("LiveChatSV-Clear", scope),
+    onStateChanged: (listener) => {
+      liveChatStateListeners.add(listener);
+      if (!liveChatStateSubscribed) {
+        ipcRenderer.on("LiveChatSV-StateChanged", liveChatStateEventHandler);
+        ipcRenderer.send("LiveChatSV-SubscribeStateChanged");
+        liveChatStateSubscribed = true;
+      }
+      return () => {
+        liveChatStateListeners.delete(listener);
+        if (liveChatStateListeners.size === 0 && liveChatStateSubscribed) {
+          ipcRenderer.removeListener("LiveChatSV-StateChanged", liveChatStateEventHandler);
+          ipcRenderer.send("LiveChatSV-UnsubscribeStateChanged");
+          liveChatStateSubscribed = false;
+        }
+      };
+    },
+    onEvent: (listener) => {
+      liveChatEventListeners.add(listener);
+      if (!liveChatEventsSubscribed) {
+        ipcRenderer.on("LiveChatSV-Event", liveChatEventHandler);
+        ipcRenderer.send("LiveChatSV-SubscribeEvents");
+        liveChatEventsSubscribed = true;
+      }
+      return () => {
+        liveChatEventListeners.delete(listener);
+        if (liveChatEventListeners.size === 0 && liveChatEventsSubscribed) {
+          ipcRenderer.removeListener("LiveChatSV-Event", liveChatEventHandler);
+          ipcRenderer.send("LiveChatSV-UnsubscribeEvents");
+          liveChatEventsSubscribed = false;
         }
       };
     },
