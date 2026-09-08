@@ -152,7 +152,7 @@ async function startServer() {
             res.setHeader("Vary", "Origin");
         }
         res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Socket-Id");
         if (req.method === "OPTIONS") {
             res.status(204).end();
             return;
@@ -1057,7 +1057,9 @@ async function startServer() {
         res.status(200).json(await database.listItemsStore(type));
     });
 
-    app.get("*", (_req, res) => {
+    // Express 5 requires a named wildcard parameter. The brace form also
+    // matches the root path so the SPA fallback works for every client route.
+    app.get("/{*splat}", (_req, res) => {
         res.sendFile(path.join(staticPath, "index.html"));
     });
 

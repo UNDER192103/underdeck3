@@ -21,6 +21,7 @@ export class TranslationService {
   private builtinMessages: Record<string, Record<string, string>> = {
     "en-US": {
       "tray.apps": "Apps",
+      "tray.open_overlay": "Open overlay",
       "tray.reopen": "Reopen",
       "tray.reload": "Reload",
       "tray.exit": "Exit",
@@ -34,6 +35,7 @@ export class TranslationService {
     },
     "pt-BR": {
       "tray.apps": "Aplicativos",
+      "tray.open_overlay": "Abrir overlay",
       "tray.reopen": "Reabrir",
       "tray.reload": "Recarregar",
       "tray.exit": "Sair",

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useUser } from "@/contexts/UserContext";
 import { useI18n } from "@/contexts/I18nContext";
-import { Loader2 } from "lucide-react";
+import { Loader2, PlusIcon, Check, X, Trash2, ClockIcon, SendIcon, Users } from "lucide-react";
 import { UserProfileEditorModal } from "@/components/user/UserProfileEditorModal";
 import { ProfilePreviewCard } from "@/components/user/ProfilePreviewCard";
 import { AppUser } from "@/types/user";
@@ -203,28 +203,27 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
                             onEditProfileClick={() => setShowProfileEditor(true)}
                         />
                         <Card className="w-full h-full overflow-auto p-2">
-                            <div className="mb-2 flex items-center justify-between gap-2">
-                                <Label className="text-sm">{t("user.friends", "Amigos")}</Label>
-                                <Button size="sm" variant="secondary" rounded="xl" onClick={() => setAddFriendOpen(true)}>
+                            <div className="flex items-center justify-between gap-2">
+                                <Label className="text-lg">{t("user.friends", "Amigos")}</Label>
+                                <Button variant="primary" rounded="xl" onClick={() => setAddFriendOpen(true)}>
+                                    <PlusIcon />
                                     {t("user.friends.add", "Adicionar")}
                                 </Button>
                             </div>
                             <Tabs value={friendsTab} onValueChange={(value) => setFriendsTab(value as any)}>
+
                                 <TabsList className="w-full">
-                                    <TabsTrigger value="accepted" asChild unstyled>
-                                        <Button variant={friendsTab == "accepted" ? "primary" : "secondary"} className="w-full">
-                                            {t("user.friends", "Amigos")}
-                                        </Button>
+                                    <TabsTrigger variant={friendsTab == "accepted" ? "primary" : "secondary"} value="accepted">
+                                        <Users className="h-4 w-4" />
+                                        {t("user.friends", "Amigos")}
                                     </TabsTrigger>
-                                    <TabsTrigger value="incoming" asChild unstyled>
-                                        <Button variant={friendsTab == "incoming" ? "primary" : "secondary"} className="w-full">
-                                            {t("user.friends.incoming.pedding", "Pendentes")}
-                                        </Button>
+                                    <TabsTrigger variant={friendsTab == "incoming" ? "primary" : "secondary"} value="incoming">
+                                        <ClockIcon className="h-4 w-4" />
+                                        {t("user.friends.incoming", "Pendentes")}
                                     </TabsTrigger>
-                                    <TabsTrigger value="outgoing" asChild unstyled>
-                                        <Button variant={friendsTab == "outgoing" ? "primary" : "secondary"} className="w-full">
-                                            {t("user.friends.incoming.sent", "Enviados")}
-                                        </Button>
+                                    <TabsTrigger variant={friendsTab == "outgoing" ? "primary" : "secondary"} value="outgoing">
+                                        <SendIcon className="h-4 w-4" />
+                                        {t("user.friends.outgoing", "Enviados")}
                                     </TabsTrigger>
                                 </TabsList>
 
@@ -266,6 +265,7 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
                                                     rounded="xl"
                                                     onClick={() => removeFriend(firend.id)}
                                                 >
+                                                    <Trash2 className="h-4 w-4" />
                                                     {t("user.friends.remove", "Remover")}
                                                 </Button>
                                             </div>
@@ -280,7 +280,7 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
                                         </div>
                                     ) : friends.incoming.map((firendIncoming) => {
                                         if (!firendIncoming.fromUser) return null;
-                                        
+
                                         return (
                                             <div className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-white/60">
                                                 <DropdownUp>
@@ -313,6 +313,7 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
                                                         rounded="xl"
                                                         onClick={() => acceptFriendRequest(firendIncoming.id)}
                                                     >
+                                                        <Check className="h-4 w-4" />
                                                         {t("user.friends.accept", "Aceitar")}
                                                     </Button>
                                                     <Button
@@ -322,6 +323,7 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
                                                         rounded="xl"
                                                         onClick={() => declineFriendRequest(firendIncoming.id)}
                                                     >
+                                                        <X className="h-4 w-4" />
                                                         {t("user.friends.decline", "Recusar")}
                                                     </Button>
                                                 </div>
@@ -337,7 +339,7 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
                                         </div>
                                     ) : friends.outgoing.map((firendOutgoing) => {
                                         if (!firendOutgoing.toUser) return null;
-                                        
+
                                         return (
                                             <div className="rounded-lg text-center border border-white/10 bg-black/20 p-2 text-xs text-white/60">
                                                 <DropdownUp>
@@ -390,11 +392,12 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
                     </div>
                     <DialogFooter>
                         <Button
-                            variant="secondary"
+                            variant="destructive"
                             rounded="xl"
                             onClick={() => setAddFriendOpen(false)}
                             disabled={addFriendLoading}
                         >
+                            <X className="h-4 w-4" />
                             {t("common.cancel", "Cancelar")}
                         </Button>
                         <Button
@@ -402,7 +405,7 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
                             onClick={() => void sendFriendRequest()}
                             disabled={!addFriendIdentifier.trim() || addFriendLoading}
                         >
-                            {addFriendLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                            {addFriendLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                             {t("user.friends.add.send", "Enviar")}
                         </Button>
                     </DialogFooter>

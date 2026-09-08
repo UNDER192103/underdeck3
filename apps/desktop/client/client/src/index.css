@@ -1,7 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/*
+ * Components use `dark:` for their readable foregrounds and dark control
+ * states. OLED and Transparent are also dark themes, so they must opt into
+ * the same variant; otherwise utilities such as `dark:text-white` never run
+ * when either of those two theme classes is active.
+ */
+@custom-variant dark (&:is(.dark *, .black *, .transparent *));
 @custom-variant black (&:is(.black *));
 @custom-variant transparent (&:is(.transparent *));
 
@@ -410,6 +416,37 @@
     background-color: rgba(0, 0, 0, 0.75) !important;
     border-color: rgba(148, 163, 184, 0.35) !important;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Tooltips stay readable independently from the application surface. */
+  .dark .tooltip-surface {
+    background-color: var(--popover) !important;
+    color: #fff !important;
+  }
+
+  .dark .tooltip-arrow {
+    background-color: var(--popover) !important;
+    fill: var(--popover) !important;
+  }
+
+  .black .tooltip-surface {
+    background-color: #000 !important;
+    color: #fff !important;
+  }
+
+  .black .tooltip-arrow {
+    background-color: #000 !important;
+    fill: #000 !important;
+  }
+
+  .transparent .tooltip-surface {
+    background-color: #fff !important;
+    color: #000 !important;
+  }
+
+  .transparent .tooltip-arrow {
+    background-color: #fff !important;
+    fill: #fff !important;
   }
 
   @media (min-width: 640px) {

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/contexts/I18nContext";
 import { Card } from "@/components/ui/card";
-import { Loader2, Layers, Sun, Moon, ImagePlus, Circle, RefreshCw, Search, Download, Check, Play, Trash2 } from "lucide-react";
+import { Loader2, Layers, Sun, Moon, ImagePlus, Circle, RefreshCw, Search, Download, Check, Play, Trash2, Cog, CheckCheck } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -18,9 +18,64 @@ import { StoreItem } from "@/types/store";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { SavedThemeWallpaper, ThemeDownloadProgress } from "@/types/electron";
+import type { ThemeEffectBackgrounds } from "@/types/electron";
 import { ModalConfirm } from "@/components/ModalConfirm";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useGlobalObserver } from "@/contexts/GlobalObserverContext";
+import { DiscordColorPicker } from "@/components/ui/DiscordColorPicker";
+import { Slider } from "@/components/ui/slider";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+
+type ConfigurableEffect = "neural" | "nebula" | "particles" | "color";
+type ConfigurableEffectBackground =
+  | Extract<BackgroundProps, { variant: "neural" }>
+  | Extract<BackgroundProps, { variant: "nebula" }>
+  | Extract<BackgroundProps, { variant: "particles" }>
+  | Extract<BackgroundProps, { variant: "color" }>;
+
+const DEFAULT_EFFECT_BACKGROUNDS: {
+  neural: Extract<BackgroundProps, { variant: "neural" }>;
+  nebula: Extract<BackgroundProps, { variant: "nebula" }>;
+  particles: Extract<BackgroundProps, { variant: "particles" }>;
+  color: Extract<BackgroundProps, { variant: "color" }>;
+} = {
+  neural: {
+    variant: "neural",
+    neuralColors: {
+      center: "#151964",
+      middle: "#021A4B",
+      edge: "#03091D",
+      link: "#7DD3FC",
+      dot: "#93C5FD",
+    },
+  },
+  nebula: {
+    variant: "nebula",
+    nebulaColor: "#712CF9",
+    nebulaExplosionColor: "#8B5CF6",
+    nebulaBackgroundStart: "#0B0716",
+    nebulaBackgroundEnd: "#1A0D35",
+  },
+  particles: {
+    variant: "particles",
+    particleColor: "#60A5FA",
+    particleBackgroundColor: "#020617",
+  },
+  color: {
+    variant: "color",
+    colorMode: "loop",
+    backgroundColors: ["#0F172A", "#1D4ED8", "#4C1D95"],
+  },
+};
+
+function copyEffectBackground(
+  variant: ConfigurableEffect,
+  current: BackgroundProps | null,
+  effectBackgrounds: ThemeEffectBackgrounds = {},
+) {
+  const source = effectBackgrounds[variant] ?? (current?.variant === variant ? current : DEFAULT_EFFECT_BACKGROUNDS[variant]);
+  return structuredClone(source) as ConfigurableEffectBackground;
+}
 
 function getBackgroundSource(background: BackgroundProps | null) {
   if (!background) return "";
@@ -76,7 +131,7 @@ export default function ThemePage({
   className?: string;
 }) {
   const { t } = useI18n();
-  const { theme, setTheme, background, setBackground, listStoreBackgrounds } = useTheme();
+  const { theme, setTheme, background, setBackground, effectBackgrounds, setEffectBackgrounds, listStoreBackgrounds } = useTheme();
   const { publish, subscribe } = useGlobalObserver();
 
   const [storeBackgrounds, setStoreBackgrounds] = useState<StoreItem[]>([]);
@@ -92,6 +147,7 @@ export default function ThemePage({
   const [useChoiceItem, setUseChoiceItem] = useState<StoreItem | null>(null);
   const [uninstallTargetKey, setUninstallTargetKey] = useState<string | null>(null);
   const [confirmUninstallLocal, setConfirmUninstallLocal] = useState(false);
+  const [effectConfig, setEffectConfig] = useState<ConfigurableEffectBackground | null>(null);
 
   const storeByKey = useMemo(() => {
     const map: Record<string, StoreItem> = {};
@@ -344,6 +400,34 @@ export default function ThemePage({
 
   const localIsActive = isLocalMediaUrl(activeBackgroundSource);
 
+  const openEffectConfig = (variant: ConfigurableEffect) => {
+    setEffectConfig(copyEffectBackground(variant, background, effectBackgrounds));
+  };
+
+  const applyEffectConfig = () => {
+    if (!effectConfig) return;
+    setEffectBackgrounds((current) => ({ ...current, [effectConfig.variant]: effectConfig }));
+    setBackground(effectConfig);
+    setEffectConfig(null);
+    toast.success(t("theme.background.effect_applied", "Efeito personalizado aplicado."));
+  };
+
+  const gradientColors = effectConfig?.variant === "color"
+    ? (effectConfig.backgroundColors ?? DEFAULT_EFFECT_BACKGROUNDS.color.backgroundColors ?? [])
+    : (DEFAULT_EFFECT_BACKGROUNDS.color.backgroundColors ?? []);
+
+  const updateGradientColor = (index: number, nextColor: string) => {
+    setEffectConfig((current) => {
+      if (!current || current.variant !== "color") return current;
+      const currentColors = current.backgroundColors ?? DEFAULT_EFFECT_BACKGROUNDS.color.backgroundColors ?? [];
+      return {
+        ...current,
+        colorMode: "loop",
+        backgroundColors: currentColors.map((color, colorIndex) => colorIndex === index ? nextColor : color),
+      };
+    });
+  };
+
   const localWallpaperCard = (
     <Card className="p-3 border-border/70 bg-card/70 more-dark">
       <div className="flex items-start justify-between gap-2">
@@ -356,7 +440,7 @@ export default function ThemePage({
         {localIsActive && <Check className="h-4 w-4 text-emerald-400 shrink-0" />}
       </div>
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <Button
+        <Tooltip><TooltipTrigger asChild><Button
           type="button"
           variant="outline-primary"
           rounded="xl"
@@ -364,9 +448,8 @@ export default function ThemePage({
           onClick={handleSelectLocalBackground}
         >
           <ImagePlus className="h-4 w-4 shrink-0" />
-          <span className="truncate">{t("common.choose", "Selecionar")}</span>
-        </Button>
-        <Button
+        </Button></TooltipTrigger><TooltipContent>{t("common.choose", "Selecionar")}</TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild><Button
           type="button"
           variant="outline-primary"
           rounded="xl"
@@ -374,10 +457,9 @@ export default function ThemePage({
           onClick={useLocalWallpaper}
           disabled={!localWallpaper?.exists || localIsActive}
         >
-          <Play className="h-4 w-4 shrink-0" />
-          <span className="truncate">{t("common.use", "Usar")}</span>
-        </Button>
-        <Button
+          <CheckCheck className="h-4 w-4 shrink-0" />
+        </Button></TooltipTrigger><TooltipContent>{t("common.use", "Usar")}</TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild><Button
           type="button"
           variant="outline-destructive"
           rounded="xl"
@@ -386,8 +468,7 @@ export default function ThemePage({
           disabled={!localWallpaper?.exists}
         >
           <Trash2 className="h-4 w-4 shrink-0" />
-          <span className="truncate">{t("common.uninstall", "Desinstalar")}</span>
-        </Button>
+        </Button></TooltipTrigger><TooltipContent>{t("common.uninstall", "Desinstalar")}</TooltipContent></Tooltip>
       </div>
     </Card>
   );
@@ -408,7 +489,7 @@ export default function ThemePage({
 
   return (
     <div className="w-full h-full p-2 select-none">
-      <Card className={cn("p-6 grid gap-4 bg-card/70", className)}>
+      <Card className={cn("grid gap-5 border-border/80 bg-card/75 p-4 shadow-xl backdrop-blur-xl sm:p-5", className)}>
         <div className="flex flex-col gap-2">
           <Label className="text-lg">{t("theme.label", "Tema")}</Label>
           <Select
@@ -452,7 +533,7 @@ export default function ThemePage({
           </Select>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="relative w-full">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -463,7 +544,7 @@ export default function ThemePage({
               placeholder={t("theme.background.search", "Buscar wallpaper...")}
             />
           </div>
-          <Button
+          <Tooltip><TooltipTrigger asChild><Button
             type="button"
             variant="outline-primary"
             rounded="xl"
@@ -471,13 +552,12 @@ export default function ThemePage({
             disabled={loadingStore}
           >
             {loadingStore ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {t("common.refresh", "Atualizar")}
-          </Button>
+          </Button></TooltipTrigger><TooltipContent>{t("common.refresh", "Atualizar")}</TooltipContent></Tooltip>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
           {localWallpaperCard}
-          <Card className="p-3 border-border/70 bg-card/70 more-dark">
+          <Card className="flex min-h-39 flex-col p-4 border-border/70 bg-card/70 more-dark">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="font-semibold truncate">{t("theme.background.source_neural", "Neural")}</p>
@@ -487,24 +567,185 @@ export default function ThemePage({
               </div>
               {background?.variant === "neural" && <Check className="h-4 w-4 text-emerald-400 shrink-0" />}
             </div>
-            <div className="mt-4">
-              <Button
+            <div className="mt-auto flex gap-2 pt-4">
+              <Tooltip><TooltipTrigger asChild><Button
                 type="button"
                 variant="outline-primary"
                 rounded="xl"
-                className="w-full"
+                className="flex-1"
                 onClick={() => {
-                  setBackground({ variant: "neural" });
+                  setBackground(copyEffectBackground("neural", background, effectBackgrounds));
                   toast.success(t("theme.background.neural_applied", "Background neural aplicado."));
                 }}
                 disabled={background?.variant === "neural"}
               >
-                <Play className="h-4 w-4 shrink-0" />
-                <span className="truncate">{t("common.use", "Usar")}</span>
-              </Button>
+                <CheckCheck className="h-4 w-4 shrink-0" />
+              </Button></TooltipTrigger><TooltipContent>{t("common.use", "Usar")}</TooltipContent></Tooltip>
+              <Tooltip><TooltipTrigger asChild><Button type="button" variant="outline-secondary" size="icon" rounded="xl" className="shrink-0" aria-label={t("theme.effects.configure_neural", "Configure Neural")} onClick={() => openEffectConfig("neural")}>
+                <Cog className="h-4 w-4" />
+              </Button></TooltipTrigger><TooltipContent>{t("theme.effects.configure_neural", "Configure Neural")}</TooltipContent></Tooltip>
+            </div>
+          </Card>
+          <Card className="flex min-h-39 flex-col p-4 border-border/70 bg-card/70 more-dark">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-semibold truncate">{t("theme.background.source_nebula", "Nebulosa")}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("theme.background.nebula_desc", "Efeito de nebulosa animada.")}
+                </p>
+              </div>
+              {background?.variant === "nebula" && <Check className="h-4 w-4 text-emerald-400 shrink-0" />}
+            </div>
+            <div className="mt-auto flex gap-2 pt-4">
+              <Tooltip><TooltipTrigger asChild><Button type="button" variant="outline-primary" rounded="xl" className="flex-1" onClick={() => {
+                setBackground(copyEffectBackground("nebula", background, effectBackgrounds));
+                toast.success(t("theme.background.nebula_applied", "Background nebulosa aplicado."));
+              }} disabled={background?.variant === "nebula"}>
+                <CheckCheck className="h-4 w-4 shrink-0" />
+              </Button></TooltipTrigger><TooltipContent>{t("common.use", "Usar")}</TooltipContent></Tooltip>
+              <Tooltip><TooltipTrigger asChild><Button type="button" variant="outline-secondary" size="icon" rounded="xl" className="shrink-0" aria-label={t("theme.effects.configure_nebula", "Configure Nebula")} onClick={() => openEffectConfig("nebula")}>
+                <Cog className="h-4 w-4" />
+              </Button></TooltipTrigger><TooltipContent>{t("theme.effects.configure_nebula", "Configure Nebula")}</TooltipContent></Tooltip>
+            </div>
+          </Card>
+          <Card className="flex min-h-39 flex-col p-4 border-border/70 bg-card/70 more-dark">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-semibold truncate">{t("theme.background.source_particles", "Partículas")}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("theme.background.particles_desc", "Partículas animadas em movimento.")}
+                </p>
+              </div>
+              {background?.variant === "particles" && <Check className="h-4 w-4 text-emerald-400 shrink-0" />}
+            </div>
+            <div className="mt-auto flex gap-2 pt-4">
+              <Tooltip><TooltipTrigger asChild><Button type="button" variant="outline-primary" rounded="xl" className="flex-1" onClick={() => {
+                setBackground(copyEffectBackground("particles", background, effectBackgrounds));
+                toast.success(t("theme.background.particles_applied", "Background de partículas aplicado."));
+              }} disabled={background?.variant === "particles"}>
+                <CheckCheck className="h-4 w-4 shrink-0" />
+              </Button></TooltipTrigger><TooltipContent>{t("common.use", "Usar")}</TooltipContent></Tooltip>
+              <Tooltip><TooltipTrigger asChild><Button type="button" variant="outline-secondary" size="icon" rounded="xl" className="shrink-0" aria-label={t("theme.effects.configure_particles", "Configure Particles")} onClick={() => openEffectConfig("particles")}>
+                <Cog className="h-4 w-4" />
+              </Button></TooltipTrigger><TooltipContent>{t("theme.effects.configure_particles", "Configure Particles")}</TooltipContent></Tooltip>
+            </div>
+          </Card>
+          <Card className="flex min-h-39 flex-col p-4 border-border/70 bg-card/70 more-dark">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-semibold truncate">{t("theme.background.source_gradient", "Gradiente")}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("theme.background.gradient_desc", "Gradiente azul animado.")}
+                </p>
+              </div>
+              {background?.variant === "color" && <Check className="h-4 w-4 text-emerald-400 shrink-0" />}
+            </div>
+            <div className="mt-auto flex gap-2 pt-4">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" variant="outline-primary" rounded="xl" className="flex-1" onClick={() => {
+                    setBackground(copyEffectBackground("color", background, effectBackgrounds));
+                    toast.success(t("theme.background.gradient_applied", "Background gradiente aplicado."));
+                  }} disabled={background?.variant === "color"}>
+                    <CheckCheck className="h-4 w-4 shrink-0" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="select-none">
+                  <span className="truncate">{t("common.use", "Usar")}</span>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip><TooltipTrigger asChild><Button type="button" variant="outline-secondary" size="icon" rounded="xl" className="shrink-0" aria-label={t("theme.effects.configure_gradient", "Configure Gradient")} onClick={() => openEffectConfig("color")}>
+                <Cog className="h-4 w-4" />
+              </Button></TooltipTrigger><TooltipContent>{t("theme.effects.configure_gradient", "Configure Gradient")}</TooltipContent></Tooltip>
             </div>
           </Card>
         </div>
+
+        <Dialog open={!!effectConfig} onOpenChange={(open) => !open && setEffectConfig(null)}>
+          <DialogContent className="max-h-[calc(100dvh-3rem)] overflow-y-auto border-border/80 bg-popover/95 p-5 backdrop-blur-2xl sm:max-w-[620px]">
+            <DialogHeader>
+              <DialogTitle>
+                {effectConfig?.variant === "neural" && t("theme.effects.neural_title", "Customize Neural")}
+                {effectConfig?.variant === "nebula" && t("theme.effects.nebula_title", "Customize Nebula")}
+                {effectConfig?.variant === "particles" && t("theme.effects.particles_title", "Customize Particles")}
+                {effectConfig?.variant === "color" && t("theme.effects.gradient_title", "Customize Gradient")}
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                {t("theme.effects.description", "Choose the effect colors. When applied, the setting is saved and used in every window.")}
+              </p>
+            </DialogHeader>
+
+            {effectConfig?.variant === "neural" && (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                <DiscordColorPicker showAlpha label={t("theme.effects.center", "Center")} value={effectConfig.neuralColors?.center ?? "#151964"} onChange={(center) => setEffectConfig({ ...effectConfig, neuralColors: { ...effectConfig.neuralColors, center } })} onChangeWithAlpha={(center) => setEffectConfig({ ...effectConfig, neuralColors: { ...effectConfig.neuralColors, center } })} />
+                <DiscordColorPicker showAlpha label={t("theme.effects.middle", "Middle")} value={effectConfig.neuralColors?.middle ?? "#021A4B"} onChange={(middle) => setEffectConfig({ ...effectConfig, neuralColors: { ...effectConfig.neuralColors, middle } })} onChangeWithAlpha={(middle) => setEffectConfig({ ...effectConfig, neuralColors: { ...effectConfig.neuralColors, middle } })} />
+                <DiscordColorPicker showAlpha label={t("theme.effects.edge", "Edge")} value={effectConfig.neuralColors?.edge ?? "#03091D"} onChange={(edge) => setEffectConfig({ ...effectConfig, neuralColors: { ...effectConfig.neuralColors, edge } })} onChangeWithAlpha={(edge) => setEffectConfig({ ...effectConfig, neuralColors: { ...effectConfig.neuralColors, edge } })} />
+                <DiscordColorPicker showAlpha label={t("theme.effects.connection_lines", "Connection lines")} value={effectConfig.neuralColors?.link ?? "#7DD3FC"} onChange={(link) => setEffectConfig({ ...effectConfig, neuralColors: { ...effectConfig.neuralColors, link } })} onChangeWithAlpha={(link) => setEffectConfig({ ...effectConfig, neuralColors: { ...effectConfig.neuralColors, link } })} />
+                <DiscordColorPicker showAlpha label={t("theme.effects.dots", "Dots")} value={effectConfig.neuralColors?.dot ?? "#93C5FD"} onChange={(dot) => setEffectConfig({ ...effectConfig, neuralColors: { ...effectConfig.neuralColors, dot } })} onChangeWithAlpha={(dot) => setEffectConfig({ ...effectConfig, neuralColors: { ...effectConfig.neuralColors, dot } })} />
+              </div>
+            )}
+
+            {effectConfig?.variant === "nebula" && (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <DiscordColorPicker showAlpha label={t("theme.effects.nebula", "Nebula")} value={effectConfig.nebulaColor ?? "#712CF9"} onChange={(nebulaColor) => setEffectConfig({ ...effectConfig, nebulaColor })} onChangeWithAlpha={(nebulaColor) => setEffectConfig({ ...effectConfig, nebulaColor })} />
+                <DiscordColorPicker showAlpha label={t("theme.effects.explosion", "Explosion")} value={effectConfig.nebulaExplosionColor ?? "#8B5CF6"} onChange={(nebulaExplosionColor) => setEffectConfig({ ...effectConfig, nebulaExplosionColor })} onChangeWithAlpha={(nebulaExplosionColor) => setEffectConfig({ ...effectConfig, nebulaExplosionColor })} />
+                <DiscordColorPicker showAlpha label={t("theme.effects.background_start", "Background start")} value={effectConfig.nebulaBackgroundStart ?? "#0B0716"} onChange={(nebulaBackgroundStart) => setEffectConfig({ ...effectConfig, nebulaBackgroundStart })} onChangeWithAlpha={(nebulaBackgroundStart) => setEffectConfig({ ...effectConfig, nebulaBackgroundStart })} />
+                <DiscordColorPicker showAlpha label={t("theme.effects.background_end", "Background end")} value={effectConfig.nebulaBackgroundEnd ?? "#1A0D35"} onChange={(nebulaBackgroundEnd) => setEffectConfig({ ...effectConfig, nebulaBackgroundEnd })} onChangeWithAlpha={(nebulaBackgroundEnd) => setEffectConfig({ ...effectConfig, nebulaBackgroundEnd })} />
+              </div>
+            )}
+
+            {effectConfig?.variant === "particles" && (
+              <div className="grid gap-5">
+                <div className="grid grid-cols-2 gap-4">
+                  <DiscordColorPicker showAlpha label={t("theme.effects.particles", "Particles")} value={effectConfig.particleColor ?? "#60A5FA"} onChange={(particleColor) => setEffectConfig({ ...effectConfig, particleColor })} onChangeWithAlpha={(particleColor) => setEffectConfig({ ...effectConfig, particleColor })} />
+                  <DiscordColorPicker showAlpha label={t("theme.effects.background", "Background")} value={effectConfig.particleBackgroundColor ?? "#020617"} onChange={(particleBackgroundColor) => setEffectConfig({ ...effectConfig, particleBackgroundColor })} onChangeWithAlpha={(particleBackgroundColor) => setEffectConfig({ ...effectConfig, particleBackgroundColor })} />
+                </div>
+                <div className="space-y-3 rounded-xl border border-border/70 bg-background/40 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label>{t("theme.effects.particle_count", "Particle count")}</Label>
+                    <span className="text-sm tabular-nums text-muted-foreground">{effectConfig.particleCount ?? 36}</span>
+                  </div>
+                  <Slider
+                    value={[effectConfig.particleCount ?? 36]}
+                    min={6}
+                    max={180}
+                    step={1}
+                    onValueChange={([particleCount]) => setEffectConfig({ ...effectConfig, particleCount })}
+                  />
+                </div>
+              </div>
+            )}
+
+            {effectConfig?.variant === "color" && (
+              <div className="grid grid-cols-3 gap-4">
+                {gradientColors.slice(0, 3).map((color, index) => (
+                  <DiscordColorPicker
+                    key={index}
+                    label={`${t("theme.effects.color", "Color")} ${index + 1}`}
+                    value={color}
+                    showAlpha
+                    onChange={(nextColor) => updateGradientColor(index, nextColor)}
+                    onChangeWithAlpha={(nextColor) => updateGradientColor(index, nextColor)}
+                  />
+                ))}
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 sm:justify-between">
+              <Button
+                type="button"
+                variant="outline-secondary"
+                rounded="xl"
+                onClick={() => effectConfig && setEffectConfig(copyEffectBackground(effectConfig.variant, null))}
+              >
+                {t("theme.effects.restore", "Restore defaults")}
+              </Button>
+              <Button type="button" rounded="xl" onClick={applyEffectConfig}>
+                {t("theme.effects.apply", "Apply effect")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {activeDownloads.length > 0 && (
           <div className="grid gap-2">
@@ -525,7 +766,7 @@ export default function ThemePage({
 
         <div className="grid gap-3">
           <Label>{t("theme.background.downloaded_label", "Wallpapers baixados")}</Label>
-          <div className="max-h-[30vh] overflow-y-auto overflow-x-hidden pr-1">
+          <div className="max-h-[58vh] overflow-y-auto overflow-x-hidden pr-1">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {downloadedStoreWallpapers.map((saved) => {
                 const savedItem = storeByKey[saved.key];
@@ -542,27 +783,39 @@ export default function ThemePage({
                       {isSelected && (<Check className="h-4 w-4 text-emerald-400 shrink-0" />)}
                     </div>
                     <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <Button
-                        type="button"
-                        variant="outline-primary"
-                        rounded="xl"
-                        className="w-full min-w-0"
-                        onClick={() => handleUseDownloadedWallpaper(saved)}
-                        disabled={isSelected}
-                      >
-                        <Play className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{t("common.use", "Usar")}</span>
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline-destructive"
-                        rounded="xl"
-                        className="w-full min-w-0"
-                        onClick={() => setUninstallTargetKey(saved.key)}
-                      >
-                        <Trash2 className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{t("common.uninstall", "Desinstalar")}</span>
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline-primary"
+                            rounded="xl"
+                            className="w-full min-w-0"
+                            onClick={() => handleUseDownloadedWallpaper(saved)}
+                            disabled={isSelected}
+                          >
+                            <CheckCheck className="h-4 w-4 shrink-0" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="select-none">
+                          <span className="truncate">{t("common.use", "Usar")}</span>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline-destructive"
+                            rounded="xl"
+                            className="w-full min-w-0"
+                            onClick={() => setUninstallTargetKey(saved.key)}
+                          >
+                            <Trash2 className="h-4 w-4 shrink-0" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="select-none">
+                          <p>{t("common.uninstall", "Desinstalar")}</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                   </Card>
                 );
@@ -582,88 +835,85 @@ export default function ThemePage({
           <Label>{t("theme.background.available_label", "Disponiveis para baixar")}</Label>
           <div className="max-h-[58vh] overflow-y-auto overflow-x-hidden pr-1">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-	              {availableStoreBackgrounds.map((item) => {
-	                  const key = toStoreKey(item);
-	                  const saved = savedStoreByKey[key];
-	                  const isSelected = selectedStoreKey === key;
-	                  const remoteUrl = item.meta_data?.url ?? "";
-	                  const isRemoteSelected = !!remoteUrl && activeBackgroundSource === remoteUrl;
-	                  const runningJob = Object.entries(jobToStoreKey).find(([jobId, storeKey]) => {
-                    if (storeKey !== key) return false;
-                    const progress = downloadsByJobId[jobId];
-                    return progress?.status === "queued" || progress?.status === "downloading";
-                  });
-                  const progress = runningJob ? downloadsByJobId[runningJob[0]] : null;
+              {availableStoreBackgrounds.map((item) => {
+                const key = toStoreKey(item);
+                const saved = savedStoreByKey[key];
+                const isSelected = selectedStoreKey === key;
+                const remoteUrl = item.meta_data?.url ?? "";
+                const isRemoteSelected = !!remoteUrl && activeBackgroundSource === remoteUrl;
+                const runningJob = Object.entries(jobToStoreKey).find(([jobId, storeKey]) => {
+                  if (storeKey !== key) return false;
+                  const progress = downloadsByJobId[jobId];
+                  return progress?.status === "queued" || progress?.status === "downloading";
+                });
+                const progress = runningJob ? downloadsByJobId[runningJob[0]] : null;
 
-                  return (
-                    <Card
-                      key={`${item.id}-${item.name}-${item.meta_data?.url ?? ""}`}
-                      className={cn(
-                        "p-3 border-border/70 bg-card/70 more-dark"
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-semibold truncate">{item.name}</p>
-                          <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>
-                        </div>
-                        {isSelected && (<Check className="h-4 w-4 text-emerald-400 shrink-0" />)}
+                return (
+                  <Card
+                    key={`${item.id}-${item.name}-${item.meta_data?.url ?? ""}`}
+                    className={cn(
+                      "p-3 border-border/70 bg-card/70 more-dark"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold truncate">{item.name}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>
                       </div>
+                      {isSelected && (<Check className="h-4 w-4 text-emerald-400 shrink-0" />)}
+                    </div>
 
-                      {progress && (
-                        <div className="mt-2">
-                          <div className="h-2 w-full overflow-hidden rounded-full bg-black/20">
-                            <div className="h-full bg-blue-500 transition-all" style={{ width: `${progress.progress}%` }} />
-                          </div>
-                          <p className="mt-1 text-xs text-muted-foreground">{progress.progress}%</p>
+                    {progress && (
+                      <div className="mt-2">
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-black/20">
+                          <div className="h-full bg-blue-500 transition-all" style={{ width: `${progress.progress}%` }} />
                         </div>
-                      )}
+                        <p className="mt-1 text-xs text-muted-foreground">{progress.progress}%</p>
+                      </div>
+                    )}
 
-                      <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {!saved?.exists && (
-                          <Button
-                            type="button"
-                            variant="outline-primary"
-                            rounded="xl"
-                            className="w-full min-w-0"
-                            disabled={!!progress}
-                            onClick={async () => {
-                              await startStoreDownload(item, false);
-                            }}
-                          >
-                            <Download className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{t("common.download", "Baixar")}</span>
-                          </Button>
-                        )}
-	                        <Button
-	                          type="button"
-	                          variant="outline-primary"
-	                          rounded="xl"
-	                          className="w-full min-w-0"
-	                          disabled={!!progress || isRemoteSelected}
-	                          onClick={async () => {
-	                            await handleUseStoreItem(item);
-	                          }}
+                    <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {!saved?.exists && (
+                        <Tooltip><TooltipTrigger asChild><Button
+                          type="button"
+                          variant="outline-primary"
+                          rounded="xl"
+                          className="w-full min-w-0"
+                          disabled={!!progress}
+                          onClick={async () => {
+                            await startStoreDownload(item, false);
+                          }}
                         >
-                          <Play className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{t("common.use", "Usar")}</span>
-                        </Button>
-                        {saved?.exists && (
-                          <Button
-                            type="button"
-                            variant="outline-destructive"
-                            rounded="xl"
-                            className="w-full min-w-0"
-                            onClick={() => setUninstallTargetKey(key)}
-                          >
-                            <Trash2 className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{t("common.uninstall", "Desinstalar")}</span>
-                          </Button>
-                        )}
-                      </div>
-                    </Card>
-                  );
-                })}
+                          <Download className="h-4 w-4 shrink-0" />
+                        </Button></TooltipTrigger><TooltipContent>{t("common.download", "Baixar")}</TooltipContent></Tooltip>
+                      )}
+                      <Tooltip><TooltipTrigger asChild><Button
+                        type="button"
+                        variant="outline-primary"
+                        rounded="xl"
+                        className="w-full min-w-0"
+                        disabled={!!progress || isRemoteSelected}
+                        onClick={async () => {
+                          await handleUseStoreItem(item);
+                        }}
+                      >
+                        <CheckCheck className="h-4 w-4 shrink-0" />
+                      </Button></TooltipTrigger><TooltipContent>{t("common.use", "Usar")}</TooltipContent></Tooltip>
+                      {saved?.exists && (
+                        <Tooltip><TooltipTrigger asChild><Button
+                          type="button"
+                          variant="outline-destructive"
+                          rounded="xl"
+                          className="w-full min-w-0"
+                          onClick={() => setUninstallTargetKey(key)}
+                        >
+                          <Trash2 className="h-4 w-4 shrink-0" />
+                        </Button></TooltipTrigger><TooltipContent>{t("common.uninstall", "Desinstalar")}</TooltipContent></Tooltip>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
               {availableStoreBackgrounds.length === 0 && (
                 <Card className="p-3 border-border/70 bg-card/60 md:col-span-2 xl:col-span-3">
                   <p className="text-sm text-muted-foreground">

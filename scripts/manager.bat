@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 :main
 cls
@@ -68,55 +68,43 @@ if "%compile_choice%"=="6" goto main
 goto compile_menu
 
 :install_all
-call :run "pnpm install" ".\apps\desktop\client"
-if errorlevel 1 goto pause_and_main
-call :run "npm install" ".\apps\desktop\electron"
-if errorlevel 1 goto pause_and_main
-call :run "pnpm install" ".\apps\remote"
+call :run "pnpm run install:all" "."
 goto pause_and_main
 
 :install_desktop_all
-call :run "pnpm install" ".\apps\desktop\client"
-if errorlevel 1 goto pause_and_main
-call :run "npm install" ".\apps\desktop\electron"
+call :run "pnpm install --filter underdeck-desktop-client --filter underdeck" "."
 goto pause_and_main
 
 :install_desktop_client
-call :run "pnpm install" ".\apps\desktop\client"
+call :run "pnpm install --filter underdeck-desktop-client" "."
 goto pause_and_main
 
 :install_electron
-call :run "npm install" ".\apps\desktop\electron"
+call :run "pnpm install --filter underdeck" "."
 goto pause_and_main
 
 :install_remote
-call :run "pnpm install" ".\apps\remote"
+call :run "pnpm install --filter underdeck-remote" "."
 goto pause_and_main
 
 :compile_all
-call :run "pnpm run build" ".\apps\desktop\client"
-if errorlevel 1 goto pause_and_main
-call :run "npm run compile" ".\apps\desktop\electron"
-if errorlevel 1 goto pause_and_main
-call :run "pnpm run build" ".\apps\remote"
+call :run "pnpm run build:all" "."
 goto pause_and_main
 
 :compile_desktop_all
-call :run "pnpm run build" ".\apps\desktop\client"
-if errorlevel 1 goto pause_and_main
-call :run "npm run compile" ".\apps\desktop\electron"
+call :run "pnpm run build:desktop" "."
 goto pause_and_main
 
 :build_desktop_client
-call :run "pnpm run build" ".\apps\desktop\client"
+call :run "pnpm run build:desktop:client" "."
 goto pause_and_main
 
 :compile_electron
-call :run "npm run compile" ".\apps\desktop\electron"
+call :run "pnpm run build:desktop:electron" "."
 goto pause_and_main
 
 :build_remote
-call :run "pnpm run build" ".\apps\remote"
+call :run "pnpm run build:remote" "."
 goto pause_and_main
 
 :start_all

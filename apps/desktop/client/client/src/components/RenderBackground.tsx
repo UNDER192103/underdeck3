@@ -6,5 +6,5 @@ export default function RenderBackground() {
   if (background) {
     return <BackgroundComp {...background} />;
   }
-  return "";
+  return <BackgroundComp variant="color" backgroundColor="#000000" />;
 }

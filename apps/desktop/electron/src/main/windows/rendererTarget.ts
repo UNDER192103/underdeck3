@@ -28,9 +28,9 @@ const useRemoteUrl = (isDev: boolean) => {
 
 const getBaseUrl = (isDev: boolean) => {
     if (isDev) {
-        const serverPort = String(process.env.SERVER_PORT || "").trim();
-        const defaultDevBaseUrl = serverPort
-            ? `http://localhost:${serverPort}`
+        const clientPort = String(process.env.WEB_PORT || "").trim();
+        const defaultDevBaseUrl = clientPort
+            ? `http://localhost:${clientPort}`
             : RendererTargetConfig.devBaseUrl;
         return String(
             process.env.ELECTRON_RENDERER_DEV_URL

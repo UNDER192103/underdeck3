@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosHeaders } from "axios";
 import { ApiSettings, RuntimeSettings } from "@/const";
 
 axios.defaults.baseURL = ApiSettings.url;
@@ -51,10 +51,9 @@ const resolveWebDeckApiBaseURL = async (): Promise<string | null> => {
 axios.interceptors.request.use(async (config) => {
   const socketId = (window as any).__underdeckSocketId;
   if (socketId) {
-    if (!config.headers) {
-      config.headers = {};
-    }
-    (config.headers as any)["x-socket-id"] = socketId;
+    const headers = config.headers ?? new AxiosHeaders();
+    headers.set("x-socket-id", String(socketId));
+    config.headers = headers;
   }
 
   if (!RuntimeSettings.isWebDeck) {

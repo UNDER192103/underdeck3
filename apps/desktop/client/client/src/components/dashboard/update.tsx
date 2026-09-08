@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/contexts/I18nContext";
 import type { UpdateState } from "@/types/electron";
 import { cn } from "@/lib/utils";
+import { Download, Loader2, Search } from "lucide-react";
 
 export default function UpdatePage({
   className = "backdrop-blur",
@@ -107,6 +108,7 @@ export default function UpdatePage({
               }
             }}
           >
+            {busy ? <Loader2 className="animate-spin" /> : <Search />}
             {busy ? t("updates.searching", "Procurando atualização...") : t("updates.check_button", "Verificar atualizações")}
           </Button>
           <Button
@@ -122,6 +124,7 @@ export default function UpdatePage({
               }
             }}
           >
+            {busy ? <Loader2 className="animate-spin" /> : <Download />}
             {t("updates.install_button", "Baixar e instalar")}
           </Button>
         </div>

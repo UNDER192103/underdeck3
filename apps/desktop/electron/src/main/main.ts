@@ -108,6 +108,8 @@ const requestAppShutdown = async () => {
 
 const trayService = new TrayService(windowManager, translationService, () => {
   void requestAppShutdown();
+}, () => {
+  openOverlayWindow();
 });
 
 const OVERLAY_SHORTCUT_ID = "overlay-toggle";
@@ -187,7 +189,9 @@ const stopRuntimeServicesForUpdate = async () => {
 
 const ensureLoadingWindow = () => {
   if (loadingWindow && !loadingWindow.isDestroyed()) {
-    if (!loadingWindow.isVisible()) loadingWindow.show();
+    // Before the renderer reports ready, let LoadingWindow's ready-to-show
+    // handler reveal it. This avoids flashing Electron's native gray canvas.
+    if (!loadingWindow.isVisible() && loadingRendererReady) loadingWindow.show();
     return loadingWindow;
   }
   loadingRendererReady = false;
@@ -384,14 +388,8 @@ const createMainApplicationWindow = () => {
 
 const registerUpdateLifecycle = () => {
   updaterService.on("loading-state-changed", (state: LoadingState) => emitLoadingState(state));
-  updaterService.on("state-changed", (state: { downloading?: boolean; installing?: boolean }) => {
+  updaterService.on("state-changed", () => {
     emitUpdateState();
-    const isUpdating = Boolean(state?.downloading || state?.installing);
-    if (isUpdating) {
-      ensureLoadingWindow();
-      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) mainWindow.hide();
-      trayService.setMode("loading");
-    }
   });
   updaterService.on("debug-log", (payload: UpdateDebugLog) => {
     if (String(process.env.UPDATER_DEBUG_BROADCAST || "").trim() !== "1") return;
@@ -411,6 +409,9 @@ const registerUpdateLifecycle = () => {
     });
   });
   updaterService.on("restart-required", () => {
+    // A instalação Velopack só existe em builds distribuídos. Nunca permita
+    // que um sinal do updater encerre ou reinicie o processo de desenvolvimento.
+    if (!app.isPackaged) return;
     if (updateRestartScheduled) return;
     updateRestartScheduled = true;
     void requestAppShutdown();
@@ -646,6 +647,10 @@ protocol.registerSchemesAsPrivileged([
 if (gotSingleInstanceLock) app.whenReady().then(async () => {
   logsService.log("app", "ready");
   registerActionProtocol();
+  // A janela de loading também pode renderizar imagens e vídeos locais.
+  // Registre antes de criá-la para que underdeck-media:// esteja disponível
+  // no primeiro carregamento do App Launcher.
+  AppService.registerMediaProtocol();
 
   ipcMain.on("ObserverSV-Publish", (_event, payload: { id?: string; channel?: string }) => {
     if (String(payload?.id || "") !== "main.ready") return;
@@ -704,7 +709,6 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
     toggleOverlayWindow();
   });
 
-  AppService.registerMediaProtocol();
   createMainApplicationWindow();
   processActionProtocolCommand(process.argv);
 

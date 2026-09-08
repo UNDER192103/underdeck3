@@ -12,15 +12,18 @@ export class TrayService {
   private translationService: TranslationService;
   private windowManager: WindowManagerService;
   private onExit: (() => void | Promise<void>) | null = null;
+  private onOpenOverlay: (() => void | Promise<void>) | null = null;
 
   constructor(
     windowManager: WindowManagerService,
     translationService?: TranslationService,
     onExit?: () => void | Promise<void>,
+    onOpenOverlay?: () => void | Promise<void>,
   ) {
     this.windowManager = windowManager;
     this.translationService = translationService ?? new TranslationService();
     this.onExit = onExit ?? null;
+    this.onOpenOverlay = onOpenOverlay ?? null;
   }
 
   init(iconPath: string) {
@@ -61,6 +64,14 @@ export class TrayService {
         type: "normal",
         click: () => {
           this.openMainWindow();
+        },
+      },
+      {
+        label: this.translationService.t("tray.open_overlay", "Abrir overlay"),
+        enabled: isReady,
+        type: "normal",
+        click: () => {
+          void this.onOpenOverlay?.();
         },
       },
       { type: "separator" },

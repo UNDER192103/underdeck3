@@ -6,7 +6,7 @@ import { Input, InputPassword } from "@/components/ui/input";
 import { FormItem } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/contexts/I18nContext";
-import { Send } from "lucide-react";
+import { LogIn, Send, UserRoundPlus } from "lucide-react";
 import { toast } from "sonner";
 
 type Mode = "login" | "register" | "forgot";
@@ -73,6 +73,7 @@ export function UserModalLogin() {
             className="flex-1 h-10"
             onClick={() => setMode("login")}
           >
+            <LogIn size={16} />
             {t("auth.login", "Login")}
           </Button>
           <Button
@@ -81,6 +82,7 @@ export function UserModalLogin() {
             className="flex-1 h-10"
             onClick={() => setMode("register")}
           >
+            <UserRoundPlus size={16} />
             {t("auth.register", "Registrar")}
           </Button>
         </div>

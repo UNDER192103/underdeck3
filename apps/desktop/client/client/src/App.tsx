@@ -13,9 +13,9 @@ import { I18nProvider } from "@/contexts/I18nContext";
 import { GlobalObserverProvider } from "./contexts/GlobalObserverContext";
 import { NavigationProvider } from "@/contexts/NavigationContext";
 import Home from "@/pages/Home";
-import { BackgroundComp } from "@/components/ui/background";
 import { Loader2 } from "lucide-react";
 import { TITLE_BAR_HEIGHT, WindowTitleBar } from "@/components/WindowTitleBar";
+import RenderBackground from "@/components/RenderBackground";
 
 
 function Router() {
@@ -71,7 +71,7 @@ function Router() {
             top: `${TITLE_BAR_HEIGHT}px`,
           }}
         >
-          <BackgroundComp variant="neural" />
+          <RenderBackground />
           <div className="relative z-[101] flex flex-col items-center gap-3 text-white">
             <Loader2 className="h-10 w-10 animate-spin text-cyan-300" />
             <p className="text-sm tracking-wide inline-flex items-center">

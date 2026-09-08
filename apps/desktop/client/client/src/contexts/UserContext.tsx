@@ -1,10 +1,39 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import axios, { AxiosResponse } from "axios";
 import { toast } from "sonner";
 import { AppUser, FriendUser, FriendRequest, LoginPayload, RegisterPayload } from "@/types/user";
 import { useI18n } from "@/contexts/I18nContext";
 
 const AUTH_KNOWN_KEY = "underdeck:auth:known";
+const AUTH_USER_CACHE_KEY = "underdeck:auth:user-cache:v1";
+const AUTH_RETRY_INTERVAL_MS = 30_000;
+const AUTH_REQUEST_TIMEOUT_MS = 6_000;
+
+type CachedUser = Omit<AppUser, "sessionId">;
+
+function readCachedUser(): AppUser | null {
+    try {
+        const raw = window.localStorage.getItem(AUTH_USER_CACHE_KEY);
+        if (!raw) return null;
+
+        const cached = JSON.parse(raw) as CachedUser;
+        return cached && typeof cached.id === "string" && cached.id.trim() ? cached : null;
+    } catch {
+        window.localStorage.removeItem(AUTH_USER_CACHE_KEY);
+        return null;
+    }
+}
+
+function cacheUser(user: AppUser) {
+    const { sessionId: _sessionId, ...cachedUser } = user;
+    window.localStorage.setItem(AUTH_USER_CACHE_KEY, JSON.stringify(cachedUser));
+    window.localStorage.setItem(AUTH_KNOWN_KEY, "1");
+}
+
+function clearCachedAuthentication() {
+    window.localStorage.removeItem(AUTH_USER_CACHE_KEY);
+    window.localStorage.setItem(AUTH_KNOWN_KEY, "0");
+}
 
 interface UserContextType {
     user: AppUser | null;
@@ -49,15 +78,31 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
     const { t } = useI18n();
-    const [user, setUser] = useState<AppUser | null>(null);
+    const [user, setUserState] = useState<AppUser | null>(null);
     const [friends, setFriends] = useState<FriendUser[]>([]);
     const [incoming, setIncoming] = useState<FriendRequest[]>([]);
     const [outgoing, setOutgoing] = useState<FriendRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingFriends, setLoadingFriends] = useState(false);
+    const authCheckInFlight = useRef(false);
     const [options, setOptions] = useState<UserContextType["options"]>({
         modalLogin: false,
     });
+
+    // The local cache stores profile data only. The real authorization remains
+    // in the httpOnly session cookie and is validated again whenever possible.
+    const setUser = useCallback<React.Dispatch<React.SetStateAction<AppUser | null>>>((value) => {
+        setUserState((current) => {
+            const next = typeof value === "function" ? value(current) : value;
+            if (next) cacheUser(next);
+            return next;
+        });
+    }, []);
+
+    const clearAuthentication = useCallback(() => {
+        setUserState(null);
+        clearCachedAuthentication();
+    }, []);
 
     const listFriends = async () => {
         setLoadingFriends(true);
@@ -72,36 +117,68 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const refreshAuthentication = useCallback(async (initialLoad = false) => {
+        const cachedUser = readCachedUser();
+        const shouldCheck = Boolean(cachedUser) || window.localStorage.getItem(AUTH_KNOWN_KEY) === "1";
+
+        if (!shouldCheck) {
+            setUserState(null);
+            if (initialLoad) setLoading(false);
+            return;
+        }
+
+        // Keep the user signed in while offline or while the server restarts.
+        if (cachedUser) {
+            setUser(cachedUser);
+            if (initialLoad) setLoading(false);
+        }
+
+        if (!window.navigator.onLine || authCheckInFlight.current) {
+            if (initialLoad) setLoading(false);
+            return;
+        }
+
+        authCheckInFlight.current = true;
+        try {
+            const response = await axios.get<AppUser>("/api/auth/login", {
+                timeout: AUTH_REQUEST_TIMEOUT_MS,
+                validateStatus: (status) => status === 200 || status === 401,
+            });
+
+            if (response.status === 200) {
+                setUser(response.data);
+            } else {
+                // A 401 is the only response that proves the session expired.
+                clearAuthentication();
+            }
+        } catch {
+            // Network/server errors do not invalidate a locally cached login.
+        } finally {
+            authCheckInFlight.current = false;
+            if (initialLoad) setLoading(false);
+        }
+    }, [clearAuthentication, setUser]);
+
     useEffect(() => {
-        const checkAuth = async () => {
-            const shouldCheck = window.localStorage.getItem(AUTH_KNOWN_KEY) === "1";
-            if (!shouldCheck) {
-                setUser(null);
-                setLoading(false);
-                return;
-            }
+        void refreshAuthentication(true);
 
-            try {
-                const response = await axios.get<AppUser>("/api/auth/login", {
-                    validateStatus: (status) => status === 200 || status === 401,
-                });
-                if (response.status === 200) {
-                    setUser(response.data);
-                    window.localStorage.setItem(AUTH_KNOWN_KEY, "1");
-                } else {
-                    setUser(null);
-                    window.localStorage.setItem(AUTH_KNOWN_KEY, "0");
-                }
-            } catch {
-                setUser(null);
-                window.localStorage.setItem(AUTH_KNOWN_KEY, "0");
-            } finally {
-                setLoading(false);
-            }
+        const retryAuthentication = () => void refreshAuthentication();
+        const retryWhenVisible = () => {
+            if (document.visibilityState === "visible") retryAuthentication();
         };
+        const interval = window.setInterval(retryAuthentication, AUTH_RETRY_INTERVAL_MS);
 
-        checkAuth();
-    }, []);
+        window.addEventListener("online", retryAuthentication);
+        window.addEventListener("focus", retryAuthentication);
+        document.addEventListener("visibilitychange", retryWhenVisible);
+
+        return () => {
+            window.clearInterval(interval);
+            window.removeEventListener("online", retryAuthentication);
+            window.removeEventListener("focus", retryAuthentication);
+            document.removeEventListener("visibilitychange", retryWhenVisible);
+        };
+    }, [refreshAuthentication]);
 
     useEffect(() => {
         const handler = (event: Event) => {
@@ -131,15 +208,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                 window.localStorage.setItem(AUTH_KNOWN_KEY, "1");
                 return true;
             }
-            setUser(null);
-            window.localStorage.setItem(AUTH_KNOWN_KEY, "0");
             return false;
         } catch (error: any) {
             toast.error(t("user.auth.login_error", "Erro ao fazer login"), {
                 description: error?.response?.data?.error || error?.message || "",
             });
-            setUser(null);
-            window.localStorage.setItem(AUTH_KNOWN_KEY, "0");
             return false;
         }
     };
@@ -289,10 +362,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         try {
             await axios.delete("/api/auth/login");
         } catch {
-            // Mesmo com erro de rede, limpamos estado local.
+            // The user explicitly chose to sign out, so local state is cleared too.
         } finally {
-            setUser(null);
-            window.localStorage.setItem(AUTH_KNOWN_KEY, "0");
+            clearAuthentication();
             toast.success(t("user.auth.logout_success", "Deslogado com sucesso."));
         }
     };

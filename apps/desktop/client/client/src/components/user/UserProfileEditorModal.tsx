@@ -13,7 +13,9 @@ import { AppUser } from "@/types/user";
 import { DiscordColorPicker } from "@/components/DiscordColorPicker";
 import { Img } from "@/components/ui/img";
 import { Spacer } from "@/components/ui/spacer";
-import { Loader2 } from "lucide-react";
+import { Check, ImageUpIcon, Loader2, Trash2, X } from "lucide-react";
+import { Tooltip, TooltipContent } from "../ui/tooltip";
+import { TooltipTrigger } from "@radix-ui/react-tooltip";
 
 interface UserProfileEditorModalProps {
   open: boolean;
@@ -171,30 +173,51 @@ export function UserProfileEditorModal({ open, onClose }: UserProfileEditorModal
               <div className="space-y-2">
                 <Label>{t("user.profile.banner_section", "Faixa de perfil")}</Label>
                 <div className="h-36 w-full overflow-hidden rounded-xl border border-border bg-muted">
-                  {bannerPreview ? (
-                    <Img src={bannerPreview} alt={t("user.profile.banner_alt", "Banner")} size="banner" draggable={false} className="" />
-                  ) : (
-                    <div className="h-full w-full" style={{ background: bannerColor }} />
-                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {bannerPreview ? (
+                        <Img src={bannerPreview} alt={t("user.profile.banner_alt", "Banner")} size="banner" draggable={false} className="cursor-pointer" onClick={user.premium ? openBannerPicker : undefined} />
+                      ) : (
+                        <div className="h-full w-full cursor-pointer" style={{ background: bannerColor }} onClick={user.premium ? openBannerPicker : undefined} />
+                      )}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {t("user.profile.change_banner", "Alterar Banner")}
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
                 <div className="flex items-start justify-between">
                   <DiscordColorPicker label={t("user.profile.banner", "Banner")} value={bannerColor} onChange={setBannerColor} />
                   <div className="flex items-center gap-1">
-                    <Button type="button" variant="primary" rounded="xl" disabled={!user.premium} onClick={openBannerPicker}>
-                      {t("user.profile.change_banner", "Alterar Banner")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost-destructive"
-                      rounded="xl"
-                      disabled={!user.premium}
-                      onClick={() => {
-                        setBannerDraftFile(null);
-                        setBannerMarkedToRemove(true);
-                      }}
-                    >
-                      {t("user.profile.remove_banner", "Remover Banner")}
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button type="button" variant="primary" rounded="xl" disabled={!user.premium} onClick={user.premium ? openBannerPicker : undefined}>
+                          <ImageUpIcon className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t("user.profile.change_banner", "Alterar Banner")}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          rounded="xl"
+                          disabled={!user.premium}
+                          onClick={() => {
+                            setBannerDraftFile(null);
+                            setBannerMarkedToRemove(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t("user.profile.remove_banner", "Remover Banner")}
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               </div>
@@ -202,22 +225,43 @@ export function UserProfileEditorModal({ open, onClose }: UserProfileEditorModal
               <div className="space-y-2">
                 <Label>{t("user.profile.avatar", "Avatar")}</Label>
                 <div className="flex items-center gap-3">
-                  <Img src={avatarPreview} alt={t("user.profile.avatar_alt", "Avatar")} size="avatar-sm" rounded="full" draggable={false} className="" />
-                  <div className="flex items-center gap-1">
-                    <Button type="button" variant="primary" rounded="xl" onClick={openAvatarPicker}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Img src={avatarPreview} alt={t("user.profile.avatar_alt", "Avatar")} size="avatar-sm" rounded="full" draggable={false} className="cursor-pointer" onClick={user.premium ? openAvatarPicker : undefined} />
+                    </TooltipTrigger>
+                    <TooltipContent>
                       {t("user.profile.change_avatar", "Alterar Avatar")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost-destructive"
-                      rounded="xl"
-                      onClick={() => {
-                        setAvatarDraftFile(null);
-                        setAvatarMarkedToRemove(true);
-                      }}
-                    >
-                      {t("user.profile.remove_avatar", "Remover Avatar")}
-                    </Button>
+                    </TooltipContent>
+                  </Tooltip>
+                  <div className="flex items-center gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button type="button" variant="primary" rounded="xl" onClick={openAvatarPicker}>
+                          <ImageUpIcon className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t("user.profile.change_avatar", "Alterar Avatar")}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          rounded="xl"
+                          onClick={() => {
+                            setAvatarDraftFile(null);
+                            setAvatarMarkedToRemove(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t("user.profile.remove_avatar", "Remover Avatar")}
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               </div>
@@ -260,7 +304,8 @@ export function UserProfileEditorModal({ open, onClose }: UserProfileEditorModal
                 <span>{t("user.profile.unsaved.message", "Voce tem alterações que não foram salvas!")}</span>
               </div>
               <div className="flex gap-2">
-                <Button type="button" className="w-full sm:w-auto" variant="outline-destructive" rounded="xl" onClick={resetDraft} disabled={saving}>
+                <Button type="button" className="w-full sm:w-auto" variant="destructive" rounded="xl" onClick={resetDraft} disabled={saving}>
+                  <Trash2 className="h-4 w-4" />
                   {t("common.reset", "Redefinir")}
                 </Button>
                 <Button
@@ -309,10 +354,12 @@ export function UserProfileEditorModal({ open, onClose }: UserProfileEditorModal
                   }}
                 >
                   {saving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {t("common.saving", "Salvando...")}
-                    </>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                  {saving ? (
+                    t("common.saving", "Salvando...")
                   ) : (
                     t("user.profile.save_changes", "Salvar Alterações")
                   )}
@@ -321,7 +368,7 @@ export function UserProfileEditorModal({ open, onClose }: UserProfileEditorModal
             </DialogFooter>
           )}
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       <AvatarEditorModal
         open={showAvatarEditor}
@@ -337,21 +384,23 @@ export function UserProfileEditorModal({ open, onClose }: UserProfileEditorModal
         }}
       />
 
-      {user.premium && (
-        <BannerEditorModal
-          open={showBannerEditor}
-          selectedFile={bannerEditorFile}
-          onClose={() => {
-            setShowBannerEditor(false);
-            setBannerEditorFile(null);
-          }}
-          currentBannerUrl={bannerPreview}
-          onSave={async (file) => {
-            setBannerDraftFile(file);
-            setBannerMarkedToRemove(false);
-          }}
-        />
-      )}
+      {
+        user.premium && (
+          <BannerEditorModal
+            open={showBannerEditor}
+            selectedFile={bannerEditorFile}
+            onClose={() => {
+              setShowBannerEditor(false);
+              setBannerEditorFile(null);
+            }}
+            currentBannerUrl={bannerPreview}
+            onSave={async (file) => {
+              setBannerDraftFile(file);
+              setBannerMarkedToRemove(false);
+            }}
+          />
+        )
+      }
     </>
   );
 }

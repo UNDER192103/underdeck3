@@ -25,3 +25,13 @@
   <li>Melhorias de confiabilidade no auto-update e empacotamento</li>
   <li>Refatorações internas para serviços mais limpos e manutenção mais fácil</li>
 </ul>
+
+<h3>Workspace PNPM</h3>
+<p>Na raiz do projeto, use <code>pnpm install</code> uma vez para instalar todos os pacotes.</p>
+<ul>
+  <li><code>pnpm build:all</code> — build do Desktop e Remote</li>
+  <li><code>pnpm build:desktop</code> / <code>pnpm build:remote</code> — build específico</li>
+  <li><code>pnpm dev:all</code> — Client, Electron, Remote e servidor</li>
+  <li><code>pnpm velopack</code> — empacotamento e publicação Velopack</li>
+  <li><code>pnpm generate:structure</code> — atualiza <code>readmes/STRUCTURE.md</code></li>
+</ul>

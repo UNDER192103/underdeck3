@@ -17,6 +17,7 @@ type ThemeDownloadRequest = import("../types/theme.js").ThemeDownloadRequest;
 type ThemePreferences = import("../types/theme.js").ThemePreferences;
 type StoredThemeBackground = import("../types/theme.js").StoredThemeBackground;
 type StoredThemeName = import("../types/theme.js").StoredThemeName;
+type ThemeEffectBackgrounds = import("../types/theme.js").ThemeEffectBackgrounds;
 type SoundPadAudio = import("../main/services/soundpad.js").SoundPadAudio;
 type SoundPadExecResult = import("../main/services/soundpad.js").SoundPadExecResult;
 type SoundPadVerifyResult = import("../main/services/soundpad.js").SoundPadVerifyResult;
@@ -226,6 +227,7 @@ interface UnderDeckApi {
     getPreferences: (defaultTheme: StoredThemeName, defaultBackground: StoredThemeBackground) => Promise<ThemePreferences>;
     setTheme: (theme: StoredThemeName) => Promise<boolean>;
     setBackground: (background: StoredThemeBackground) => Promise<boolean>;
+    setEffectBackgrounds: (backgrounds: ThemeEffectBackgrounds) => Promise<boolean>;
     onDownloadProgress: (listener: (payload: ThemeDownloadProgress) => void) => () => void;
     onPreferencesChanged: (listener: (payload: ThemePreferencesChangedPayload) => void) => () => void;
   };
@@ -650,6 +652,8 @@ const underdeckApi: UnderDeckApi = {
       ipcRenderer.invoke("ThemeSV-SetTheme", theme, "APP_ELECTRON"),
     setBackground: (background) =>
       ipcRenderer.invoke("ThemeSV-SetBackground", background, "APP_ELECTRON"),
+    setEffectBackgrounds: (backgrounds) =>
+      ipcRenderer.invoke("ThemeSV-SetEffectBackgrounds", backgrounds, "APP_ELECTRON"),
     onDownloadProgress: (listener) => {
       const wrapped = (_event: unknown, payload: ThemeDownloadProgress) => listener(payload);
       ipcRenderer.on("ThemeSV-DownloadProgress", wrapped);

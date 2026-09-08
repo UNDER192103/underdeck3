@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/contexts/I18nContext";
+import { Check, X } from "lucide-react";
 
 export interface ModalConfirmProps {
   isOpen: boolean;
@@ -41,11 +42,13 @@ export function ModalConfirm({
 
         {safeContent ? <div className="py-2 text-sm text-muted-foreground">{safeContent}</div> : null}
 
-        <DialogFooter className="gap-2 sm:justify-end">
-          <Button variant="outline" rounded="xl" onClick={() => onResult(false)}>
+        <DialogFooter className="justify-between sm:justify-between">
+          <Button variant="destructive" rounded="xl" onClick={() => onResult(false)}>
+            <X />
             {safeCancel}
           </Button>
-          <Button variant="destructive" rounded="xl" onClick={() => onResult(true)}>
+          <Button rounded="xl" onClick={() => onResult(true)}>
+            <Check />
             {safeConfirm}
           </Button>
         </DialogFooter>

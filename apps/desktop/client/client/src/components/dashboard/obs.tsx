@@ -17,7 +17,25 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { DashboardPager } from "@/components/ui/dashboard-pager";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Mic2, Radio, Video, RefreshCw } from "lucide-react";
+import {
+  Check,
+  Circle,
+  CirclePause,
+  Loader2,
+  Mic2,
+  MonitorPlay,
+  Pause,
+  Play,
+  PlugZap,
+  Radio,
+  RefreshCw,
+  Save,
+  Square,
+  Unplug,
+  Video,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import type { ObsAudioInput, ObsState } from "@/types/electron";
 
 type ObsTab = "scenes" | "audio";
@@ -315,7 +333,7 @@ export default function ObsStudio({
               onClick={() => void loadState()}
               disabled={loading}
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
               {t("common.refresh", "Atualizar")}
             </Button>
             {connected ? (
@@ -326,6 +344,7 @@ export default function ObsStudio({
                 onClick={() => void runObsAction("disconnect", () => window.underdeck.obs.disconnect())}
                 disabled={!!busyMap.disconnect || connecting}
               >
+                {busyMap.disconnect ? <Loader2 className="animate-spin" /> : <Unplug />}
                 {t("obs.disconnect", "Desconectar")}
               </Button>
             ) : (
@@ -335,7 +354,7 @@ export default function ObsStudio({
                 onClick={() => void runObsAction("connect", () => window.underdeck.obs.connect())}
                 disabled={!!busyMap.connect || connecting}
               >
-                {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {connecting || busyMap.connect ? <Loader2 className="animate-spin" /> : <PlugZap />}
                 {t("obs.connect", "Conectar")}
               </Button>
             )}
@@ -409,6 +428,7 @@ export default function ObsStudio({
               onClick={() => void applyManualSettings()}
               disabled={Boolean(settings?.autoDetect) || saving}
             >
+              {saving ? <Loader2 className="animate-spin" /> : <Save />}
               {t("obs.manual.apply", "Alterar conexao manual")}
             </Button>
           </Card>
@@ -417,28 +437,46 @@ export default function ObsStudio({
         <Card className="p-4 grid gap-3 border-border/70 bg-card/70">
           <Label>{t("obs.controls", "Controles de stream e gravacao")}</Label>
           <div className="flex flex-wrap gap-2">
-            <Button rounded="xl" onClick={() => void runObsAction("startStream", () => window.underdeck.obs.startStream())} disabled={!!busyMap.startStream}>
+            <Button
+              rounded="xl"
+              variant={streamActive ? "destructive" : "default"}
+              onClick={() => void runObsAction("startStream", () => window.underdeck.obs.startStream())}
+              disabled={!!busyMap.startStream}
+            >
+              {busyMap.startStream ? <Loader2 className="animate-spin" /> : <Radio />}
               {t("obs.start_stream", "StartStream")}
             </Button>
             <Button rounded="xl" onClick={() => void runObsAction("stopStream", () => window.underdeck.obs.stopStream())} disabled={!!busyMap.stopStream}>
+              {busyMap.stopStream ? <Loader2 className="animate-spin" /> : <Square />}
               {t("obs.stop_stream", "StopStream")}
             </Button>
             <Button rounded="xl" variant="secondary" onClick={() => void runObsAction("toggleStream", () => window.underdeck.obs.toggleStream())} disabled={!!busyMap.toggleStream}>
+              {busyMap.toggleStream ? <Loader2 className="animate-spin" /> : <RefreshCw />}
               {t("obs.toggle_stream", "ToggleStream")}
             </Button>
-            <Button rounded="xl" onClick={() => void runObsAction("startRecord", () => window.underdeck.obs.startRecord())} disabled={!!busyMap.startRecord}>
+            <Button
+              rounded="xl"
+              variant={recordActive ? "destructive" : "default"}
+              onClick={() => void runObsAction("startRecord", () => window.underdeck.obs.startRecord())}
+              disabled={!!busyMap.startRecord}
+            >
+              {busyMap.startRecord ? <Loader2 className="animate-spin" /> : <Circle />}
               {t("obs.start_record", "StartRecord")}
             </Button>
             <Button rounded="xl" onClick={() => void runObsAction("stopRecord", () => window.underdeck.obs.stopRecord())} disabled={!!busyMap.stopRecord}>
+              {busyMap.stopRecord ? <Loader2 className="animate-spin" /> : <Square />}
               {t("obs.stop_record", "StopRecord")}
             </Button>
             <Button rounded="xl" variant="secondary" onClick={() => void runObsAction("toggleRecordPause", () => window.underdeck.obs.toggleRecordPause())} disabled={!!busyMap.toggleRecordPause}>
+              {busyMap.toggleRecordPause ? <Loader2 className="animate-spin" /> : <CirclePause />}
               {t("obs.toggle_record_pause", "ToggleRecordPause")}
             </Button>
             <Button rounded="xl" variant="secondary" onClick={() => void runObsAction("pauseRecord", () => window.underdeck.obs.pauseRecord())} disabled={!!busyMap.pauseRecord}>
+              {busyMap.pauseRecord ? <Loader2 className="animate-spin" /> : <Pause />}
               {t("obs.pause_record", "PauseRecord")}
             </Button>
             <Button rounded="xl" variant="secondary" onClick={() => void runObsAction("resumeRecord", () => window.underdeck.obs.resumeRecord())} disabled={!!busyMap.resumeRecord}>
+              {busyMap.resumeRecord ? <Loader2 className="animate-spin" /> : <Play />}
               {t("obs.resume_record", "ResumeRecord")}
             </Button>
           </div>
@@ -452,6 +490,7 @@ export default function ObsStudio({
               variant={tab === "scenes" ? "primary" : "secondary"}
               onClick={() => setTab("scenes")}
             >
+              <MonitorPlay />
               {t("obs.scenes", "Cenas")} ({obsState?.scenes.length ?? 0})
             </Button>
             <Button
@@ -460,7 +499,7 @@ export default function ObsStudio({
               variant={tab === "audio" ? "primary" : "secondary"}
               onClick={() => setTab("audio")}
             >
-              <Mic2 className="h-4 w-4" />
+              <Mic2 />
               {t("obs.audio", "Entradas/Saidas de audio")} ({obsState?.audioInputs.length ?? 0})
             </Button>
             <div className="ml-auto flex items-center gap-2">
@@ -508,6 +547,7 @@ export default function ObsStudio({
                           onClick={() => void runObsAction(`scene-${scene.sceneName}`, () => window.underdeck.obs.setCurrentScene(scene.sceneName))}
                           disabled={scene.isCurrentProgram || !!busyMap[`scene-${scene.sceneName}`]}
                         >
+                          {busyMap[`scene-${scene.sceneName}`] ? <Loader2 className="animate-spin" /> : scene.isCurrentProgram ? <Check /> : <MonitorPlay />}
                           {scene.isCurrentProgram ? t("obs.current", "Atual") : t("obs.switch_scene", "Trocar")}
                         </Button>
                       </div>
@@ -571,6 +611,7 @@ export default function ObsStudio({
                                   onClick={() => void runObsAction(`audio-toggle-${input.inputName}`, () => window.underdeck.obs.toggleInputMute(input.inputName))}
                                   disabled={!!busyMap[`audio-toggle-${input.inputName}`]}
                                 >
+                                  {busyMap[`audio-toggle-${input.inputName}`] ? <Loader2 className="animate-spin" /> : input.inputMuted ? <VolumeX /> : <Volume2 />}
                                   {t("obs.audio.toggle", "Toggle")}
                                 </Button>
                               </div>

@@ -2,7 +2,6 @@ appId: "com.udr.underdeck"
 productName: "Under Deck"
 copyright: "Copyright (c) 2024 ${author}"
 
-electronVersion: "40.8.0"
 nodeGypRebuild: false
 buildDependenciesFromSource: true
 npmRebuild: false

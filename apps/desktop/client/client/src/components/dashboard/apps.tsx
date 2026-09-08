@@ -499,6 +499,11 @@ export default function Apps() {
                                 <Card
                                     key={category.id}
                                     onClick={() => setActiveCategoryId(category.id)}
+                                    onContextMenu={(event) => {
+                                        event.preventDefault();
+                                        setOpenDropdownAppId(null);
+                                        setOpenDropdownCategoryId(category.id);
+                                    }}
                                     className="cursor-pointer group relative min-h-[220px] overflow-hidden rounded-2xl border border-border/70 bg-card/70 backdrop-blur-sm"
                                 >
                                     {category.icon ? (
@@ -592,6 +597,11 @@ export default function Apps() {
                             <Card
                                 key={app.id}
                                 draggable={!search.trim() && !activeCategoryId}
+                                onContextMenu={(event) => {
+                                    event.preventDefault();
+                                    setOpenDropdownCategoryId(null);
+                                    setOpenDropdownAppId(app.id);
+                                }}
                                 onDragStart={() => setDraggingAppId(app.id)}
                                 onDragOver={(event) => {
                                     if (!draggingAppId || draggingAppId === app.id) return;

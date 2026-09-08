@@ -1,10 +1,15 @@
 import { Loader2 } from "lucide-react";
-import { BackgroundComp, type BackgroundProps } from "../components/ui/background";
+import { BackgroundComp } from "../components/ui/background";
 import { useEffect, useState } from "react";
 import type { UpdateLoadingState } from "../types/electron";
+import launcherBackgroundImage from "../assets/applauncher-background.webp";
 
-const background: BackgroundProps = {
-  variant: "neural",
+// This is a bundled, static image so the launcher remains available before
+// theme preferences, media protocols, or network services are ready.
+const launcherBackground = {
+  variant: "image" as const,
+  imageSrc: launcherBackgroundImage,
+  imageAlt: "Under Deck launcher background",
 };
 
 export default function AppLauncherApp() {
@@ -17,11 +22,13 @@ export default function AppLauncherApp() {
 
   useEffect(() => {
     try {
-      window.underdeck.globalObserver.publish({
-        id: "loading.ready",
-        channel: "app",
-        sourceId: "APP_LOADING",
-      });
+      setTimeout(() => {
+        window.underdeck.globalObserver.publish({
+          id: "loading.ready",
+          channel: "app",
+          sourceId: "APP_LOADING",
+        });
+      }, 1000)
     } catch {
       // ignore
     }
@@ -38,7 +45,7 @@ export default function AppLauncherApp() {
       return;
     }
 
-    let unsubscribe = () => {};
+    let unsubscribe = () => { };
 
     void updatesApi
       .getLoadingState()
@@ -89,7 +96,7 @@ export default function AppLauncherApp() {
     <div
       className="relative h-screen w-screen overflow-hidden text-white select-none [app-region:drag] [-webkit-app-region:drag]"
     >
-      <BackgroundComp {...background} />
+      <BackgroundComp {...launcherBackground} />
       <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-9 w-9 animate-spin text-cyan-300" />
         <p className="w-[80%] max-w-md text-center whitespace-pre-line text-sm tracking-wide text-slate-100">
@@ -100,9 +107,9 @@ export default function AppLauncherApp() {
         ) : null}
         {isDownloading ? (
           <div className="w-72 space-y-2">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-900/70">
+            <div className="h-2 w-full overflow-hidden rounded-full">
               <div
-                className="h-full rounded-full bg-cyan-400 transition-all duration-300"
+                className="h-full rounded-full transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>

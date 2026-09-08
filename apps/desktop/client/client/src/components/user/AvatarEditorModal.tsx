@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/contexts/I18nContext";
-import { Loader2 } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 
 interface AvatarEditorModalProps {
     open: boolean;
@@ -150,7 +150,7 @@ export function AvatarEditorModal({ open, onClose, onSave, currentAvatarUrl, sel
                                 {t("user.image.none_selected", "Nenhuma imagem selecionada.")}
                             </p>
                         </div>
-	                    ) : (
+                    ) : (
                         <>
                             <div className="relative mx-auto h-72 w-72 overflow-hidden rounded-xl border border-border bg-muted">
                                 <Cropper
@@ -199,10 +199,12 @@ export function AvatarEditorModal({ open, onClose, onSave, currentAvatarUrl, sel
                         <Button
                             rounded="xl"
                             type="button"
-                            variant="outline-destructive"
+                            variant="destructive"
                             disabled={saving}
                             className="w-full"
-                            onClick={onClose}>
+                            onClick={onClose}
+                        >
+                            <X className="h-4 w-4" />
                             {t("common.cancel", "Cancelar")}
                         </Button>
                     </div>
@@ -211,12 +213,15 @@ export function AvatarEditorModal({ open, onClose, onSave, currentAvatarUrl, sel
                             rounded="xl"
                             disabled={!selectedFile || saving}
                             className="w-full"
-                            onClick={handleSave}>
+                            onClick={handleSave}
+                        >
                             {saving ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    {t("common.processing", "Processando...")}
-                                </>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Check className="h-4 w-4" />
+                            )}
+                            {saving ? (
+                                t("common.processing", "Processando...")
                             ) : (
                                 t("common.confirm", "Confirmar")
                             )}

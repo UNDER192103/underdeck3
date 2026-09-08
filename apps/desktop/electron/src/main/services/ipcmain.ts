@@ -16,7 +16,7 @@ import { FileDialogService } from "./file-dialog.js";
 import { SaveFileOptions, SelectFileOptions } from "../../types/file-dialog.js";
 import { TranslationService } from "./translations.js";
 import { ThemeService } from "./theme.js";
-import { ThemeDownloadRequest } from "../../types/theme.js";
+import { StoredThemeBackground, ThemeDownloadRequest, ThemeEffectBackgrounds } from "../../types/theme.js";
 import { Settings } from "./settings.js";
 import { SoundPadService } from "./soundpad.js";
 import { ObsService, ObsState } from "./obs.js";
@@ -64,6 +64,7 @@ export class IpcmainService {
     private onUpdateAvailableForHandoff?: () => Promise<void> | void;
     private soundPadSubscriptions = new Map<number, () => void>();
     private obsSubscriptions = new Map<number, () => void>();
+    private windowStateSubscriptions = new Map<number, () => void>();
     private devToolsGuards = new Set<number>();
 
     constructor(
@@ -164,13 +165,15 @@ export class IpcmainService {
         this.soundPadService.on("audios-changed", listener);
         const unsubscribe = () => {
             this.soundPadService.off("audios-changed", listener);
+            event.sender.removeListener("destroyed", onSenderDestroyed);
         };
 
         this.soundPadSubscriptions.set(senderId, unsubscribe);
 
-        event.sender.once("destroyed", () => {
+        const onSenderDestroyed = () => {
             this.unsubscribeSoundPadAudiosChangedBySenderId(senderId);
-        });
+        };
+        event.sender.once("destroyed", onSenderDestroyed);
 
         void listener();
     }
@@ -198,6 +201,13 @@ export class IpcmainService {
         this.obsSubscriptions.delete(senderId);
     }
 
+    private unsubscribeWindowStateChangedBySenderId(senderId: number) {
+        const unsubscribe = this.windowStateSubscriptions.get(senderId);
+        if (!unsubscribe) return;
+        unsubscribe();
+        this.windowStateSubscriptions.delete(senderId);
+    }
+
     private subscribeObsStateChanged(event: Electron.IpcMainEvent) {
         const senderId = event.sender.id;
         this.unsubscribeObsStateChangedBySenderId(senderId);
@@ -213,12 +223,14 @@ export class IpcmainService {
         this.obsService.on("state-changed", listener);
         const unsubscribe = () => {
             this.obsService.off("state-changed", listener);
+            event.sender.removeListener("destroyed", onSenderDestroyed);
         };
         this.obsSubscriptions.set(senderId, unsubscribe);
 
-        event.sender.once("destroyed", () => {
+        const onSenderDestroyed = () => {
             this.unsubscribeObsStateChangedBySenderId(senderId);
-        });
+        };
+        event.sender.once("destroyed", onSenderDestroyed);
 
         void this.obsService.getState().then((state) => {
             if (event.sender.isDestroyed()) return;
@@ -492,6 +504,8 @@ export class IpcmainService {
             const sender = event.sender;
             const win = BrowserWindow.fromWebContents(sender);
             if (!win || win.isDestroyed()) return;
+            const senderId = sender.id;
+            this.unsubscribeWindowStateChangedBySenderId(senderId);
 
             const publish = () => {
                 if (sender.isDestroyed()) return;
@@ -507,10 +521,17 @@ export class IpcmainService {
                 "leave-full-screen",
             ];
 
-            events.forEach((eventName) => (win as any).on(eventName, publish));
-            sender.once("destroyed", () => {
+            const unsubscribe = () => {
                 events.forEach((eventName) => (win as any).removeListener(eventName, publish));
-            });
+                sender.removeListener("destroyed", onSenderDestroyed);
+            };
+            const onSenderDestroyed = () => {
+                this.unsubscribeWindowStateChangedBySenderId(senderId);
+            };
+
+            events.forEach((eventName) => (win as any).on(eventName, publish));
+            this.windowStateSubscriptions.set(senderId, unsubscribe);
+            sender.once("destroyed", onSenderDestroyed);
 
             publish();
         });
@@ -721,7 +742,7 @@ export class IpcmainService {
         ipcMain.handle("ThemeSV-UninstallLocalWallpaper", async () => {
             return this.themeService.uninstallLocalWallpaper();
         });
-        ipcMain.handle("ThemeSV-GetPreferences", async (_event, defaultTheme: "ligth" | "dark" | "black" | "transparent", defaultBackground: { variant: "neural" } | { variant: "image"; imageSrc: string } | { variant: "video"; videoSrc: string }) => {
+        ipcMain.handle("ThemeSV-GetPreferences", async (_event, defaultTheme: "ligth" | "dark" | "black" | "transparent", defaultBackground: StoredThemeBackground) => {
             return this.themeService.getPreferences(defaultTheme, defaultBackground);
         });
         ipcMain.handle("ThemeSV-SetTheme", async (_event, theme: "ligth" | "dark" | "black" | "transparent", sourceId?: string) => {
@@ -729,10 +750,13 @@ export class IpcmainService {
             // Note: notifyThemePreferencesChangedClients is now called via observer subscription
             return result;
         });
-        ipcMain.handle("ThemeSV-SetBackground", async (_event, background: { variant: "neural" } | { variant: "image"; imageSrc: string } | { variant: "video"; videoSrc: string }, sourceId?: string) => {
+        ipcMain.handle("ThemeSV-SetBackground", async (_event, background: StoredThemeBackground, sourceId?: string) => {
             const result = this.themeService.setBackground(background, sourceId);
             // Note: notifyThemePreferencesChangedClients is now called via observer subscription
             return result;
+        });
+        ipcMain.handle("ThemeSV-SetEffectBackgrounds", async (_event, effectBackgrounds: ThemeEffectBackgrounds, sourceId?: string) => {
+            return this.themeService.setEffectBackgrounds(effectBackgrounds, sourceId);
         });
 
         ipcMain.handle("SoundPadSV-GetPath", async () => this.soundPadService.getPath());

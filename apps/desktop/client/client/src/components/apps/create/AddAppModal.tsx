@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ImagePlus, Plus } from "lucide-react";
+import { Check, ImagePlus, Loader, Loader2, MousePointerClick, Plus, RefreshCcw, X } from "lucide-react";
 import { toast } from "sonner";
 import { useUnderDeck } from "@/contexts/UnderDeckContext";
 import { Button } from "@/components/ui/button";
@@ -123,6 +123,7 @@ function getAppTypeDefinitions(
                   setState((prev) => ({ ...prev, executablePath: selectedPath }));
                 }}
               >
+                <MousePointerClick />
                 {t("common.choose", "Escolher")}
               </Button>
             </div>
@@ -222,10 +223,10 @@ function getAppTypeDefinitions(
         const selectedAudio = helpers.soundPadAudios.find((item) => String(item.index) === currentIndexValue);
         const selectedAudioOption = selectedAudio
           ? {
-              value: String(selectedAudio.index),
-              label: `#${selectedAudio.index} ${selectedAudio.name || t("soundpad.unknown", "Sem nome")}`,
-              audio: selectedAudio,
-            }
+            value: String(selectedAudio.index),
+            label: `#${selectedAudio.index} ${selectedAudio.name || t("soundpad.unknown", "Sem nome")}`,
+            audio: selectedAudio,
+          }
           : undefined;
 
         return (
@@ -305,6 +306,7 @@ function getAppTypeDefinitions(
                     onClick={() => void helpers.refreshSoundPadAudios()}
                     disabled={helpers.soundPadAudiosLoading}
                   >
+                    {helpers.soundPadAudiosLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw />}
                     {t("common.refresh", "Atualizar")}
                   </Button>
                 </div>
@@ -711,6 +713,7 @@ export function AddAppModal({
       obsAction: "start",
       obsSceneName: "",
       obsInputName: "",
+      webUrlOpenInApp: false
     };
 
     if (appToEdit.type === 1 && "path" in appToEdit.meta_data) {
@@ -1053,16 +1056,18 @@ export function AddAppModal({
           })}
         </div>
 
-        <DialogFooter className="">
+        <DialogFooter className="justify-between sm:justify-between">
           <Button
-            variant="ghost-destructive"
+            variant="destructive"
             rounded="xl"
             onClick={() => setDialogOpen(false)}
             disabled={saving}
           >
+            <X />
             {t("common.cancel", "Cancelar")}
           </Button>
           <Button rounded="xl" onClick={handleCreate} disabled={saving}>
+            {saving ? <Loader2 className="animate-spin" /> : <Check />}
             {saving ? t("common.saving", "Salvando...") : t("common.save", "Salvar")}
           </Button>
         </DialogFooter>

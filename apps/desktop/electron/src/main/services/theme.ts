@@ -15,6 +15,7 @@ import type {
   ThemeDownloadRequest,
   StoredThemeBackground,
   StoredThemeName,
+  ThemeEffectBackgrounds,
 } from "../../types/theme.js";
 
 const { app: electronApp } = electron;
@@ -242,9 +243,11 @@ export class ThemeService {
   public getPreferences(defaultTheme: StoredThemeName, defaultBackground: StoredThemeBackground): ThemePreferences {
     const savedTheme = this.getPreference<StoredThemeName>("theme");
     const savedBackground = this.getPreference<StoredThemeBackground>("background");
+    const savedEffectBackgrounds = this.getPreference<ThemeEffectBackgrounds>("effect-backgrounds");
     return {
       theme: savedTheme ?? defaultTheme,
       background: savedBackground ?? defaultBackground,
+      effectBackgrounds: savedEffectBackgrounds ?? {},
     };
   }
 
@@ -285,6 +288,16 @@ export class ThemeService {
       sourceId || "THEME_SERVICE"
     );
 
+    return true;
+  }
+
+  public setEffectBackgrounds(effectBackgrounds: ThemeEffectBackgrounds, sourceId?: string) {
+    this.setPreference("effect-backgrounds", effectBackgrounds);
+    observerService.publish(
+      ObserverChannels.THEME_PREFERENCES_CHANGED,
+      { effectBackgrounds },
+      sourceId || "THEME_SERVICE"
+    );
     return true;
   }
 

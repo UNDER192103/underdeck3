@@ -7,6 +7,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Img } from "@/components/ui/img";
 import { useI18n } from "@/contexts/I18nContext";
+import { Pencil, SquarePen } from "lucide-react";
 
 interface ProfilePreviewCardProps {
     user: AppUser | FriendUser;
@@ -158,6 +159,7 @@ export function ProfilePreviewCard({
                             className="w-full mt-2"
                             rounded="lg"
                             onClick={onEditProfileClick}>
+                            <SquarePen className="h-4 w-4" />
                             {t("user.profile.edit", "Editar perfil")}
                         </Button>
                     )}

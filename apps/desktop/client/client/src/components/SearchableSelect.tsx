@@ -18,6 +18,14 @@ import {
 } from "@/components/ui/popover"
 import { useI18n } from "@/contexts/I18nContext"
 
+export function normalizeSelectSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .trim();
+}
+
 export interface SearchableSelectOption {
   value: string;
   label: string;

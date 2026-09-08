@@ -41,7 +41,11 @@ const getAttachmentInfo = async (
     }
 
     if (!contentType) return null;
-    return { contentType, contentLength, filename };
+    return {
+      contentType: String(contentType),
+      contentLength: contentLength == null ? "" : String(contentLength),
+      filename,
+    };
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 405) {
       toast.warning(t('attachments.head_not_supported', 'O servidor não suporta verificação HEAD. A validação do anexo sera limitada.'));

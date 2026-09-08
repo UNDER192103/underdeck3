@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ImagePlus, Plus } from "lucide-react";
+import { Check, ImagePlus, Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/contexts/I18nContext";
 import { useUnderDeck } from "@/contexts/UnderDeckContext";
@@ -240,16 +240,18 @@ export function CreateCategoryModal({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="justify-between sm:justify-between">
           <Button
             variant="ghost-destructive"
             rounded="xl"
             onClick={() => setDialogOpen(false)}
             disabled={saving}
           >
+            <X />
             {t("common.cancel", "Cancelar")}
           </Button>
           <Button rounded="xl" onClick={handleCreate} disabled={saving}>
+            {saving ? <Loader2 className="animate-spin" /> : <Check />}
             {saving ? t("common.saving", "Salvando...") : t("common.save", "Salvar")}
           </Button>
         </DialogFooter>

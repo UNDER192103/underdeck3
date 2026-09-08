@@ -124,19 +124,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
     return (
       <Tooltip delayDuration={100}>
         <TooltipTrigger asChild>
-          <div
-            className={`group relative rounded border border-sidebar-border transition-colors`}
+          <Button
+            onClick={onClick}
+            variant={focusing ? "default" : "ghost"}
+            size={buttonSize || "sm"}
+            className={`w-full text-left px-3 py-2 h-9 text-xs font-medium text-sidebar-foreground truncate flex items-center gap-2 ${buttonClassName || ""}`}
           >
-            <Button
-              onClick={onClick}
-              variant={focusing ? "default" : "ghost"}
-              size={buttonSize || "sm"}
-              className={`w-full text-left px-3 py-2 h-9 text-xs font-medium text-sidebar-foreground truncate flex items-center gap-2 ${buttonClassName || ""}`}
-            >
-              {icon || ""}{" "}
-              {!isCollapsed && <span className="truncate flex-1">{title}</span>}
-            </Button>
-          </div>
+            {icon || ""}{" "}
+            {!isCollapsed && <span className="truncate flex-1">{title}</span>}
+          </Button>
         </TooltipTrigger>
         {(description || isCollapsed) && (
           <TooltipContent side="right" sideOffset={5}>
@@ -298,14 +294,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
                   </DropdownUpContent>
                 </DropdownUp>
               )
-            ) : (
+            ) : !isCollapsed ?(
               <div className="w-full h-full">
                 <Button
                   onClick={modalLogin}
                   variant="outline"
                   size="sm"
                   rounded="xl"
-                  className={`w-full h-full`}
+                  className="w-full h-full text-sidebar-foreground"
                 >
                   <LogIn size={16} />{" "}
                   <div className="flex items-center gap-2">
@@ -314,12 +310,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
                   </div>
                 </Button>
               </div>
-            )}
+            ) : ""}
             <Button
               onClick={() => setShowSettingsModal(true)}
               variant="outline"
               size="icon"
               rounded="full"
+              className="text-sidebar-foreground"
             >
               <Settings size={26} />
             </Button>

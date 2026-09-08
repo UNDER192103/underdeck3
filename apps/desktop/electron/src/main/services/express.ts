@@ -15,6 +15,7 @@ import { Settings } from "./settings.js";
 import { logsService } from "./logs.js";
 import { getDb } from "./database.js";
 import { observerService, ObserverChannels, ObserverEventDataMap } from "./observer.js";
+import type { StoredThemeBackground } from "../../types/theme.js";
 
 const { app: electronApp } = electron;
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -117,10 +118,14 @@ export class ExpressServer {
       // Sempre permite qualquer origem (localhost, IPs locais, etc)
       res.header("Access-Control-Allow-Origin", requestOrigin || "*");
       res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-      res.header(
-        "Access-Control-Allow-Headers",
-        String(req.headers["access-control-request-headers"] || "Content-Type, Authorization")
-      );
+      const requestedHeaders = String(req.headers["access-control-request-headers"] || "").trim();
+      const allowedHeaders = new Set([
+        "Content-Type",
+        "Authorization",
+        "X-Socket-Id",
+        ...requestedHeaders.split(",").map((header) => header.trim()).filter(Boolean),
+      ]);
+      res.header("Access-Control-Allow-Headers", Array.from(allowedHeaders).join(", "));
       // Sempre permite credentials para suportar cookies/sessões
       res.header("Access-Control-Allow-Credentials", "true");
       if (requestOrigin) {
@@ -283,15 +288,15 @@ export class ExpressServer {
       const background = (() => {
         if (!backgroundRow?.value) return defaults.background;
         try {
-          const parsed = JSON.parse(backgroundRow.value) as
-            | { variant?: "neural" }
-            | { variant?: "image"; imageSrc?: string }
-            | { variant?: "video"; videoSrc?: string };
+          const parsed = JSON.parse(backgroundRow.value) as StoredThemeBackground;
           if (parsed?.variant === "image" && parsed.imageSrc) {
             return { variant: "image", imageSrc: this.mediaUrlToHttpUrl(parsed.imageSrc) ?? parsed.imageSrc };
           }
           if (parsed?.variant === "video" && parsed.videoSrc) {
             return { variant: "video", videoSrc: this.mediaUrlToHttpUrl(parsed.videoSrc) ?? parsed.videoSrc };
+          }
+          if (parsed?.variant === "neural" || parsed?.variant === "nebula" || parsed?.variant === "particles" || parsed?.variant === "color") {
+            return parsed;
           }
           return defaults.background;
         } catch {

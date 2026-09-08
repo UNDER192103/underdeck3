@@ -1,0 +1,44 @@
+{
+  "name": "underdeck3",
+  "version": "3.2.0",
+  "description": "Under Deck workspace",
+  "productName": "Under Deck",
+  "type": "module",
+  "author": "Under Nouzen",
+  "license": "MIT",
+  "underdeck3": {
+    "github": {
+      "owner": "UNDER192103",
+      "repo": "underdeck3"
+    }
+  },
+  "scripts": {
+    "install:all": "pnpm install",
+    "bootstrap": "pnpm install && pnpm run build:all",
+    "generate:structure": "npx tree-node-cli > readmes/STRUCTURE.md",
+    "test:velopack:feed": "node scripts/test-velopack-feed.mjs",
+    "hasupdate": "pnpm up -r -i -L",
+    "build:all": "pnpm run build:desktop && pnpm run build:remote",
+    "build:desktop": "pnpm run build:desktop:client && pnpm run build:desktop:electron",
+    "build:desktop:client": "pnpm --filter underdeck-desktop-client run build",
+    "build:desktop:electron": "pnpm --filter underdeck run compile",
+    "build:remote": "pnpm --filter underdeck-remote run build",
+    "check:all": "pnpm -r --if-present run check",
+    "format:all": "pnpm -r --if-present run format",
+    "dev:all": "concurrently -n client,remote,server,electron -c auto \"pnpm run dev:desktop:client\" \"pnpm run dev:remote\" \"pnpm run dev:remote:server\" \"pnpm run dev:desktop:electron\"",
+    "start:all": "pnpm run dev:all",
+    "dev:desktop": "concurrently -n client,electron -c auto \"pnpm run dev:desktop:client\" \"pnpm run dev:desktop:electron\"",
+    "dev:desktop:client": "pnpm --filter underdeck-desktop-client run dev",
+    "dev:desktop:electron": "pnpm --filter underdeck run nodemon",
+    "dev:remote": "pnpm --filter underdeck-remote run dev",
+    "dev:remote:server": "pnpm --filter underdeck-remote run server",
+    "velopack": "pnpm --filter underdeck run dist",
+    "velopack:prod": "pnpm --filter underdeck run dist:prod",
+    "velopack:local": "pnpm --filter underdeck run dist:local",
+    "velopack:local:test": "pnpm --filter underdeck run dist:local:test"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.4"
+  },
+  "packageManager": "pnpm@12.3.4"
+}

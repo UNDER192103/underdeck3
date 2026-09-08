@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
-import { UpdateInfo, UpdateManager } from "velopack";
+import { GithubSource, HttpSource, UpdateInfo, UpdateManager } from "velopack";
 import { NotificationService } from "./notifications.js";
 import { Settings } from "./settings.js";
 import { TranslationService } from "./translations.js";
@@ -57,6 +57,8 @@ export type RestartRequiredPayload = {
 };
 
 const TOTAL_UPDATE_STEPS = 5;
+const UPDATE_CHECK_TIMEOUT_MS = 12_000;
+const INITIAL_CHECK_MIN_VISIBLE_MS = 350;
 
 const DEFAULT_LOADING_STATE: LoadingState = {
   phase: "checking",
@@ -93,6 +95,23 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 function readPackageMetadata() {
   try {
     const packagePath = app.isPackaged
@@ -110,6 +129,21 @@ function readPackageMetadata() {
   } catch {
     return {};
   }
+}
+
+function describeError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause instanceof Error
+        ? { name: error.cause.name, message: error.cause.message }
+        : error.cause ?? null,
+    };
+  }
+
+  return error;
 }
 
 export class UpdaterService extends EventEmitter {
@@ -191,15 +225,15 @@ export class UpdaterService extends EventEmitter {
     this.emit("debug-log", {
       level: "error",
       message,
-      data: error,
+      data: describeError(error),
       timestamp: Date.now(),
     } as UpdateDebugLog);
     console.error(`[updates] ${message}:`, error);
   }
 
-  private getGithubFeedUrl() {
+  private getUpdateSource() {
     const explicit = String(process.env.VELOPACK_FEED_URL || "").trim().replace(/\/+$/, "");
-    if (explicit) return explicit;
+    if (explicit) return new HttpSource(explicit);
 
     const packageMetadata = readPackageMetadata();
     const owner = String(
@@ -212,8 +246,12 @@ export class UpdaterService extends EventEmitter {
       || packageMetadata?.underdeck?.github?.repo
       || ""
     ).trim();
-    if (!owner || !repo) return "";
-    return `https://github.com/${owner}/${repo}/releases/latest/download`;
+    if (!owner || !repo) return null;
+
+    // A GitHub URL passed as a plain string is auto-detected by the Velopack
+    // SDK as a GithubSource. Supply the repository URL explicitly instead of
+    // the `/releases/latest/download` asset route, which is not a repository.
+    return new GithubSource(`https://github.com/${owner}/${repo}`);
   }
 
   private getReleaseDate(update: UpdateInfo | null) {
@@ -236,17 +274,31 @@ export class UpdaterService extends EventEmitter {
       return;
     }
 
-    const feedUrl = this.getGithubFeedUrl();
-    if (!feedUrl) {
+    const updateSource = this.getUpdateSource();
+    if (!updateSource) {
       this.logDev("initialize:skipped", { reason: "missing-feed-url" });
       return;
     }
 
-    this.updateManager = new UpdateManager(feedUrl, {
-      AllowVersionDowngrade: false,
-      MaximumDeltasBeforeFallback: 10,
-    });
-    this.logDev("initialize:ready", { provider: "velopack", feedUrl });
+    try {
+      this.updateManager = new UpdateManager(updateSource, {
+        AllowVersionDowngrade: false,
+        MaximumDeltasBeforeFallback: 10,
+      });
+      this.logDev("initialize:ready", {
+        provider: "velopack",
+        source: updateSource instanceof GithubSource ? "github" : "http",
+      });
+    } catch (error) {
+      // O executável em build/win-unpacked é um artefato do electron-builder,
+      // não uma instalação Velopack. Nessa situação não existe manifesto
+      // para o UpdateManager localizar, então o aplicativo deve iniciar sem updates.
+      this.updateManager = null;
+      this.logDev("initialize:skipped", {
+        reason: "velopack-manifest-not-found",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   public getState() {
@@ -284,6 +336,7 @@ export class UpdaterService extends EventEmitter {
   private async checkForUpdatesCore(options: { installIfFound: boolean }) {
     this.initialize();
     this.shouldInstallOnDownloaded = Boolean(options.installIfFound);
+    const initialCheckStartedAt = Date.now();
 
     this.updateState({
       checking: true,
@@ -311,6 +364,13 @@ export class UpdaterService extends EventEmitter {
     });
 
     if (!this.updateManager) {
+      // In development there is no Velopack feed. Keep the real first step on
+      // screen briefly instead of replacing it with step 5 in the same frame.
+      const remainingVisibleTime = Math.max(
+        0,
+        INITIAL_CHECK_MIN_VISIBLE_MS - (Date.now() - initialCheckStartedAt),
+      );
+      if (remainingVisibleTime > 0) await delay(remainingVisibleTime);
       this.updateState({ checking: false, updateAvailable: false });
       this.setLoadingState({
         phase: "loading-app",
@@ -323,7 +383,11 @@ export class UpdaterService extends EventEmitter {
     }
 
     try {
-      const update = await this.updateManager.checkForUpdatesAsync();
+      const update = await withTimeout(
+        this.updateManager.checkForUpdatesAsync(),
+        UPDATE_CHECK_TIMEOUT_MS,
+        `Update check timed out after ${UPDATE_CHECK_TIMEOUT_MS / 1000} seconds.`,
+      );
       this.availableUpdate = update;
       const availableVersion = normalizeVersion(update?.TargetFullRelease?.Version || "");
       const totalBytes = Number(update?.TargetFullRelease?.Size || 0);
@@ -531,7 +595,7 @@ export class UpdaterService extends EventEmitter {
         detail: this.translationService.t("updates.loading.restarting", "Restarting to apply update"),
       });
 
-      this.updateManager.waitExitThenApplyUpdate(update, true, true);
+      this.updateManager.waitExitThenApplyUpdate(update, false, true);
       this.emit("restart-required", {
         version: version || null,
       } as RestartRequiredPayload);

@@ -8,7 +8,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { cva, type VariantProps } from "class-variance-authority";
 
 const inputVariants = cva(
-  "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input w-full min-w-0 rounded-xl border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-full file:items-center file:border-0 file:bg-transparent file:px-3 file:py-0 file:text-inherit file:font-medium file:leading-[inherit] file:mr-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 w-full min-w-0 border border-border/70 bg-transparent px-3 py-1 text-base shadow-xs transition-[border-color,color,box-shadow] outline-none file:inline-flex file:h-full file:items-center file:border-0 file:bg-transparent file:px-3 file:py-0 file:text-inherit file:font-medium file:leading-[inherit] file:mr-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm hover:border-border focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
     variants: {
       size: {
@@ -18,7 +18,7 @@ const inputVariants = cva(
         xl: "h-12"
       },
       rounded: {
-        default: "rounded-md",
+        default: "rounded-lg",
         md: "rounded-md",
         sm: "rounded-sm",
         lg: "rounded-lg",
@@ -174,7 +174,7 @@ function InputPassword({
 
   return (
     <div className="relative">
-      <input
+      <Input
         data-slot="input"
         className={
           cn(inputVariants({ size, rounded, className }))

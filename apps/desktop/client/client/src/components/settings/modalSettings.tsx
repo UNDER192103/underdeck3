@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useUser } from "@/contexts/UserContext";
-import { Loader2, LogIn, LogOut, Pencil, Layers2, Trash2, Languages, Palette, Music2, Radio, Download, SlidersHorizontal, FolderOpen } from "lucide-react";
+import { Loader2, LogIn, LogOut, Pencil, Layers2, Trash2, Languages, Palette, Music2, Radio, Download, SlidersHorizontal, FolderOpen, Import, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Img } from "@/components/ui/img";
 import { ModalConfirm, ModalConfirmProps } from "@/components/ModalConfirm";
@@ -430,7 +430,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
       toast.error(t("settings.logs.clear_category_error"));
     }
   };
-  
+
   const handleWebPagesSettings = async (patch: Partial<typeof webPagesSettings>) => {
     const previous = webPagesSettings;
     const nextLocal = { ...webPagesSettings, ...patch };
@@ -447,7 +447,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
       toast.error(t("settings.advanced.save_error", "Falha ao salvar configuracao."));
     }
   };
-  
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -607,9 +607,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         {locales.map((option) => (
                           <SelectItem rounded="lg" key={option.locale} value={option.locale}>
                             {option.name}
-                            {option.source === "builtin"
-                              ? "" /*t("settings.language.source.builtin", "Interno")*/
-                              : ` (${t("settings.language.source.external", "Importado")})`}
+                            {option.source === "builtin" ? "" /*t("settings.language.source.builtin", "Interno")*/ : ` (${t("settings.language.source.external", "Importado")})`}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -643,7 +641,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                       }}
                       disabled={isImportingLocale}
                     >
-                      {isImportingLocale ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {isImportingLocale ? <Loader2 className="animate-spin" /> : <Import />}
                       {t("settings.language.import", "Importar idioma")}
                     </Button>
                   </div>
@@ -747,10 +745,10 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           onClick={() => {
                             void handleCaptureOverlayKeys();
                           }}
+                          className={isCapturingOverlayKeys ? "animate-pulse text-red-500" : undefined}
                         >
-                          {isCapturingOverlayKeys
-                            ? t("shortcuts.capture.recording", "Gravando...")
-                            : t("shortcuts.capture.button", "Capturar")}
+                          {isCapturingOverlayKeys ? <Loader2 className="animate-spin text-red-500" /> : <Search />}
+                          {isCapturingOverlayKeys ? t("shortcuts.capture.recording", "Gravando...") : t("shortcuts.capture.button", "Capturar")}
                         </Button>
                       </div>
                     </div>
@@ -775,11 +773,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         <TooltipTrigger asChild>
                           <span className="inline-flex">
                             <Switch
-                            id="advanced-service-obs"
-                            checked={obsStartOnStartup}
-                            onCheckedChange={(checked) => {
-                              void handleObsService(Boolean(checked));
-                            }}
+                              id="advanced-service-obs"
+                              checked={obsStartOnStartup}
+                              onCheckedChange={(checked) => {
+                                void handleObsService(Boolean(checked));
+                              }}
                             />
                           </span>
                         </TooltipTrigger>
@@ -800,11 +798,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         <TooltipTrigger asChild>
                           <span className="inline-flex">
                             <Switch
-                            id="advanced-service-shortcuts"
-                            checked={isShortcutsEnabled}
-                            onCheckedChange={(checked) => {
-                              void handleShortcutsService(Boolean(checked));
-                            }}
+                              id="advanced-service-shortcuts"
+                              checked={isShortcutsEnabled}
+                              onCheckedChange={(checked) => {
+                                void handleShortcutsService(Boolean(checked));
+                              }}
                             />
                           </span>
                         </TooltipTrigger>
@@ -825,11 +823,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         <TooltipTrigger asChild>
                           <span className="inline-flex">
                             <Switch
-                            id="advanced-service-overlay"
-                            checked={overlayEnabled}
-                            onCheckedChange={(checked) => {
-                              void handleOverlayEnabled(Boolean(checked));
-                            }}
+                              id="advanced-service-overlay"
+                              checked={overlayEnabled}
+                              onCheckedChange={(checked) => {
+                                void handleOverlayEnabled(Boolean(checked));
+                              }}
                             />
                           </span>
                         </TooltipTrigger>
@@ -884,11 +882,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         <TooltipTrigger asChild>
                           <span className="inline-flex">
                             <Switch
-                            id="advanced-start-minimized"
-                            checked={electronSettings.startMinimized}
-                            onCheckedChange={(checked) => {
-                              void handleElectronSettings({ startMinimized: Boolean(checked) });
-                            }}
+                              id="advanced-start-minimized"
+                              checked={electronSettings.startMinimized}
+                              onCheckedChange={(checked) => {
+                                void handleElectronSettings({ startMinimized: Boolean(checked) });
+                              }}
                             />
                           </span>
                         </TooltipTrigger>
@@ -904,11 +902,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         <TooltipTrigger asChild>
                           <span className="inline-flex">
                             <Switch
-                            id="advanced-close-to-tray"
-                            checked={electronSettings.closeToTray}
-                            onCheckedChange={(checked) => {
-                              void handleElectronSettings({ closeToTray: Boolean(checked) });
-                            }}
+                              id="advanced-close-to-tray"
+                              checked={electronSettings.closeToTray}
+                              onCheckedChange={(checked) => {
+                                void handleElectronSettings({ closeToTray: Boolean(checked) });
+                              }}
                             />
                           </span>
                         </TooltipTrigger>
@@ -924,11 +922,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         <TooltipTrigger asChild>
                           <span className="inline-flex">
                             <Switch
-                            id="advanced-devtools"
-                            checked={electronSettings.devTools}
-                            onCheckedChange={(checked) => {
-                              void handleElectronSettings({ devTools: Boolean(checked) });
-                            }}
+                              id="advanced-devtools"
+                              checked={electronSettings.devTools}
+                              onCheckedChange={(checked) => {
+                                void handleElectronSettings({ devTools: Boolean(checked) });
+                              }}
                             />
                           </span>
                         </TooltipTrigger>
@@ -946,11 +944,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         <TooltipTrigger asChild>
                           <span className="inline-flex">
                             <Switch
-                            id="advanced-open-links-browser"
-                            checked={electronSettings.openLinksInBrowser}
-                            onCheckedChange={(checked) => {
-                              void handleElectronSettings({ openLinksInBrowser: Boolean(checked) });
-                            }}
+                              id="advanced-open-links-browser"
+                              checked={electronSettings.openLinksInBrowser}
+                              onCheckedChange={(checked) => {
+                                void handleElectronSettings({ openLinksInBrowser: Boolean(checked) });
+                              }}
                             />
                           </span>
                         </TooltipTrigger>
@@ -969,11 +967,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         <TooltipTrigger asChild>
                           <span className="inline-flex">
                             <Switch
-                            id="advanced-auto-start"
-                            checked={windowsSettings.autoStart}
-                            onCheckedChange={(checked) => {
-                              void handleWindowsSettings({ autoStart: Boolean(checked) });
-                            }}
+                              id="advanced-auto-start"
+                              checked={windowsSettings.autoStart}
+                              onCheckedChange={(checked) => {
+                                void handleWindowsSettings({ autoStart: Boolean(checked) });
+                              }}
                             />
                           </span>
                         </TooltipTrigger>
@@ -989,11 +987,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         <TooltipTrigger asChild>
                           <span className="inline-flex">
                             <Switch
-                            id="advanced-enable-notifications"
-                            checked={windowsSettings.enableNotifications}
-                            onCheckedChange={(checked) => {
-                              void handleWindowsSettings({ enableNotifications: Boolean(checked) });
-                            }}
+                              id="advanced-enable-notifications"
+                              checked={windowsSettings.enableNotifications}
+                              onCheckedChange={(checked) => {
+                                void handleWindowsSettings({ enableNotifications: Boolean(checked) });
+                              }}
                             />
                           </span>
                         </TooltipTrigger>
@@ -1009,11 +1007,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                         <TooltipTrigger asChild>
                           <span className="inline-flex">
                             <Switch
-                            id="advanced-auto-download-updates"
-                            checked={updatesAutoDownload}
-                            onCheckedChange={(checked) => {
-                              void handleUpdatesAutoDownload(Boolean(checked));
-                            }}
+                              id="advanced-auto-download-updates"
+                              checked={updatesAutoDownload}
+                              onCheckedChange={(checked) => {
+                                void handleUpdatesAutoDownload(Boolean(checked));
+                              }}
                             />
                           </span>
                         </TooltipTrigger>
@@ -1057,11 +1055,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           <TooltipTrigger asChild>
                             <span className="inline-flex">
                               <Switch
-                              id="advanced-logs-enabled"
-                              checked={logsSettings.enabled}
-                              onCheckedChange={(checked) => {
-                                void handleLogsSettings({ enabled: Boolean(checked) });
-                              }}
+                                id="advanced-logs-enabled"
+                                checked={logsSettings.enabled}
+                                onCheckedChange={(checked) => {
+                                  void handleLogsSettings({ enabled: Boolean(checked) });
+                                }}
                               />
                             </span>
                           </TooltipTrigger>
@@ -1112,11 +1110,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           <TooltipTrigger asChild>
                             <span className="inline-flex">
                               <Switch
-                              id="advanced-logs-shortcuts"
-                              checked={logsSettings.shortcuts}
-                              onCheckedChange={(checked) => {
-                                void handleLogsSettings({ shortcuts: Boolean(checked) });
-                              }}
+                                id="advanced-logs-shortcuts"
+                                checked={logsSettings.shortcuts}
+                                onCheckedChange={(checked) => {
+                                  void handleLogsSettings({ shortcuts: Boolean(checked) });
+                                }}
                               />
                             </span>
                           </TooltipTrigger>
@@ -1167,11 +1165,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           <TooltipTrigger asChild>
                             <span className="inline-flex">
                               <Switch
-                              id="advanced-logs-obs"
-                              checked={logsSettings.obs}
-                              onCheckedChange={(checked) => {
-                                void handleLogsSettings({ obs: Boolean(checked) });
-                              }}
+                                id="advanced-logs-obs"
+                                checked={logsSettings.obs}
+                                onCheckedChange={(checked) => {
+                                  void handleLogsSettings({ obs: Boolean(checked) });
+                                }}
                               />
                             </span>
                           </TooltipTrigger>
@@ -1222,11 +1220,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           <TooltipTrigger asChild>
                             <span className="inline-flex">
                               <Switch
-                              id="advanced-logs-soundpad"
-                              checked={logsSettings.soundpad}
-                              onCheckedChange={(checked) => {
-                                void handleLogsSettings({ soundpad: Boolean(checked) });
-                              }}
+                                id="advanced-logs-soundpad"
+                                checked={logsSettings.soundpad}
+                                onCheckedChange={(checked) => {
+                                  void handleLogsSettings({ soundpad: Boolean(checked) });
+                                }}
                               />
                             </span>
                           </TooltipTrigger>
@@ -1277,20 +1275,20 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           <TooltipTrigger asChild>
                             <span className="inline-flex">
                               <Switch
-                              id="advanced-logs-webdeck"
-                              checked={logsSettings.webdeck}
-                              onCheckedChange={(checked) => {
-                                void handleLogsSettings({ webdeck: Boolean(checked) });
-                              }}
+                                id="advanced-logs-webdeck"
+                                checked={logsSettings.webdeck}
+                                onCheckedChange={(checked) => {
+                                  void handleLogsSettings({ webdeck: Boolean(checked) });
+                                }}
                               />
                             </span>
                           </TooltipTrigger>
-                        <TooltipContent>
-                          {t("settings.logs.enable_category_tooltip")}
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </div>)}
+                          <TooltipContent>
+                            {t("settings.logs.enable_category_tooltip")}
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>)}
 
                     {logsSettings.enabled && (<div className="flex items-center justify-between gap-3">
                       <Label htmlFor="advanced-logs-webpages">{t("settings.logs.webpages", "Paginas Webs")}</Label>
@@ -1332,11 +1330,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           <TooltipTrigger asChild>
                             <span className="inline-flex">
                               <Switch
-                              id="advanced-logs-webpages"
-                              checked={logsSettings.webpages}
-                              onCheckedChange={(checked) => {
-                                void handleLogsSettings({ webpages: Boolean(checked) });
-                              }}
+                                id="advanced-logs-webpages"
+                                checked={logsSettings.webpages}
+                                onCheckedChange={(checked) => {
+                                  void handleLogsSettings({ webpages: Boolean(checked) });
+                                }}
                               />
                             </span>
                           </TooltipTrigger>
@@ -1387,11 +1385,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           <TooltipTrigger asChild>
                             <span className="inline-flex">
                               <Switch
-                              id="advanced-logs-socket"
-                              checked={logsSettings.socket}
-                              onCheckedChange={(checked) => {
-                                void handleLogsSettings({ socket: Boolean(checked) });
-                              }}
+                                id="advanced-logs-socket"
+                                checked={logsSettings.socket}
+                                onCheckedChange={(checked) => {
+                                  void handleLogsSettings({ socket: Boolean(checked) });
+                                }}
                               />
                             </span>
                           </TooltipTrigger>
@@ -1442,11 +1440,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           <TooltipTrigger asChild>
                             <span className="inline-flex">
                               <Switch
-                              id="advanced-logs-updates"
-                              checked={logsSettings.updates}
-                              onCheckedChange={(checked) => {
-                                void handleLogsSettings({ updates: Boolean(checked) });
-                              }}
+                                id="advanced-logs-updates"
+                                checked={logsSettings.updates}
+                                onCheckedChange={(checked) => {
+                                  void handleLogsSettings({ updates: Boolean(checked) });
+                                }}
                               />
                             </span>
                           </TooltipTrigger>
@@ -1497,11 +1495,11 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                           <TooltipTrigger asChild>
                             <span className="inline-flex">
                               <Switch
-                              id="advanced-logs-app"
-                              checked={logsSettings.app}
-                              onCheckedChange={(checked) => {
-                                void handleLogsSettings({ app: Boolean(checked) });
-                              }}
+                                id="advanced-logs-app"
+                                checked={logsSettings.app}
+                                onCheckedChange={(checked) => {
+                                  void handleLogsSettings({ app: Boolean(checked) });
+                                }}
                               />
                             </span>
                           </TooltipTrigger>

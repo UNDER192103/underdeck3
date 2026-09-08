@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/contexts/I18nContext";
-import { Loader2 } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 
 interface BannerEditorModalProps {
     open: boolean;
@@ -147,7 +147,7 @@ export function BannerEditorModal({ open, onClose, onSave, currentBannerUrl, sel
                                 </div>
                             )}
                         </div>
-                     ) : (
+                    ) : (
                         <div className="relative h-72 w-full overflow-hidden rounded-xl border border-border bg-muted">
                             <Cropper
                                 image={previewUrl}
@@ -198,10 +198,12 @@ export function BannerEditorModal({ open, onClose, onSave, currentBannerUrl, sel
                         <Button
                             rounded="xl"
                             type="button"
-                            variant="outline-destructive"
+                            variant="destructive"
                             disabled={saving}
                             className="w-full"
-                            onClick={onClose}>
+                            onClick={onClose}
+                        >
+                            <X className="h-4 w-4" />
                             {t("common.cancel", "Cancelar")}
                         </Button>
                     </div>
@@ -213,10 +215,12 @@ export function BannerEditorModal({ open, onClose, onSave, currentBannerUrl, sel
                             className="w-full"
                             onClick={handleSave}>
                             {saving ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    {t("common.processing", "Processando...")}
-                                </>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Check className="h-4 w-4" />
+                            )}
+                            {saving ? (
+                                t("common.processing", "Processando...")
                             ) : (
                                 t("common.confirm", "Confirmar")
                             )}

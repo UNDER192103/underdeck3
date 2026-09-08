@@ -338,6 +338,8 @@ const underdeckApi = {
       ipcRenderer.invoke("ThemeSV-SetTheme", theme, "APP_ELECTRON"),
     setBackground: (background) =>
       ipcRenderer.invoke("ThemeSV-SetBackground", background, "APP_ELECTRON"),
+    setEffectBackgrounds: (backgrounds) =>
+      ipcRenderer.invoke("ThemeSV-SetEffectBackgrounds", backgrounds, "APP_ELECTRON"),
     onDownloadProgress: (listener) => {
       const wrapped = (_event, payload) => listener(payload);
       ipcRenderer.on("ThemeSV-DownloadProgress", wrapped);

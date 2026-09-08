@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/contexts/I18nContext";
@@ -8,13 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Check, Copy, Plus, QrCode, RefreshCw, UserX, X } from "lucide-react";
+import { Cable, Check, Copy, ExternalLink, MapPin, Pencil, Plus, QrCode, RefreshCw, Save, Search, Send, Trash2, Users, UserX, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { WebDeckGrid } from "@/components/webdeck/WebDeckGrid";
-import { BackgroundComp } from "@/components/ui/background";
-import { useTheme } from "@/contexts/ThemeContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUser } from "@/contexts/UserContext";
 import { useSocket } from "@/contexts/SocketContext";
@@ -1330,6 +1328,10 @@ export default function WebDeck({
                   setOpenDropdownSlot(null);
                   setMovingFromIndex(index);
                 }}
+                onCancelMove={() => {
+                  setOpenDropdownSlot(null);
+                  setMovingFromIndex(null);
+                }}
                 onRemoveItem={(index, item) => {
                   if (isCurrentAutoPage) return;
                   if (item.type === "back" && backItemsCount <= 1) return;
@@ -1376,6 +1378,7 @@ export default function WebDeck({
                   onClick={() => void applyExpressState(expressEnabled)}
                   disabled={expressBusy}
                 >
+                  <Check />
                   {t("common.apply", "Aplicar")}
                 </Button>
                 <Button
@@ -1384,6 +1387,7 @@ export default function WebDeck({
                   onClick={() => void openAccessInfo()}
                   disabled={expressBusy}
                 >
+                  <ExternalLink />
                   {t("webdeck.express.open", "Abrir")}
                 </Button>
               </div>
@@ -1420,11 +1424,11 @@ export default function WebDeck({
               <div className="flex items-center gap-2">
                 <Input rounded="xl" value={gridCols} onChange={(e) => setGridCols(e.target.value)} disabled={isCurrentAutoPage} />
                 <Input rounded="xl" value={gridRows} onChange={(e) => setGridRows(e.target.value)} disabled={isCurrentAutoPage} />
-                <Button rounded="xl" onClick={() => void applyGrid()} disabled={isCurrentAutoPage}>{t("common.apply", "Aplicar")}</Button>
+                <Button rounded="xl" onClick={() => void applyGrid()} disabled={isCurrentAutoPage}><Check /> {t("common.apply", "Aplicar")}</Button>
               </div>
               <div className="flex items-center gap-2">
-                <Button rounded="xl" variant="outline-primary" onClick={() => { if (!currentPage) return; setEditPageName(currentPage.name); setEditPageIcon(currentPage.icon ?? ""); setEditPageOpen(true); }}>{t("common.edit", "Editar")}</Button>
-                <Button rounded="xl" variant="outline-destructive" onClick={() => void deleteCurrentPage()} disabled={!currentPage || isCurrentAutoPage}>{t("common.delete", "Deletar")}</Button>
+                <Button rounded="xl" variant="primary" onClick={() => { if (!currentPage) return; setEditPageName(currentPage.name); setEditPageIcon(currentPage.icon ?? ""); setEditPageOpen(true); }}><Pencil /> {t("common.edit", "Editar")}</Button>
+                <Button rounded="xl" variant="destructive" onClick={() => void deleteCurrentPage()} disabled={!currentPage || isCurrentAutoPage}><Trash2 /> {t("common.delete", "Deletar")}</Button>
               </div>
             </div>
           </Card>
@@ -1440,13 +1444,13 @@ export default function WebDeck({
             <Label>{t("webdeck.page.icon", "Ícone")}</Label>
             <div className="flex items-center gap-2">
               <Input rounded="xl" value={editPageIcon} onChange={(e) => setEditPageIcon(e.target.value)} />
-              <Button rounded="xl" variant="outline-primary" onClick={() => void pickIconPath(setEditPageIcon)}>{t("common.choose", "Escolher")}</Button>
-              <Button rounded="xl" variant="secondary" onClick={() => setEditPageIcon("")}>{t("common.remove", "Remover")}</Button>
+              <Button rounded="xl" variant="outline-primary" onClick={() => void pickIconPath(setEditPageIcon)}><Search /> {t("common.choose", "Escolher")}</Button>
+              <Button rounded="xl" variant="destructive" onClick={() => setEditPageIcon("")}><X /> {t("common.remove", "Remover")}</Button>
             </div>
           </div>
-          <DialogFooter>
-            <Button rounded="xl" variant="ghost-destructive" onClick={() => setEditPageOpen(false)}>{t("common.cancel", "Cancelar")}</Button>
-            <Button rounded="xl" onClick={() => void savePageSettings()}>{t("common.save", "Salvar")}</Button>
+          <DialogFooter className="justify-between sm:justify-between">
+            <Button rounded="xl" variant="destructive" onClick={() => setEditPageOpen(false)}><X /> {t("common.cancel", "Cancelar")}</Button>
+            <Button rounded="xl" onClick={() => void savePageSettings()}><Save /> {t("common.save", "Salvar")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1534,9 +1538,11 @@ export default function WebDeck({
                     placeholder="C:\\icon.png"
                   />
                   <Button rounded="xl" variant="outline-primary" onClick={() => void pickIconPath((value) => setItemForm((prev) => ({ ...prev, icon: value })))}>
+                    <Search />
                     {t("common.choose", "Escolher")}
                   </Button>
-                  <Button rounded="xl" variant="secondary" onClick={() => setItemForm((prev) => ({ ...prev, icon: "" }))}>
+                  <Button rounded="xl" variant="destructive" onClick={() => setItemForm((prev) => ({ ...prev, icon: "" }))}>
+                    <Trash2 />
                     {t("common.remove", "Remover")}
                   </Button>
                 </div>
@@ -1559,9 +1565,9 @@ export default function WebDeck({
               </div>
             ) : null}
           </div>
-          <DialogFooter>
-            <Button rounded="xl" variant="ghost-destructive" onClick={() => setItemFormOpen(false)}>{t("common.cancel", "Cancelar")}</Button>
-            <Button rounded="xl" onClick={() => void saveItem()}>{t("common.save", "Salvar")}</Button>
+          <DialogFooter className="justify-between sm:justify-between">
+            <Button rounded="xl" variant="destructive" onClick={() => setItemFormOpen(false)}><X /> {t("common.cancel", "Cancelar")}</Button>
+            <Button rounded="xl" onClick={() => void saveItem()}><Save /> {t("common.save", "Salvar")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1575,8 +1581,8 @@ export default function WebDeck({
             <Label>{t("webdeck.page.icon", "Ícone")}</Label>
             <div className="flex items-center gap-2">
               <Input rounded="xl" value={createIcon} onChange={(e) => setCreateIcon(e.target.value)} placeholder="C:\\icon.gif" />
-              <Button rounded="xl" variant="outline-primary" onClick={() => void pickIconPath(setCreateIcon)}>{t("common.choose", "Escolher")}</Button>
-              <Button rounded="xl" variant="secondary" onClick={() => setCreateIcon("")}>{t("common.remove", "Remover")}</Button>
+              <Button rounded="xl" variant="outline-primary" onClick={() => void pickIconPath(setCreateIcon)}><Search /> {t("common.choose", "Escolher")}</Button>
+              <Button rounded="xl" variant="destructive" onClick={() => setCreateIcon("")}><Trash2 /> {t("common.remove", "Remover")}</Button>
             </div>
             <div className="h-50 w-full rounded-xl border border-border/70 overflow-hidden bg-card/50">
               {createIconPreview ? (
@@ -1588,9 +1594,9 @@ export default function WebDeck({
               )}
             </div>
           </div>
-          <DialogFooter>
-            <Button rounded="xl" variant="ghost-destructive" onClick={() => setCreatePageOpen(false)}>{t("common.cancel", "Cancelar")}</Button>
-            <Button rounded="xl" onClick={() => void createPage()}>{t("common.save", "Salvar")}</Button>
+          <DialogFooter className="justify-between sm:justify-between">
+            <Button rounded="xl" variant="destructive" onClick={() => setCreatePageOpen(false)}><X /> {t("common.cancel", "Cancelar")}</Button>
+            <Button rounded="xl" onClick={() => void createPage()}><Save /> {t("common.save", "Salvar")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1599,23 +1605,23 @@ export default function WebDeck({
         <DialogContent className="sm:max-w-[560px] select-none rounded-xl more-dark border-border/80 bg-popover/95 text-popover-foreground shadow-xl backdrop-blur-md transparent:bg-black/85 transparent:text-white">
           <DialogHeader><DialogTitle>{t("webdeck", "WebDeck")}</DialogTitle></DialogHeader>
           <Tabs value={accessTab} onValueChange={(value) => setAccessTab(value as any)}>
-            <TabsList className="w-full flex flex-wrap gap-2 h-auto">
-              <TabsTrigger value="local" asChild unstyled>
-                <Button variant={accessTab == "local" ? "primary" : "secondary"} className="min-w-[140px] flex-1">
-                  {t("webdeck.express.local", "Local")}
-                </Button>
+            <TabsList className="w-full">
+              <TabsTrigger
+                value="local"
+              >
+                <MapPin />
+                {t("webdeck.express.local", "Local")}
               </TabsTrigger>
               <TabsTrigger
-                value="remote" asChild unstyled
+                value="remote"
                 disabled={!Boolean(user?.id && user?.sessionId && remoteSocketConnected)}
               >
-                  <Button variant={accessTab == "remote" ? "primary" : "secondary"} className="min-w-[140px] flex-1 relative">
-                    {t("webdeck.express.remote", "Remoto")}
-                    {hasPendingSessions ? (
-                      <span className="absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-                    ) : null}
-                  </Button>
-                </TabsTrigger>
+                <ExternalLink />
+                {t("webdeck.express.remote", "Remoto")}
+                {hasPendingSessions ? (
+                  <span className="right-2 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+                ) : null}
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="local" className="grid gap-3">
@@ -1650,24 +1656,27 @@ export default function WebDeck({
               </div>
 
               <Tabs value={remoteManagerTab} onValueChange={(value) => setRemoteManagerTab(value as any)}>
-                <TabsList className="w-full flex flex-wrap gap-2 h-auto">
-                  <TabsTrigger value="invites" asChild unstyled>
-                    <Button variant={remoteManagerTab === "invites" ? "primary" : "secondary"} className="min-w-[140px] flex-1">
-                      {t("webdeck.remote.invites.title", "Convites")}
-                    </Button>
+                <TabsList className="w-full">
+                  <TabsTrigger
+                    value="invites"
+                  >
+                    <Send />
+                    {t("webdeck.remote.invites.title", "Convites")}
                   </TabsTrigger>
-                  <TabsTrigger value="connections" asChild unstyled>
-                    <Button variant={remoteManagerTab === "connections" ? "primary" : "secondary"} className="min-w-[140px] flex-1">
-                      {t("webdeck.remote.connections.title", "Conectados")}
-                    </Button>
+                  <TabsTrigger
+                    value="connections"
+                  >
+                    <Cable />
+                    {t("webdeck.remote.connections.title", "Conectados")}
                   </TabsTrigger>
-                  <TabsTrigger value="sessions" asChild unstyled>
-                    <Button variant={remoteManagerTab === "sessions" ? "primary" : "secondary"} className="min-w-[140px] flex-1 relative">
-                      {t("webdeck.remote.sessions.title", "Sessões")}
-                      {hasPendingSessions ? (
-                        <span className="absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-                      ) : null}
-                    </Button>
+                  <TabsTrigger
+                    value="sessions"
+                  >
+                    <Users />
+                    {t("webdeck.remote.sessions.title", "Sessões")}
+                    {hasPendingSessions ? (
+                      <span className="right-2 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+                    ) : null}
                   </TabsTrigger>
                 </TabsList>
 
@@ -1870,14 +1879,15 @@ export default function WebDeck({
             {accessTab !== "remote" ? (
               <Button
                 rounded="xl"
-                variant="outline-primary"
+                variant="primary"
                 disabled={accessInfoLoading || !(accessInfo?.localIpUrl || accessInfo?.localhostUrl)}
                 onClick={() => void openAccessUrlInBrowser()}
               >
+                <ExternalLink />
                 {t("webdeck.express.open_browser", "Abrir no navegador")}
               </Button>
             ) : null}
-            <Button rounded="xl" onClick={() => setOpenAccessModal(false)}>{t("common.close", "Fechar")}</Button>
+            <Button variant="destructive" rounded="xl" onClick={() => setOpenAccessModal(false)}><X /> {t("common.close", "Fechar")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

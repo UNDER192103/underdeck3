@@ -93,7 +93,7 @@ export interface ObserverEventDataMap {
 
     // Theme events
     "theme:changed": { theme: string };
-    "theme:preferences-changed": { theme?: string; background?: unknown };
+    "theme:preferences-changed": { theme?: string; background?: unknown; effectBackgrounds?: unknown };
     "theme:background-changed": { background: unknown };
 
     // Settings events

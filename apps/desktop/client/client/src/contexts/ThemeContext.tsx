@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { BackgroundProps } from "@/components/ui/background";
 import axios from "axios";
 import { StoreItem } from "@/types/store";
-import type { StoredThemeBackground, StoredThemeName } from "@/types/electron";
+import type { StoredThemeBackground, StoredThemeName, ThemeEffectBackgrounds } from "@/types/electron";
 
 export type Theme = "ligth" | "dark" | "black" | "transparent";
 export interface Background {
@@ -14,6 +14,8 @@ interface ThemeContextType {
   setTheme: React.Dispatch<React.SetStateAction<Theme>>;
   background: BackgroundProps;
   setBackground: React.Dispatch<React.SetStateAction<BackgroundProps>>;
+  effectBackgrounds: ThemeEffectBackgrounds;
+  setEffectBackgrounds: React.Dispatch<React.SetStateAction<ThemeEffectBackgrounds>>;
   listStoreBackgrounds: () => Promise<StoreItem[]>;
   switchable: boolean;
 }
@@ -53,8 +55,10 @@ export function ThemeProvider({
   const [preferencesLoaded, setPreferencesLoaded] = useState(!switchable);
 
   const [background, setBackground] = useState<BackgroundProps>(initialBackgroundRef.current);
+  const [effectBackgrounds, setEffectBackgrounds] = useState<ThemeEffectBackgrounds>({});
   const themeRef = useRef<Theme>(initialThemeRef.current);
   const backgroundRef = useRef<BackgroundProps>(initialBackgroundRef.current);
+  const effectBackgroundsRef = useRef<ThemeEffectBackgrounds>({});
 
   const listStoreBackgrounds = async () => {
     try {
@@ -93,6 +97,10 @@ export function ThemeProvider({
   }, [background]);
 
   useEffect(() => {
+    effectBackgroundsRef.current = effectBackgrounds;
+  }, [effectBackgrounds]);
+
+  useEffect(() => {
     if (!switchable || !window.underdeck?.theme?.getPreferences) return;
     let mounted = true;
 
@@ -105,10 +113,12 @@ export function ThemeProvider({
         if (!mounted) return;
         setTheme((prefs.theme as Theme) ?? initialThemeRef.current);
         setBackground((prefs.background as BackgroundProps) ?? initialBackgroundRef.current);
+        setEffectBackgrounds(prefs.effectBackgrounds ?? {});
       } catch {
         if (!mounted) return;
         setTheme(initialThemeRef.current);
         setBackground(initialBackgroundRef.current);
+        setEffectBackgrounds({});
       } finally {
         if (mounted) setPreferencesLoaded(true);
       }
@@ -128,12 +138,16 @@ export function ThemeProvider({
       );
       const nextTheme = (prefs.theme as Theme) ?? initialThemeRef.current;
       const nextBackground = (prefs.background as BackgroundProps) ?? initialBackgroundRef.current;
+      const nextEffectBackgrounds = prefs.effectBackgrounds ?? {};
 
       if (themeRef.current !== nextTheme) {
         setTheme(nextTheme);
       }
       if (JSON.stringify(backgroundRef.current) !== JSON.stringify(nextBackground)) {
         setBackground(nextBackground);
+      }
+      if (JSON.stringify(effectBackgroundsRef.current) !== JSON.stringify(nextEffectBackgrounds)) {
+        setEffectBackgrounds(nextEffectBackgrounds);
       }
     });
     return () => {
@@ -151,8 +165,13 @@ export function ThemeProvider({
     void window.underdeck.theme.setBackground(background as StoredThemeBackground);
   }, [background, preferencesLoaded, switchable]);
 
+  useEffect(() => {
+    if (!switchable || !preferencesLoaded || !window.underdeck?.theme?.setEffectBackgrounds) return;
+    void window.underdeck.theme.setEffectBackgrounds(effectBackgrounds);
+  }, [effectBackgrounds, preferencesLoaded, switchable]);
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, background, setBackground, listStoreBackgrounds, switchable }}>
+    <ThemeContext.Provider value={{ theme, setTheme, background, setBackground, effectBackgrounds, setEffectBackgrounds, listStoreBackgrounds, switchable }}>
       {children}
     </ThemeContext.Provider>
   );

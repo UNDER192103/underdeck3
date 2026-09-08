@@ -6,9 +6,11 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Save,
   Search,
   Settings2,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useUnderDeck } from "@/contexts/UnderDeckContext";
@@ -285,19 +287,19 @@ function WebPageModal({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="justify-between sm:justify-between">
           <Button
-            variant="ghost-destructive"
+            variant="destructive"
             rounded="xl"
             onClick={() => setDialogOpen(false)}
             disabled={saving}
           >
+            <X />
             {t("common.cancel", "Cancelar")}
           </Button>
           <Button rounded="xl" onClick={handleSave} disabled={saving}>
-            {saving
-              ? t("common.saving", "Salvando...")
-              : t("common.save", "Salvar")}
+            {saving ? <Loader2 className="animate-spin" /> : <Save />}
+            {saving ? t("common.saving", "Salvando...") : t("common.save", "Salvar")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -474,9 +476,9 @@ function WebPageShortcutModal({
                 placeholder={
                   page?.icon
                     ? t(
-                        "webpages.shortcut.using_page_icon",
-                        "Usando icone da pagina",
-                      )
+                      "webpages.shortcut.using_page_icon",
+                      "Usando icone da pagina",
+                    )
                     : t("webpages.shortcut.icon_placeholder", "C:\\icon.ico")
                 }
               />
@@ -542,6 +544,7 @@ function WebPageShortcutModal({
                   rounded="xl"
                   onClick={handleSelectDirectory}
                 >
+                  <Search />
                   {t("common.choose", "Escolher")}
                 </Button>
               </div>
@@ -549,19 +552,19 @@ function WebPageShortcutModal({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="justify-between sm:justify-between">
           <Button
-            variant="ghost-destructive"
+            variant="destructive"
             rounded="xl"
             onClick={() => onOpenChange(false)}
             disabled={saving}
           >
+            <X />
             {t("common.cancel", "Cancelar")}
           </Button>
           <Button rounded="xl" onClick={handleCreate} disabled={saving}>
-            {saving
-              ? t("webpages.shortcut.creating", "Criando...")
-              : t("webpages.shortcut.create", "Criar atalho")}
+            {saving ? <Loader2 className="animate-spin" /> : <Save />}
+            {saving ? t("webpages.shortcut.creating", "Criando...") : t("webpages.shortcut.create", "Criar atalho")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -584,6 +587,7 @@ export default function WebPages() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [shortcutPageId, setShortcutPageId] = useState<string | null>(null);
+  const [openDropdownPageId, setOpenDropdownPageId] = useState<string | null>(null);
 
   const filteredPages = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -649,10 +653,11 @@ export default function WebPages() {
           </div>
           <div className="flex items-center gap-2">
             <Button
-              variant="outline-primary"
+              variant="outline-destructive"
               rounded="xl"
               onClick={() => void closeAllWebPages()}
             >
+              <X />
               {t("webpages.close_all", "Fechar todas")}
             </Button>
             <WebPageModal trigger={undefined} />
@@ -716,6 +721,10 @@ export default function WebPages() {
             <Card
               key={page.id}
               onDoubleClick={() => void openWebPage(page.id)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setOpenDropdownPageId(page.id);
+              }}
               className="cursor-pointer group relative min-h-[220px] overflow-hidden rounded-2xl border border-border/70 bg-card/70 backdrop-blur-sm"
             >
               {page.icon ? (
@@ -745,7 +754,10 @@ export default function WebPages() {
                 />
               )}
               <div className="absolute right-3 top-3 z-20">
-                <DropdownUp>
+                <DropdownUp
+                  open={openDropdownPageId === page.id}
+                  onOpenChange={(open) => setOpenDropdownPageId(open ? page.id : null)}
+                >
                   <DropdownUpTrigger asChild>
                     <button
                       type="button"

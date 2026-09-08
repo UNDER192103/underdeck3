@@ -21,7 +21,10 @@ export function createLoadingWindow() {
         maxWidth: 400,
         minHeight: 450,
         maxHeight: 450,
-        show: true,
+        // Do not expose Electron's default gray surface while the renderer is
+        // still loading. The window is shown only after `ready-to-show`.
+        show: false,
+        backgroundColor: "#000000",
         frame: false,
         resizable: false,
         minimizable: false,
@@ -40,5 +43,8 @@ export function createLoadingWindow() {
     });
 
     loadAppLauncherRenderer(win, isDev);
+    win.once("ready-to-show", () => {
+        if (!win.isDestroyed()) win.show();
+    });
     return win;
 }

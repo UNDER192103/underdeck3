@@ -384,7 +384,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     let storeItemId: string | null = null;
                     let backgroundUrl: string | null = null;
 
-                    if (background && background.variant !== "neural") {
+                    if (background && (background.variant === "image" || background.variant === "video")) {
                         const sourceUrl = background.variant === "image" ? background.imageSrc : background.videoSrc;
                         if (sourceUrl && isStoreBackgroundUrl(sourceUrl)) {
                             const saved = await window.underdeck.theme.listSavedStoreWallpapers();

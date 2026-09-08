@@ -62,35 +62,23 @@ export default function OverlayDashboard() {
             className="h-full"
           >
             <TabsList className="w-full h-10 flex flex-wrap gap-1 p-1 rounded-xl">
-              <TabsTrigger value="apps" className="rounded-xl" asChild unstyled>
-                <Button rounded="xl" variant={mainTab == "apps" ? "primary" : "secondary"} className="w-full">
-                  <PanelsTopLeft /> {t("sidebar.apps", "Aplicativos")}
-                </Button>
+              <TabsTrigger value="apps">
+                <PanelsTopLeft /> {t("sidebar.apps", "Aplicativos")}
               </TabsTrigger>
-              <TabsTrigger value="webdeck" className="rounded-xl" asChild unstyled>
-                <Button rounded="xl" variant={mainTab == "webdeck" ? "primary" : "secondary"} className="w-full">
-                  <LayoutTemplate/> {t("sidebar.deck", "Deck")}
-                </Button>
+              <TabsTrigger value="webdeck">
+                <LayoutTemplate /> {t("sidebar.deck", "Deck")}
               </TabsTrigger>
-              <TabsTrigger value="obs" className="rounded-xl" asChild unstyled>
-                <Button rounded="xl" variant={mainTab == "obs" ? "primary" : "secondary"} className="w-full">
-                  <Radio /> {t("sidebar.obsstudio", "Obs Studio")}
-                </Button>
+              <TabsTrigger value="obs">
+                <Radio /> {t("sidebar.obsstudio", "Obs Studio")}
               </TabsTrigger>
-              <TabsTrigger value="webpages" className="rounded-xl" asChild unstyled>
-                <Button rounded="xl" variant={mainTab == "webpages" ? "primary" : "secondary"} className="w-full">
-                  <Globe /> {t("sidebar.webpages", "Paginas Webs")}
-                </Button>
+              <TabsTrigger value="webpages">
+                <Globe /> {t("sidebar.webpages", "Paginas Webs")}
               </TabsTrigger>
-              <TabsTrigger value="shortcuts" className="rounded-xl" asChild unstyled>
-                <Button rounded="xl" variant={mainTab == "shortcuts" ? "primary" : "secondary"} className="w-full">
-                  <Layers2 /> {t("sidebar.shortcuts", "Teclas de Atalho")}
-                </Button>
+              <TabsTrigger value="shortcuts">
+                <Layers2 /> {t("sidebar.shortcuts", "Teclas de Atalho")}
               </TabsTrigger>
-              <TabsTrigger value="soundpad" className="rounded-xl" asChild unstyled>
-                <Button rounded="xl" variant={mainTab == "soundpad" ? "primary" : "secondary"} className="w-full">
-                  <Music2 /> {t("sidebar.soudpad", "Sound Pad")}
-                </Button>
+              <TabsTrigger value="soundpad">
+                <Music2 /> {t("sidebar.soudpad", "Sound Pad")}
               </TabsTrigger>
             </TabsList>
 
@@ -104,15 +92,11 @@ export default function OverlayDashboard() {
                 className="h-full"
               >
                 <TabsList className="w-full grid gap-1 grid-cols-2 h-10 rounded-xl">
-                  <TabsTrigger value="deck" className="rounded-xl" asChild unstyled>
-                    <Button rounded="xl" variant={webdeckTab === "deck" ? "primary" : "secondary"} className="w-full">
-                      <LayoutTemplate/> Deck
-                    </Button>
+                  <TabsTrigger value="deck">
+                    <LayoutTemplate /> Deck
                   </TabsTrigger>
-                  <TabsTrigger value="editor" className="rounded-xl" asChild unstyled>
-                    <Button rounded="xl" variant={webdeckTab === "editor" ? "primary" : "secondary"} className="w-full">
-                      <Pencil/> Editor
-                    </Button>
+                  <TabsTrigger value="editor">
+                    <Pencil /> Editor
                   </TabsTrigger>
                 </TabsList>
 

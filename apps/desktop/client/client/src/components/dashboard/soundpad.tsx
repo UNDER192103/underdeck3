@@ -593,8 +593,16 @@ export default function SoundPad({
             </Card>
           ) : (
             pageAudios.map((audio) => {
+              const audioKey = `${audio.index}-${audio.hash || audio.path}`;
               return (
-                <Card key={`${audio.index}-${audio.hash || audio.path}`} className="p-3 border-border/70 bg-card/70 more-dark">
+                <Card
+                  key={audioKey}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setOpenDropdownAudioKey(audioKey);
+                  }}
+                  className="p-3 border-border/70 bg-card/70 more-dark"
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-medium truncate">#{audio.index} - {formatListLabel(audio.name, t("soundpad.unknown", "Sem nome"))}</p>
@@ -605,8 +613,8 @@ export default function SoundPad({
                     </div>
                     <div className="flex items-center gap-2">
                       <DropdownUp
-                        open={openDropdownAudioKey === `${audio.index}-${audio.hash || audio.path}`}
-                        onOpenChange={(open) => setOpenDropdownAudioKey(open ? `${audio.index}-${audio.hash || audio.path}` : null)}
+                        open={openDropdownAudioKey === audioKey}
+                        onOpenChange={(open) => setOpenDropdownAudioKey(open ? audioKey : null)}
                       >
                         <DropdownUpTrigger asChild>
                           <button

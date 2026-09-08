@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { Shortcut, ShortcutKey } from "@/types/shortcuts";
+import { Loader2, Save, Search, X } from "lucide-react";
 
 const getKeyLabel = (key: ShortcutKey | string) => (typeof key === "string" ? key : key.key);
 const toShortcutKey = (key: ShortcutKey | string): ShortcutKey =>
@@ -226,24 +227,26 @@ export function AddShortcutModal({
                 rounded="xl"
                 onClick={handleCaptureCombo}
                 disabled={isCapturingCombo}
-                className={isCapturingCombo ? "animate-pulse" : undefined}
+                className={isCapturingCombo ? "animate-pulse text-red-500" : undefined}
               >
-                {isCapturingCombo
-                  ? t("shortcuts.capture.recording", "Gravando...")
-                  : t("shortcuts.capture.button", "Capturar")}
+                {isCapturingCombo ? <Loader2 className="animate-spin text-red-500" /> : <Search />}
+                {isCapturingCombo ? t("shortcuts.capture.recording", "Gravando...") : t("shortcuts.capture.button", "Capturar")}
               </Button>
             </div>
           </div>
         </div>
-        <DialogFooter>
+
+        <DialogFooter className="justify-between sm:justify-between">
           <Button
-            variant="ghost-destructive"
+            variant="destructive"
             rounded="xl"
             onClick={() => setDialogOpen(false)}
           >
+            <X />
             {t("common.cancel", "Cancelar")}
           </Button>
           <Button rounded="xl" onClick={handleSave}>
+            <Save />
             {t("common.save", "Salvar")}
           </Button>
         </DialogFooter>
