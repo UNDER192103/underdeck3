@@ -1,24 +1,34 @@
-# Quickstart Guide — Chat da Twitch e TikTok em Tempo Real com Node.js + PNPM
+# Quickstart Guide — Twitch + TikTok LIVE em Node.js com PNPM
 
-Este guia mostra como validar, diretamente pelo terminal, a leitura de mensagens de chat em tempo real da **Twitch** e do **TikTok LIVE** usando **Node.js**.
+Guia rápido para validar leitura de chat em tempo real da **Twitch** e do **TikTok LIVE** via terminal usando **Node.js** e **PNPM**.
 
-O objetivo é testar uma arquitetura adequada para um futuro aplicativo desktop com **Electron**, executado diretamente na máquina do usuário, sem depender de um servidor centralizado.
+O objetivo é validar tecnologias para um futuro aplicativo desktop em **Electron**, executando as conexões diretamente na máquina do usuário e evitando a necessidade de um backend próprio apenas para retransmitir mensagens.
 
-Neste protótipo:
-
-- **Twitch:** conexão somente para leitura, de forma anônima, sem OAuth.
-- **TikTok:** conexão direta ao TikTok LIVE usando `tiktok-live-connector`.
-- **Runtime:** Node.js.
-- **Gerenciador de pacotes:** PNPM.
-- **Servidor backend:** não necessário para estes testes.
+> Status atual do teste:
+>
+> - ✅ Twitch: leitura anônima funcionando.
+> - ⚠️ TikTok: integração comunitária; pode depender de resolução/assinatura via Euler Stream e pode sofrer alterações ou limitações externas.
 
 ---
 
-## 1. Pré-requisitos
+## 1. Ambiente usado no teste
+
+O ambiente que motivou esta versão do guia foi:
+
+```text
+Node.js: v24.14.0
+PNPM: v12.3.4
+tmi.js: 1.8.5
+tiktok-live-connector: 2.4.4
+```
+
+O projeto continua compatível conceitualmente com **Node.js 18+**, mas, para um projeto de produção, prefira uma versão LTS suportada e valide especificamente as bibliotecas escolhidas.
+
+---
+
+## 2. Pré-requisitos
 
 ### Node.js
-
-Tenha o **Node.js 18 ou superior** instalado.
 
 Verifique:
 
@@ -26,19 +36,15 @@ Verifique:
 node --version
 ```
 
-Exemplo:
+Recomendação mínima:
 
 ```text
-v20.19.0
+Node.js 18+
 ```
-
-> Para um projeto novo, prefira uma versão LTS recente do Node.js.
 
 ### PNPM
 
-O Node.js moderno inclui o **Corepack**, que pode gerenciar o PNPM.
-
-Ative-o:
+Ative o PNPM via Corepack:
 
 ```bash
 corepack enable pnpm
@@ -50,7 +56,7 @@ Verifique:
 pnpm --version
 ```
 
-Caso sua instalação do Node não disponibilize o PNPM imediatamente, também é possível preparar uma versão recente com:
+Se necessário:
 
 ```bash
 corepack prepare pnpm@latest --activate
@@ -58,111 +64,75 @@ corepack prepare pnpm@latest --activate
 
 ---
 
-## 2. Inicialização do projeto
+## 3. Criar o projeto
 
-Crie uma pasta para o teste:
+No terminal:
 
 ```bash
 mkdir live-chat-test
 cd live-chat-test
-```
-
-Inicialize o projeto:
-
-```bash
 pnpm init
 ```
 
-Como os exemplos deste guia usam ES Modules (`import`), configure o projeto:
+Configure o projeto para usar ES Modules:
 
 ```bash
 pnpm pkg set type=module
 ```
 
-O `package.json` ficará conceitualmente parecido com:
+O `package.json` deve conter:
 
 ```json
 {
-  "name": "live-chat-test",
-  "version": "1.0.0",
   "type": "module"
 }
 ```
 
 ---
 
-## 3. Instalação das dependências
-
-Instale as bibliotecas:
+## 4. Instalar as dependências
 
 ```bash
 pnpm add tmi.js tiktok-live-connector
 ```
 
-### Twitch — `tmi.js`
-
-Para este protótipo, `tmi.js` é uma escolha simples porque:
-
-- roda diretamente em Node.js;
-- utiliza a interface de chat da Twitch;
-- permite conexão anônima para leitura;
-- não exige OAuth quando o objetivo é apenas acompanhar mensagens públicas;
-- possui uma API baseada em eventos simples para um teste rápido.
-
-### TikTok — `tiktok-live-connector`
-
-`tiktok-live-connector` é uma biblioteca comunitária e não oficial para consumir eventos de uma transmissão do TikTok LIVE.
-
-Ela permite receber eventos como:
-
-- chat;
-- gifts;
-- likes;
-- entrada de usuários;
-- follows;
-- shares;
-- informações da live.
-
-Neste teste, vamos assinar **somente o evento de chat**, reduzindo processamento desnecessário.
-
----
-
-## 4. Estrutura do projeto
-
-Ao final, teremos:
-
-```text
-live-chat-test/
-├── package.json
-├── pnpm-lock.yaml
-├── twitch-test.js
-└── tiktok-test.js
-```
-
----
-
-# 5. Teste da Twitch
-
-## Criar `twitch-test.js`
-
-Crie o arquivo:
+Confirme as versões instaladas:
 
 ```bash
-touch twitch-test.js
+pnpm list tmi.js tiktok-live-connector
 ```
 
-No Windows PowerShell, se necessário:
+Exemplo:
 
-```powershell
-New-Item twitch-test.js
+```text
+tmi.js 1.8.5
+tiktok-live-connector 2.4.4
 ```
 
-Adicione:
+---
+
+# 5. Twitch — leitura anônima
+
+Para este teste usamos `tmi.js`.
+
+A conexão é somente para leitura e não precisa de token OAuth.
+
+## Arquivo `twitch-test.js`
+
+Crie:
+
+```bash
+notepad twitch-test.js
+```
+
+Ou crie manualmente o arquivo na pasta do projeto.
+
+Conteúdo:
 
 ```javascript
 import tmi from 'tmi.js';
 
-const channel = process.argv[2];
+const channel = process.argv[2]?.replace(/^#/, '');
 
 if (!channel) {
   console.error('Uso: node twitch-test.js <canal>');
@@ -175,30 +145,26 @@ const client = new tmi.Client({
     reconnect: true,
   },
 
-  // Usuário "justinfan" representa uma conexão anônima.
-  // Nenhum token OAuth é necessário para apenas ler o chat.
-  identity: {
-    username: 'justinfan12345',
-    password: '',
-  },
-
+  // Sem identity:
+  // o tmi.js cria automaticamente uma conexão anônima
+  // usando um usuário do tipo "justinfan...".
   channels: [channel],
+});
+
+client.on('connected', (address, port) => {
+  console.log(`[Twitch] Conectado a ${address}:${port}`);
+  console.log(`[Twitch] Lendo #${channel}`);
 });
 
 client.on('message', (_channel, tags, message, self) => {
   if (self) return;
 
   const username =
-    tags['display-name'] ||
-    tags.username ||
+    tags['display-name'] ??
+    tags.username ??
     'desconhecido';
 
   console.log(`[Twitch] ${username}: ${message}`);
-});
-
-client.on('connected', (address, port) => {
-  console.log(`[Twitch] Conectado a ${address}:${port}`);
-  console.log(`[Twitch] Lendo chat de #${channel}...`);
 });
 
 client.on('disconnected', (reason) => {
@@ -211,67 +177,63 @@ client.connect().catch((error) => {
 });
 ```
 
-## Como funciona
-
-O canal é recebido pela linha de comando:
-
-```javascript
-const channel = process.argv[2];
-```
-
-Por exemplo:
+## Executar
 
 ```bash
-node twitch-test.js nome_do_streamer
+node twitch-test.js ironmouse
 ```
 
-A conexão é anônima:
-
-```javascript
-identity: {
-  username: 'justinfan12345',
-  password: '',
-}
-```
-
-Isso é suficiente para o cenário deste protótipo porque estamos **somente lendo mensagens públicas**.
-
-Não será possível utilizar funcionalidades autenticadas como:
-
-- enviar mensagens;
-- executar comandos de moderação;
-- acessar informações privadas;
-- agir em nome de um usuário.
-
-### Saída esperada
+Formato esperado:
 
 ```text
 [Twitch] Conectado a irc-ws.chat.twitch.tv:443
-[Twitch] Lendo chat de #nome_do_streamer...
-[Twitch] Alice: boa noite!
-[Twitch] Bob: começou agora?
-[Twitch] Carol: gg
+[Twitch] Lendo #ironmouse
+[Twitch] usuario1: hello
+[Twitch] usuario2: gg
 ```
+
+## Importante
+
+O arquivo `twitch-test.js` deve conter **somente código da Twitch**.
+
+Não deve existir nele algo como:
+
+```javascript
+new TikTokLiveConnection(...)
+```
+
+Se um erro da Twitch mencionar `TikTokLiveConnection`, os arquivos foram misturados.
 
 ---
 
-# 6. Teste do TikTok LIVE
+# 6. TikTok LIVE — teste principal
 
-## Criar `tiktok-test.js`
+A biblioteca usada é:
 
-Crie o arquivo:
+```text
+tiktok-live-connector
+```
+
+Ela é uma biblioteca comunitária e não oficial.
+
+Na versão `2.4.4`, use explicitamente um segundo argumento no construtor.
+
+Isso também evita o erro observado:
+
+```text
+TypeError: Cannot read properties of undefined
+(reading 'processInitialData')
+```
+
+## Arquivo `tiktok-test.js`
+
+Crie:
 
 ```bash
-touch tiktok-test.js
+notepad tiktok-test.js
 ```
 
-No Windows PowerShell:
-
-```powershell
-New-Item tiktok-test.js
-```
-
-Adicione:
+Conteúdo:
 
 ```javascript
 import {
@@ -283,22 +245,47 @@ import {
 const uniqueId = process.argv[2]?.replace(/^@/, '');
 
 if (!uniqueId) {
-  console.error('Uso: node tiktok-test.js <uniqueId>');
+  console.error('Uso: node tiktok-test.js <username>');
   process.exit(1);
 }
 
-const connection = new TikTokLiveConnection(uniqueId);
+const connection = new TikTokLiveConnection(uniqueId, {
+  // Importante para a versão 2.4.4 no ambiente testado.
+  processInitialData: false,
 
-// Escutamos apenas CHAT.
-//
-// Não registre listeners para eventos muito frequentes, como LIKE,
-// MEMBER ou outros eventos que não sejam necessários neste teste.
-// Em lives grandes, esses eventos podem gerar um volume muito alto
-// de processamento.
+  // Mantém o teste mais simples e reduz consultas adicionais.
+  fetchRoomInfoOnConnect: false,
+
+  // Não precisamos de informações estendidas de presentes.
+  enableExtendedGiftInfo: false,
+});
+
+connection.on(ControlEvent.CONNECTED, (state) => {
+  console.log(`[TikTok] Conectado ao roomId ${state.roomId}`);
+});
+
+connection.on(ControlEvent.WEBSOCKET_CONNECTED, () => {
+  console.log('[TikTok] WebSocket aberto.');
+});
+
+connection.on(ControlEvent.DISCONNECTED, ({ code, reason }) => {
+  console.log(
+    `[TikTok] Desconectado - code=${code}, reason=${reason ?? '-'}`
+  );
+});
+
+connection.on(ControlEvent.ERROR, ({ info, exception }) => {
+  console.error('[TikTok] Erro:', info);
+
+  if (exception) {
+    console.error(exception);
+  }
+});
+
 connection.on(WebcastEvent.CHAT, (data) => {
   const username =
-    data.user?.uniqueId ||
-    data.user?.nickname ||
+    data.user?.uniqueId ??
+    data.user?.nickname ??
     'desconhecido';
 
   const message = data.comment;
@@ -308,25 +295,27 @@ connection.on(WebcastEvent.CHAT, (data) => {
   console.log(`[TikTok] ${username}: ${message}`);
 });
 
-connection.on(ControlEvent.ERROR, (error) => {
-  console.error('[TikTok] Erro:', error);
-});
+// Mantemos o teste leve.
+//
+// Não registre listeners desnecessários como:
+//
+// connection.on(WebcastEvent.LIKE, ...);
+// connection.on(WebcastEvent.MEMBER, ...);
+// connection.on(WebcastEvent.GIFT, ...);
+//
+// principalmente em lives grandes.
 
 async function main() {
   try {
+    console.log(`[TikTok] Conectando a @${uniqueId}...`);
+
     const state = await connection.connect();
 
-    console.log(
-      `[TikTok] Conectado à live de @${uniqueId} (roomId: ${state.roomId})`
-    );
-
+    console.log(`[TikTok] Room ID: ${state.roomId}`);
     console.log(`[TikTok] Lendo chat de @${uniqueId}...`);
   } catch (error) {
-    console.error(
-      `[TikTok] Não foi possível conectar à live de @${uniqueId}:`,
-      error
-    );
-
+    console.error('[TikTok] Falha ao conectar:');
+    console.error(error);
     process.exit(1);
   }
 }
@@ -334,109 +323,562 @@ async function main() {
 main();
 ```
 
+## Executar
+
+Use uma conta que esteja realmente em LIVE:
+
+```bash
+node tiktok-test.js username
+```
+
+Também funciona:
+
+```bash
+node tiktok-test.js @username
+```
+
+Formato esperado:
+
+```text
+[TikTok] Conectando a @username...
+[TikTok] WebSocket aberto.
+[TikTok] Conectado ao roomId 7xxxxxxxxxxxxxxxxxx
+[TikTok] usuario1: boa noite
+[TikTok] usuario2: salve
+```
+
 ---
 
-## Identificando o `uniqueId`
+# 7. TikTok — script de diagnóstico
 
-Considere uma URL como:
+Se `tiktok-test.js` não conectar, substitua temporariamente o conteúdo dele pelo script abaixo.
 
-```text
-https://www.tiktok.com/@exemplo/live
-```
-
-O `uniqueId` é:
+Ele testa separadamente:
 
 ```text
-exemplo
+1. A biblioteca consegue detectar a LIVE?
+2. A biblioteca consegue obter o roomId?
+3. A biblioteca consegue abrir o WebSocket?
 ```
 
-Portanto:
-
-```bash
-node tiktok-test.js exemplo
-```
-
-Também aceitamos o `@` no script:
-
-```bash
-node tiktok-test.js @exemplo
-```
-
-porque ele é removido aqui:
+## `tiktok-test.js` em modo diagnóstico
 
 ```javascript
+import {
+  TikTokLiveConnection,
+  WebcastEvent,
+  ControlEvent,
+} from 'tiktok-live-connector';
+
 const uniqueId = process.argv[2]?.replace(/^@/, '');
+
+if (!uniqueId) {
+  console.error('Uso: node tiktok-test.js <username>');
+  process.exit(1);
+}
+
+function printError(label, error) {
+  console.error(`\n========== ${label} ==========`);
+
+  console.error('name:', error?.name);
+  console.error('message:', error?.message);
+
+  if (error?.statusCode) {
+    console.error('statusCode:', error.statusCode);
+  }
+
+  if (error?.cause) {
+    console.error('cause:', error.cause);
+  }
+
+  if (error?.response?.body) {
+    console.error('response.body:', error.response.body);
+  }
+
+  console.error('\nStack:');
+  console.error(error?.stack ?? error);
+
+  console.error('==============================\n');
+}
+
+const connection = new TikTokLiveConnection(uniqueId, {
+  processInitialData: false,
+  fetchRoomInfoOnConnect: false,
+  enableExtendedGiftInfo: false,
+});
+
+connection.on(ControlEvent.CONNECTED, (state) => {
+  console.log(
+    `[TikTok] CONNECTED - roomId: ${state.roomId}`
+  );
+});
+
+connection.on(ControlEvent.WEBSOCKET_CONNECTED, () => {
+  console.log('[TikTok] WebSocket aberto.');
+});
+
+connection.on(ControlEvent.DISCONNECTED, ({ code, reason }) => {
+  console.log(
+    `[TikTok] Desconectado - code=${code}, reason=${reason ?? '-'}`
+  );
+});
+
+connection.on(ControlEvent.ERROR, ({ info, exception }) => {
+  console.error('[TikTok] Evento ERROR:', info);
+
+  if (exception) {
+    printError('EXCEPTION', exception);
+  }
+});
+
+connection.on(WebcastEvent.CHAT, (data) => {
+  const username =
+    data.user?.uniqueId ??
+    data.user?.nickname ??
+    'desconhecido';
+
+  if (!data.comment) {
+    return;
+  }
+
+  console.log(`[TikTok] ${username}: ${data.comment}`);
+});
+
+async function main() {
+  console.log('========================================');
+  console.log(` TikTok LIVE Diagnostic: @${uniqueId}`);
+  console.log('========================================\n');
+
+  // --------------------------------------------------
+  // Etapa 1
+  // --------------------------------------------------
+
+  try {
+    console.log('[1/3] Verificando se o usuário está ao vivo...');
+
+    const isLive = await connection.fetchIsLive();
+
+    console.log(`[1/3] isLive = ${isLive}`);
+  } catch (error) {
+    printError('fetchIsLive', error);
+
+    console.log(
+      '[1/3] A detecção da LIVE falhou. ' +
+      'Ainda vamos tentar resolver o roomId.'
+    );
+  }
+
+  // --------------------------------------------------
+  // Etapa 2
+  // --------------------------------------------------
+
+  let roomId;
+
+  try {
+    console.log('\n[2/3] Obtendo roomId...');
+
+    roomId = await connection.fetchRoomId();
+
+    console.log(`[2/3] roomId = ${roomId}`);
+  } catch (error) {
+    printError('fetchRoomId', error);
+
+    console.error(
+      '[TikTok] Não foi possível descobrir o roomId.'
+    );
+
+    process.exit(1);
+  }
+
+  // --------------------------------------------------
+  // Etapa 3
+  // --------------------------------------------------
+
+  try {
+    console.log('\n[3/3] Abrindo WebSocket...');
+
+    // Passamos o roomId explicitamente para evitar
+    // repetir a etapa de resolução.
+    const state = await connection.connect(roomId);
+
+    console.log(
+      `[3/3] Conectado com sucesso ao roomId ${state.roomId}`
+    );
+
+    console.log(`[TikTok] Lendo chat de @${uniqueId}...`);
+  } catch (error) {
+    printError('connect', error);
+    process.exit(1);
+  }
+}
+
+main();
 ```
-
-### Saída esperada
-
-```text
-[TikTok] Conectado à live de @exemplo (roomId: 1234567890123456789)
-[TikTok] Lendo chat de @exemplo...
-[TikTok] alice123: oi pessoal
-[TikTok] bob456: salve!
-[TikTok] carol789: começou agora?
-```
-
----
-
-# 7. Executando os testes
-
-## Twitch
-
-Use o nome do canal, sem precisar incluir `#`:
-
-```bash
-node twitch-test.js nome_do_streamer
-```
-
-Exemplo:
-
-```bash
-node twitch-test.js shroud
-```
-
-Interrompa com:
-
-```text
-Ctrl + C
-```
-
----
-
-## TikTok
-
-O streamer precisa estar **ao vivo** para que a conexão seja estabelecida.
 
 Execute:
 
 ```bash
-node tiktok-test.js nome_do_streamer
-```
-
-ou:
-
-```bash
-node tiktok-test.js @nome_do_streamer
-```
-
-Exemplo:
-
-```bash
-node tiktok-test.js @usuario
-```
-
-Interrompa com:
-
-```text
-Ctrl + C
+node tiktok-test.js username
 ```
 
 ---
 
-# 8. Scripts opcionais no `package.json`
+# 8. Interpretando o diagnóstico do TikTok
 
-Para facilitar os testes, é possível adicionar scripts:
+## Caso A — tudo funciona
+
+```text
+[1/3] isLive = true
+[2/3] roomId = 7xxxxxxxxxxxxxxxxxx
+[3/3] Conectado com sucesso
+```
+
+A integração está funcionando.
+
+---
+
+## Caso B — `isLive = false`
+
+```text
+[1/3] isLive = false
+```
+
+Primeiro confirme manualmente no navegador que o usuário realmente está em LIVE.
+
+Se estiver ao vivo e ainda assim retornar `false`, a resolução da live pode estar sendo bloqueada ou ter sido afetada por mudanças do TikTok.
+
+Continue observando a etapa 2.
+
+---
+
+## Caso C — falha no `fetchRoomId`
+
+Exemplo conceitual:
+
+```text
+[2/3] Obtendo roomId...
+
+FetchRoomIdError
+user_not_found
+```
+
+Nesse caso, a biblioteca não conseguiu resolver a conta/live para um `roomId`.
+
+Possíveis motivos:
+
+- username incorreto;
+- streamer offline;
+- mudança no HTML/API do TikTok;
+- restrições regionais;
+- rate limiting;
+- bloqueio temporário;
+- falha nos mecanismos de fallback;
+- indisponibilidade ou limitação do serviço de resolução externo.
+
+---
+
+## Caso D — obtém `roomId`, mas não conecta
+
+```text
+[2/3] roomId = 7xxxxxxxxxxxxxxxxxx
+
+[3/3] Abrindo WebSocket...
+
+ERROR ...
+```
+
+Nesse cenário:
+
+```text
+Resolução do streamer: OK
+Resolução do roomId: OK
+WebSocket: FALHOU
+```
+
+A investigação passa a focar em:
+
+- assinatura da URL WebSocket;
+- serviço de signing;
+- limitação/rate limit;
+- bloqueio de IP;
+- mudança do protocolo do TikTok;
+- indisponibilidade externa.
+
+---
+
+# 9. Arquitetura real do TikTok
+
+É importante corrigir uma premissa arquitetural.
+
+Com a versão atual do `tiktok-live-connector`, a integração não deve ser considerada estritamente:
+
+```text
+Electron
+   │
+   ▼
+TikTok
+```
+
+O conector possui integração com **Euler Stream** para funcionalidades como fallback de resolução e assinatura necessária para conexão WebSocket.
+
+Conceitualmente:
+
+```text
+                    ┌──────────────────┐
+                    │   Euler Stream   │
+                    │ resolução/sign   │
+                    └────────▲─────────┘
+                             │
+                             │
+┌────────────────┐           │
+│  Electron App  │───────────┘
+│                │
+│ Node.js/Main   │
+└───────┬────────┘
+        │
+        │ WebSocket
+        ▼
+┌────────────────┐
+│  TikTok LIVE   │
+└────────────────┘
+```
+
+Isso significa que ainda é possível evitar um **backend próprio centralizado**, mas existe dependência de infraestrutura externa do ecossistema da biblioteca.
+
+---
+
+# 10. Arquitetura da Twitch
+
+No teste atual:
+
+```text
+┌────────────────┐
+│  Electron App  │
+│                │
+│ Node.js/Main   │
+└───────┬────────┘
+        │
+        │ conexão anônima
+        ▼
+┌────────────────┐
+│ Twitch Chat    │
+└────────────────┘
+```
+
+Para somente consumir chat público, o protótipo com `tmi.js` funcionou sem OAuth.
+
+Recursos autenticados continuam fora desse escopo.
+
+---
+
+# 11. Arquitetura sugerida para Electron
+
+Mantenha as conexões no processo principal do Electron.
+
+```text
+                          ┌───────────────────────┐
+                          │      Electron         │
+                          │                       │
+Twitch ──────────────────►│ Main Process          │
+                          │                       │
+TikTok / Euler ──────────►│ TwitchAdapter         │
+                          │ TikTokAdapter         │
+                          │         │             │
+                          │         ▼             │
+                          │ ChatNormalizer        │
+                          │         │             │
+                          │         ▼ IPC         │
+                          │ Renderer / UI         │
+                          └───────────────────────┘
+```
+
+Evite executar diretamente no Renderer:
+
+```javascript
+new TikTokLiveConnection(...)
+```
+
+ou:
+
+```javascript
+new tmi.Client(...)
+```
+
+Prefira módulos dedicados no processo principal.
+
+---
+
+# 12. Normalizar mensagens
+
+Uma estrutura comum simplifica o restante do aplicativo.
+
+```javascript
+function createChatMessage({
+  platform,
+  username,
+  displayName,
+  message,
+}) {
+  return {
+    platform,
+    username,
+    displayName: displayName ?? username,
+    message,
+    timestamp: Date.now(),
+  };
+}
+```
+
+Exemplo Twitch:
+
+```javascript
+const chatMessage = createChatMessage({
+  platform: 'twitch',
+  username: tags.username,
+  displayName: tags['display-name'],
+  message,
+});
+```
+
+Exemplo TikTok:
+
+```javascript
+const chatMessage = createChatMessage({
+  platform: 'tiktok',
+  username: data.user?.uniqueId,
+  displayName: data.user?.nickname,
+  message: data.comment,
+});
+```
+
+Resultado:
+
+```javascript
+{
+  platform: 'tiktok',
+  username: 'usuario123',
+  displayName: 'Usuário',
+  message: 'Olá!',
+  timestamp: 1780000000000
+}
+```
+
+---
+
+# 13. Manter o TikTok leve
+
+Para o primeiro protótipo, processe apenas:
+
+```javascript
+WebcastEvent.CHAT
+```
+
+Evite inicialmente:
+
+```javascript
+WebcastEvent.LIKE
+WebcastEvent.MEMBER
+WebcastEvent.GIFT
+WebcastEvent.ROOM_USER
+WebcastEvent.SOCIAL
+```
+
+O objetivo neste estágio é validar:
+
+```text
+LIVE
+  ↓
+WebSocket
+  ↓
+evento CHAT
+  ↓
+Node.js
+  ↓
+console.log()
+```
+
+Depois de estabilizar essa cadeia, adicione outros eventos.
+
+---
+
+# 14. Rate limiting e reconexão
+
+Não implemente reconexão agressiva.
+
+Evite:
+
+```javascript
+connection.on('disconnected', () => {
+  connection.connect();
+});
+```
+
+Isso pode criar um loop rápido de requisições.
+
+Prefira futuramente algo como:
+
+```javascript
+const delay = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+async function reconnect() {
+  await delay(5000);
+
+  try {
+    await connection.connect();
+  } catch (error) {
+    console.error(error);
+  }
+}
+```
+
+Em produção, use **exponential backoff**.
+
+Exemplo conceitual:
+
+```text
+5s
+10s
+20s
+30s
+60s
+```
+
+com um limite máximo.
+
+---
+
+# 15. Observações sobre IP e lives grandes
+
+No TikTok, considere:
+
+- rate limiting;
+- limitação temporária por IP;
+- respostas diferentes dependendo da região;
+- volume muito grande de mensagens;
+- alterações no protocolo;
+- alterações nos endpoints web;
+- dependência de serviços externos de signing/fallback.
+
+Para um app desktop isso tem uma vantagem:
+
+```text
+cada usuário
+    ↓
+usa sua própria máquina
+    ↓
+usa sua própria conexão/IP
+```
+
+Você evita concentrar milhares de conexões em um único backend central.
+
+Por outro lado, cada instalação passa a depender diretamente das condições da rede e do IP daquele usuário.
+
+---
+
+# 16. Scripts no `package.json`
+
+Opcionalmente:
 
 ```json
 {
@@ -447,272 +889,120 @@ Para facilitar os testes, é possível adicionar scripts:
 }
 ```
 
-Depois:
+Então:
 
 ```bash
-pnpm twitch nome_do_streamer
+pnpm twitch ironmouse
 ```
 
 e:
 
 ```bash
-pnpm tiktok nome_do_streamer
+pnpm tiktok username
 ```
 
 ---
 
-# 9. Observações técnicas
+# 17. Checklist
 
-## Twitch sem OAuth
+## Twitch
 
-Para o objetivo de **somente consumir mensagens públicas do chat**, uma conexão anônima é suficiente.
+- [x] Dependência instalada.
+- [x] Conexão anônima.
+- [x] Sem OAuth.
+- [x] Chat recebido no terminal.
+- [x] Formato `[Twitch] Usuário: Mensagem`.
 
-Isso combina bem com a arquitetura pretendida:
+## TikTok
 
-```text
-Twitch
-   │
-   │ WebSocket / Chat
-   ▼
-Aplicação Electron
-   │
-   ▼
-Processamento local
-```
-
-Não existe necessidade de:
-
-```text
-Twitch
-   │
-   ▼
-Seu servidor
-   │
-   ▼
-Electron
-```
-
-para esse caso específico.
-
-O OAuth passa a ser necessário quando o produto precisar realizar ações autenticadas ou utilizar APIs da Twitch que exijam autorização.
+- [x] `tiktok-live-connector` instalado.
+- [ ] `fetchIsLive()` funcionando.
+- [ ] `fetchRoomId()` funcionando.
+- [ ] WebSocket conectando.
+- [ ] Evento `CHAT` sendo recebido.
+- [ ] Formato `[TikTok] Usuário: Mensagem`.
 
 ---
 
-## TikTok é uma integração não oficial
+# 18. Comandos rápidos
 
-Diferentemente de uma API pública oficialmente destinada a esse caso de uso, `tiktok-live-connector` depende do protocolo utilizado pelo TikTok LIVE.
-
-Isso significa que:
-
-- mudanças internas do TikTok podem quebrar versões da biblioteca;
-- atualizações da dependência podem ser necessárias;
-- o comportamento deve ser monitorado entre releases;
-- erros de conexão devem ser tratados pelo aplicativo;
-- uma estratégia de reconexão é recomendável em produção.
-
-Antes de atualizar a versão da biblioteca em um app distribuído, valide a nova versão em ambiente de teste.
-
----
-
-## Lives grandes e volume de eventos
-
-Uma live muito movimentada pode produzir uma quantidade significativa de eventos.
-
-Eventos como:
-
-```text
-CHAT
-LIKE
-MEMBER
-GIFT
-SOCIAL
-ROOM_USER
-```
-
-podem ter frequências muito diferentes.
-
-Para uma aplicação que precisa somente do chat, a abordagem recomendada é **não registrar listeners para eventos desnecessários**.
-
-Neste Quickstart fazemos apenas:
-
-```javascript
-connection.on(WebcastEvent.CHAT, (data) => {
-  // ...
-});
-```
-
-e deliberadamente não fazemos:
-
-```javascript
-connection.on(WebcastEvent.LIKE, () => {});
-```
-
-Em especial, likes e eventos de entrada de usuários podem produzir muito ruído em transmissões grandes.
-
----
-
-## Rate limiting e bloqueios por IP no TikTok
-
-Como a conexão ocorre diretamente da máquina do usuário para a infraestrutura do TikTok, é importante considerar mecanismos de proteção da plataforma.
-
-Dependendo do volume, comportamento das conexões e mudanças internas do TikTok, podem ocorrer situações como:
-
-- rate limiting;
-- falhas temporárias de conexão;
-- limitação ou bloqueio temporário associado ao IP;
-- necessidade de reconectar;
-- diferenças de comportamento em lives extremamente grandes.
-
-Portanto, em produção:
-
-1. evite abrir várias conexões para a mesma live sem necessidade;
-2. reutilize uma única conexão por transmissão sempre que possível;
-3. implemente reconexão com atraso progressivo;
-4. evite loops agressivos de reconexão;
-5. filtre eventos que o produto não utiliza;
-6. monitore mudanças nas versões do `tiktok-live-connector`.
-
----
-
-# 10. Considerações para Electron
-
-A abordagem é especialmente interessante para um aplicativo desktop porque a comunicação pode acontecer diretamente na máquina do usuário:
-
-```text
-┌─────────────────────────────┐
-│         Electron App        │
-│                             │
-│  ┌───────────────────────┐  │
-│  │ Node / Main Process   │  │
-│  │                       │  │
-│  │ Twitch Connection     │◄──────── Twitch
-│  │ TikTok Connection     │◄──────── TikTok
-│  └───────────┬───────────┘  │
-│              │ IPC          │
-│              ▼              │
-│  ┌───────────────────────┐  │
-│  │ Renderer / UI         │  │
-│  │                       │  │
-│  │ Chat unificado        │  │
-│  └───────────────────────┘  │
-└─────────────────────────────┘
-```
-
-Uma arquitetura inicial recomendada é manter as conexões da Twitch e TikTok no **processo principal do Electron** ou em um módulo Node dedicado.
-
-O Renderer deve receber somente os eventos necessários via IPC:
-
-```text
-Twitch ───┐
-          ├──► Node/Main ──► normalização ──► IPC ──► Renderer
-TikTok ───┘
-```
-
-Isso evita expor detalhes de conexão diretamente à camada da interface.
-
----
-
-# 11. Normalização dos eventos
-
-Ao avançar do protótipo, é útil transformar mensagens das duas plataformas em um formato interno comum.
-
-Exemplo:
-
-```javascript
-{
-  platform: 'twitch',
-  username: 'alice',
-  message: 'Olá!',
-  timestamp: Date.now()
-}
-```
-
-ou:
-
-```javascript
-{
-  platform: 'tiktok',
-  username: 'bob',
-  message: 'Salve!',
-  timestamp: Date.now()
-}
-```
-
-Uma função simples poderia ser:
-
-```javascript
-function createChatMessage(platform, username, message) {
-  return {
-    platform,
-    username,
-    message,
-    timestamp: Date.now(),
-  };
-}
-```
-
-Isso permite que o restante do aplicativo ignore detalhes específicos de Twitch ou TikTok:
-
-```text
-Twitch event ──┐
-               ├──► NormalizedChatMessage ──► UI
-TikTok event ──┘
-```
-
----
-
-# 12. Checklist de validação
-
-Após instalar e executar os testes, valide:
-
-- [ ] Node.js 18+ funcionando.
-- [ ] PNPM funcionando.
-- [ ] `tmi.js` instalado.
-- [ ] `tiktok-live-connector` instalado.
-- [ ] Twitch conecta sem token OAuth.
-- [ ] Mensagens da Twitch aparecem no terminal.
-- [ ] TikTok conecta usando somente o `uniqueId`.
-- [ ] Mensagens do TikTok aparecem no terminal.
-- [ ] Eventos desnecessários do TikTok não estão sendo processados.
-- [ ] Encerrar o processo com `Ctrl + C` fecha o teste.
-- [ ] A arquitetura funciona sem backend central.
-
----
-
-# 13. Resumo
-
-Instalação:
+Instalar:
 
 ```bash
-mkdir live-chat-test
-cd live-chat-test
-
-pnpm init
-pnpm pkg set type=module
-
 pnpm add tmi.js tiktok-live-connector
 ```
 
-Teste Twitch:
+Twitch:
 
 ```bash
-node twitch-test.js nome_do_streamer
+node twitch-test.js ironmouse
 ```
 
-Teste TikTok:
+TikTok:
 
 ```bash
-node tiktok-test.js nome_do_streamer
+node tiktok-test.js username
 ```
 
-Arquitetura validada pelo protótipo:
+Ver versões:
+
+```bash
+node --version
+pnpm --version
+pnpm list tmi.js tiktok-live-connector
+```
+
+---
+
+# 19. Próximo passo recomendado
+
+Antes de iniciar a integração com Electron, valide o TikTok até obter:
 
 ```text
-                    ┌──────────────┐
-Twitch ────────────►│              │
-                    │ Electron App │──► UI / Chat unificado
-TikTok ────────────►│              │
-                    └──────────────┘
+[1/3] isLive = true
+[2/3] roomId = ...
+[3/3] Conectado com sucesso
+[TikTok] usuario: mensagem
 ```
 
-Para o cenário de leitura de chats públicos, essa abordagem permite validar um aplicativo **local-first**, no qual cada instalação do Electron mantém suas próprias conexões com as plataformas, eliminando a necessidade de um servidor central dedicado exclusivamente ao encaminhamento das mensagens.
+Quando isso estiver funcionando de forma consistente, a próxima estrutura recomendada é:
+
+```text
+src/
+├── main/
+│   ├── twitch/
+│   │   └── TwitchChatClient.js
+│   ├── tiktok/
+│   │   └── TikTokChatClient.js
+│   ├── chat/
+│   │   └── ChatNormalizer.js
+│   └── ipc/
+│       └── chatIpc.js
+└── renderer/
+```
+
+Assim o experimento de terminal evolui diretamente para uma arquitetura adequada ao Electron.
+
+---
+
+# 20. Referências
+
+Projeto `tiktok-live-connector`:
+
+```text
+https://github.com/zerodytrash/TikTok-Live-Connector
+```
+
+Projeto `tmi.js`:
+
+```text
+https://github.com/tmijs/tmi.js
+```
+
+Documentação oficial de chat da Twitch:
+
+```text
+https://dev.twitch.tv/docs/chat/
+```
+
+> Observação: `tiktok-live-connector` é uma biblioteca comunitária e depende de interfaces/protocolos que podem mudar sem aviso. Sempre valide a versão instalada antes de distribuir uma atualização do aplicativo.

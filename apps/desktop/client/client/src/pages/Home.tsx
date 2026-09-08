@@ -11,6 +11,7 @@ import Shortcuts from '@/components/dashboard/shortcuts';
 import Theme from '@/components/dashboard/theme';
 import SoundPad from '@/components/dashboard/soundpad';
 import ObsStudio from '@/components/dashboard/obs';
+import Discord from '@/components/dashboard/discord';
 import WebDeck from '@/components/dashboard/webdeck';
 import UpdatePage from '@/components/dashboard/update';
 import WebPages from '@/components/dashboard/webpages';
@@ -39,6 +40,8 @@ export default function Home() {
         return <SoundPad />;
       case "obs":
         return <ObsStudio />;
+      case "discord":
+        return <Discord />;
       case "deck":
         return <WebDeck />;
       case "updates":

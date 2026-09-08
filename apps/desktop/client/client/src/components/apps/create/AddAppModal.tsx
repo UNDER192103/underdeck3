@@ -47,6 +47,7 @@ type FormState = {
   obsAction: "start" | "stop" | "toggle" | "pause" | "resume" | "switch" | "mute" | "unmute";
   obsSceneName: string;
   obsInputName: string;
+  discordAction: "toggle-mute" | "mute" | "unmute" | "toggle-deafen" | "deafen" | "undeafen";
 };
 
 type SoundPadFormHelpers = {
@@ -587,6 +588,32 @@ function getAppTypeDefinitions(
         args: parseArgs(state.cmdArgs),
       }),
     },
+    {
+      id: 7,
+      label: t("apps.modal.type.discord", "7 - Discord"),
+      description: t("apps.modal.type.discord.desc", "Executa uma ação da integração Discord RPC."),
+      renderFields: (state, setState) => (
+        <div className="grid gap-2">
+          <Label>{t("apps.modal.discord.action", "Ação do Discord")}</Label>
+          <Select
+            value={state.discordAction}
+            onValueChange={(value: FormState["discordAction"]) => setState((prev) => ({ ...prev, discordAction: value }))}
+          >
+            <SelectTrigger rounded="xl" className="w-full border-border/80 bg-card/80 text-foreground shadow-sm backdrop-blur-md transparent:bg-black/60 transparent:text-white"><SelectValue /></SelectTrigger>
+            <SelectContent rounded="lg" className="border-border/80 bg-popover/95 text-popover-foreground shadow-xl backdrop-blur-md transparent:bg-black/85 transparent:text-white">
+              <SelectItem value="toggle-mute">{t("apps.modal.discord.toggle_mute", "Alternar microfone")}</SelectItem>
+              <SelectItem value="mute">{t("apps.modal.discord.mute", "Mutar microfone")}</SelectItem>
+              <SelectItem value="unmute">{t("apps.modal.discord.unmute", "Desmutar microfone")}</SelectItem>
+              <SelectItem value="toggle-deafen">{t("apps.modal.discord.toggle_deafen", "Alternar áudio")}</SelectItem>
+              <SelectItem value="deafen">{t("apps.modal.discord.deafen", "Desativar áudio")}</SelectItem>
+              <SelectItem value="undeafen">{t("apps.modal.discord.undeafen", "Ativar áudio")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ),
+      validate: () => null,
+      buildMetaData: (state) => ({ action: state.discordAction }),
+    },
   ];
 }
 
@@ -610,6 +637,7 @@ const DEFAULT_FORM_STATE: FormState = {
   obsAction: "start",
   obsSceneName: "",
   obsInputName: "",
+  discordAction: "toggle-mute",
 };
 
 interface AddAppModalProps {
@@ -713,6 +741,7 @@ export function AddAppModal({
       obsAction: "start",
       obsSceneName: "",
       obsInputName: "",
+      discordAction: "toggle-mute",
       webUrlOpenInApp: false
     };
 
@@ -775,6 +804,12 @@ export function AddAppModal({
 
       nextState.obsSceneName = String(meta?.sceneName ?? (meta?.type === "scene" ? meta?.path : "") ?? "");
       nextState.obsInputName = String(meta?.inputName ?? (meta?.type === "input" ? meta?.path : "") ?? "");
+    }
+    if (appToEdit.type === 7) {
+      const action = String((appToEdit.meta_data as any)?.action ?? "toggle-mute");
+      if (["toggle-mute", "mute", "unmute", "toggle-deafen", "deafen", "undeafen"].includes(action)) {
+        nextState.discordAction = action as FormState["discordAction"];
+      }
     }
 
     setState(nextState);

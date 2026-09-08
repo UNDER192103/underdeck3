@@ -26,6 +26,9 @@ type ObsCommandResult = import("../main/services/obs.js").ObsCommandResult;
 type ObsScene = import("../main/services/obs.js").ObsScene;
 type ObsSettings = import("../main/services/obs.js").ObsSettings;
 type ObsState = import("../main/services/obs.js").ObsState;
+type DiscordCommandResult = import("../main/services/discord.js").DiscordCommandResult;
+type DiscordSettings = import("../main/services/discord.js").DiscordSettings;
+type DiscordState = import("../main/services/discord.js").DiscordState;
 type WebDeckItem = import("../main/services/webdeck.js").WebDeckItem;
 type WebDeckPage = import("../main/services/webdeck.js").WebDeckPage;
 type WebDeckAutoIcons = import("../main/services/webdeck.js").WebDeckAutoIcons;
@@ -272,6 +275,19 @@ interface UnderDeckApi {
     resumeRecord: () => Promise<ObsCommandResult>;
     onStateChanged: (listener: (state: ObsState) => void) => () => void;
   };
+  discord: {
+    getSettings: () => Promise<DiscordSettings>;
+    getState: () => Promise<DiscordState>;
+    refreshState: () => Promise<DiscordState>;
+    updateSettings: (patch: Partial<{ connectOnStartup: boolean; clientId: string; clientSecret: string; clearClientSecret: boolean }>) => Promise<DiscordCommandResult>;
+    connect: () => Promise<DiscordCommandResult>;
+    disconnect: () => Promise<DiscordCommandResult>;
+    setMute: (mute: boolean) => Promise<DiscordCommandResult>;
+    toggleMute: () => Promise<DiscordCommandResult>;
+    setDeafen: (deaf: boolean) => Promise<DiscordCommandResult>;
+    toggleDeafen: () => Promise<DiscordCommandResult>;
+    onStateChanged: (listener: (state: DiscordState) => void) => () => void;
+  };
   webdeck: {
     listPages: () => Promise<WebDeckPage[]>;
     findPage: (id: string) => Promise<WebDeckPage | null>;
@@ -309,6 +325,14 @@ const obsStateListeners = new Set<(state: ObsState) => void>();
 let obsStateSubscribed = false;
 const obsStateEventHandler = (_event: unknown, state: ObsState) => {
   obsStateListeners.forEach((listener) => {
+    listener(state);
+  });
+};
+
+const discordStateListeners = new Set<(state: DiscordState) => void>();
+let discordStateSubscribed = false;
+const discordStateEventHandler = (_event: unknown, state: DiscordState) => {
+  discordStateListeners.forEach((listener) => {
     listener(state);
   });
 };
@@ -740,6 +764,34 @@ const underdeckApi: UnderDeckApi = {
           ipcRenderer.removeListener("ObsSV-StateChanged", obsStateEventHandler);
           ipcRenderer.send("ObsSV-UnsubscribeStateChanged");
           obsStateSubscribed = false;
+        }
+      };
+    },
+  },
+  discord: {
+    getSettings: () => ipcRenderer.invoke("DiscordSV-GetSettings"),
+    getState: () => ipcRenderer.invoke("DiscordSV-GetState"),
+    refreshState: () => ipcRenderer.invoke("DiscordSV-RefreshState"),
+    updateSettings: (patch) => ipcRenderer.invoke("DiscordSV-UpdateSettings", patch),
+    connect: () => ipcRenderer.invoke("DiscordSV-Connect"),
+    disconnect: () => ipcRenderer.invoke("DiscordSV-Disconnect"),
+    setMute: (mute) => ipcRenderer.invoke("DiscordSV-SetMute", mute),
+    toggleMute: () => ipcRenderer.invoke("DiscordSV-ToggleMute"),
+    setDeafen: (deaf) => ipcRenderer.invoke("DiscordSV-SetDeafen", deaf),
+    toggleDeafen: () => ipcRenderer.invoke("DiscordSV-ToggleDeafen"),
+    onStateChanged: (listener) => {
+      discordStateListeners.add(listener);
+      if (!discordStateSubscribed) {
+        ipcRenderer.on("DiscordSV-StateChanged", discordStateEventHandler);
+        ipcRenderer.send("DiscordSV-SubscribeStateChanged");
+        discordStateSubscribed = true;
+      }
+      return () => {
+        discordStateListeners.delete(listener);
+        if (discordStateListeners.size === 0 && discordStateSubscribed) {
+          ipcRenderer.removeListener("DiscordSV-StateChanged", discordStateEventHandler);
+          ipcRenderer.send("DiscordSV-UnsubscribeStateChanged");
+          discordStateSubscribed = false;
         }
       };
     },

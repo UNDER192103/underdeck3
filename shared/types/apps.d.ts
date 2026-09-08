@@ -1,4 +1,4 @@
-export type AppTypes = 1 | 2 | 3 | 4 | 5 | 6;
+export type AppTypes = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export interface AppMetaDataExe {
   path: string;
@@ -47,6 +47,10 @@ export interface AppMetaDataObsStudio {
   args?: string[];
 }
 
+export interface AppMetaDataDiscord {
+  action: "toggle-mute" | "mute" | "unmute" | "toggle-deafen" | "deafen" | "undeafen";
+}
+
 export interface App {
   id: string;
   position: number;
@@ -59,9 +63,10 @@ export interface App {
     | AppMetaDataExe
     | AppMetaDataSystem
     | AppMetaDataSoundPad
-    | AppMetaDataWebUrl
-    | AppMetaDataCmd
-    | AppMetaDataObsStudio;
+  | AppMetaDataWebUrl
+  | AppMetaDataCmd
+  | AppMetaDataObsStudio
+  | AppMetaDataDiscord;
   updatedAt?: number;
 }
 

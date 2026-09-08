@@ -52,6 +52,12 @@ export const BaseConfig = {
         port: 4455,
         password: "",
     },
+    discord: {
+        connectOnStartup: false,
+        clientId: "",
+        clientSecretEncrypted: "",
+        accessTokenEncrypted: "",
+    },
     logs: {
         enabled: false,
         app: false,

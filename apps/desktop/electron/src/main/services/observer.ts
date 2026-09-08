@@ -30,6 +30,9 @@ export const ObserverChannels = {
     OBS_STREAM_CHANGED: "obs:stream-changed",
     OBS_RECORD_CHANGED: "obs:record-changed",
 
+    // Discord RPC related channels
+    DISCORD_STATE_CHANGED: "discord:state-changed",
+
     // SoundPad related channels
     SOUNDPAD_AUDIOS_CHANGED: "soundpad:audios-changed",
 
@@ -87,6 +90,9 @@ export interface ObserverEventDataMap {
     "obs:scene-changed": { sceneName: string; scenes: unknown[] };
     "obs:stream-changed": { active: boolean };
     "obs:record-changed": { active: boolean; paused: boolean };
+
+    // Discord events
+    "discord:state-changed": { state: unknown };
 
     // SoundPad events
     "soundpad:audios-changed": { audios: unknown[] };

@@ -1,1 +1,0 @@
-import{c as e,d as t}from"../http-Dk90f3fy.js";import{t as n}from"../App-C_EnHZsw.js";var r=t(),i=e();(0,r.createRoot)(document.getElementById(`root`)).render((0,i.jsx)(n,{"data-loc":`client\\src\\webdeck\\main.tsx:5`}));

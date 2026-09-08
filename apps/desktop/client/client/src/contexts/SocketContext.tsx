@@ -500,6 +500,28 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                         return;
                     }
 
+                    if (type === "discord") {
+                        const action = refId.startsWith("discord-action:")
+                            ? refId.replace("discord-action:", "").toLowerCase()
+                            : "";
+                        const actions: Record<string, () => Promise<{ ok: boolean; message: string }>> = {
+                            "toggle-mute": () => window.underdeck.discord.toggleMute(),
+                            mute: () => window.underdeck.discord.setMute(true),
+                            unmute: () => window.underdeck.discord.setMute(false),
+                            "toggle-deafen": () => window.underdeck.discord.toggleDeafen(),
+                            deafen: () => window.underdeck.discord.setDeafen(true),
+                            undeafen: () => window.underdeck.discord.setDeafen(false),
+                        };
+                        const execute = actions[action];
+                        if (!execute) {
+                            safeCb({ ok: false, error: "Invalid Discord action." });
+                            return;
+                        }
+                        const result = await execute();
+                        safeCb({ ok: result.ok, data: result, error: result.ok ? undefined : result.message });
+                        return;
+                    }
+
                     safeCb({ ok: false, error: `Unsupported item type: ${type}` });
                     return;
                 }

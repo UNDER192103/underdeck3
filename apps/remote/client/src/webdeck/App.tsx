@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import axios from "axios";
 import "../index.css";
-import { BackgroundComp, type BackgroundProps } from "../components/ui/background";
+import { BackgroundComp, type BackgroundProps } from "@/components/ui/background";
 import { Button } from "@/components/ui/button";
 import { WebDeckGrid } from "../components/webdeck/WebDeckGrid";
 import { I18nProvider, useI18n } from "@/contexts/I18nContext";
@@ -12,7 +12,7 @@ import { Maximize2, Minimize2 } from "lucide-react";
 
 type WebDeckItem = {
   id: string;
-  type: "back" | "page" | "app" | "soundpad" | "obs";
+  type: "back" | "page" | "app" | "soundpad" | "obs" | "discord";
   refId: string;
   label?: string;
   icon?: string | null;
@@ -533,6 +533,15 @@ function WebDeckRemoteAppContent() {
         return;
       }
       await execute("obs-app", item.refId, apiBaseUrl);
+      return;
+    }
+
+    if (item.type === "discord") {
+      if (item.refId.startsWith("discord-action:")) {
+        await execute("discord-action", item.refId.replace("discord-action:", ""), apiBaseUrl);
+        return;
+      }
+      await execute("app", item.refId, apiBaseUrl);
     }
   };
 
@@ -560,6 +569,18 @@ function WebDeckRemoteAppContent() {
     if (item.type === "page" || isAutoPageRef(item.refId)) return pageMap.get(item.refId)?.name || t("remote.webdeck.page", "Page");
     if (item.type === "obs" && item.refId.startsWith("obs-")) {
       return item.refId.replace(/^obs-(scene|audio|action):/, "");
+    }
+    if (item.type === "discord" && item.refId.startsWith("discord-action:")) {
+      const action = item.refId.replace("discord-action:", "");
+      const labels: Record<string, string> = {
+        "toggle-mute": t("remote.webdeck.discord.toggle_mute", "Toggle microphone"),
+        mute: t("remote.webdeck.discord.mute", "Mute microphone"),
+        unmute: t("remote.webdeck.discord.unmute", "Unmute microphone"),
+        "toggle-deafen": t("remote.webdeck.discord.toggle_deafen", "Toggle audio"),
+        deafen: t("remote.webdeck.discord.deafen", "Disable audio"),
+        undeafen: t("remote.webdeck.discord.undeafen", "Enable audio"),
+      };
+      return labels[action] ?? action;
     }
     if (item.type === "soundpad" && item.refId.startsWith("soundpad-audio:")) {
       return `${t("remote.webdeck.soundpad.prefix", "SoundPad #")}${item.refId.replace("soundpad-audio:", "")}`;

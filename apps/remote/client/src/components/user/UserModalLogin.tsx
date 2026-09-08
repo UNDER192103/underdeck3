@@ -1,12 +1,18 @@
 import React, { useState } from "react";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useUser } from "@/contexts/UserContext";
 import { Button } from "@/components/ui/button";
 import { Input, InputPassword } from "@/components/ui/input";
 import { FormItem } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/contexts/I18nContext";
-import { Send } from "lucide-react";
+import { LogIn, Send, UserRoundPlus } from "lucide-react";
 import { toast } from "sonner";
 
 type Mode = "login" | "register";
@@ -54,7 +60,11 @@ export function UserModalLogin() {
     <Dialog open={options.modalLogin} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[525px] select-none rounded-xl bg-background/50 backdrop-blur supports-[backdrop-filter]:bg-background/50">
         <DialogHeader>
-          <DialogTitle>{mode === "login" ? t("auth.login", "Login") : t("auth.register", "Registrar")}</DialogTitle>
+          <DialogTitle>
+            {mode === "login"
+              ? t("auth.login", "Login")
+              : t("auth.register", "Registrar")}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="flex items-center gap-2">
@@ -64,6 +74,7 @@ export function UserModalLogin() {
             className="flex-1 h-10"
             onClick={() => setMode("login")}
           >
+            <LogIn size={16} />
             {t("auth.login", "Login")}
           </Button>
           <Button
@@ -72,6 +83,7 @@ export function UserModalLogin() {
             className="flex-1 h-10"
             onClick={() => setMode("register")}
           >
+            <UserRoundPlus size={16} />
             {t("auth.register", "Registrar")}
           </Button>
         </div>
@@ -83,8 +95,16 @@ export function UserModalLogin() {
               <Input
                 value={loginData.identifier}
                 rounded="xl"
-                onChange={(e) => setLoginData((prev) => ({ ...prev, identifier: e.target.value }))}
-                placeholder={t("auth.identifier.placeholder", "Username ou e-mail")}
+                onChange={(e) =>
+                  setLoginData((prev) => ({
+                    ...prev,
+                    identifier: e.target.value,
+                  }))
+                }
+                placeholder={t(
+                  "auth.identifier.placeholder",
+                  "Username ou e-mail",
+                )}
                 className="text-xs pr-9"
               />
             </FormItem>
@@ -96,7 +116,12 @@ export function UserModalLogin() {
                 rounded="xl"
                 eyeRounded="lg"
                 type="password"
-                onChange={(e) => setLoginData((prev) => ({ ...prev, password: e.target.value }))}
+                onChange={(e) =>
+                  setLoginData((prev) => ({
+                    ...prev,
+                    password: e.target.value,
+                  }))
+                }
                 placeholder={t("auth.password", "Senha")}
                 className="text-xs pr-9"
               />
@@ -109,7 +134,12 @@ export function UserModalLogin() {
               <Input
                 value={registerData.displayName}
                 rounded="xl"
-                onChange={(e) => setRegisterData((prev) => ({ ...prev, displayName: e.target.value }))}
+                onChange={(e) =>
+                  setRegisterData((prev) => ({
+                    ...prev,
+                    displayName: e.target.value,
+                  }))
+                }
                 placeholder={t("auth.display_name", "Nome de exibicao")}
                 className="text-xs pr-9"
               />
@@ -119,7 +149,12 @@ export function UserModalLogin() {
               <Input
                 value={registerData.username}
                 rounded="xl"
-                onChange={(e) => setRegisterData((prev) => ({ ...prev, username: e.target.value }))}
+                onChange={(e) =>
+                  setRegisterData((prev) => ({
+                    ...prev,
+                    username: e.target.value,
+                  }))
+                }
                 placeholder={t("auth.username", "Username")}
                 className="text-xs pr-9"
               />
@@ -129,7 +164,12 @@ export function UserModalLogin() {
               <Input
                 value={registerData.email}
                 rounded="xl"
-                onChange={(e) => setRegisterData((prev) => ({ ...prev, email: e.target.value }))}
+                onChange={(e) =>
+                  setRegisterData((prev) => ({
+                    ...prev,
+                    email: e.target.value,
+                  }))
+                }
                 placeholder={t("auth.email", "E-mail")}
                 className="text-xs pr-9"
               />
@@ -141,7 +181,12 @@ export function UserModalLogin() {
                 rounded="xl"
                 eyeRounded="lg"
                 type="password"
-                onChange={(e) => setRegisterData((prev) => ({ ...prev, password: e.target.value }))}
+                onChange={(e) =>
+                  setRegisterData((prev) => ({
+                    ...prev,
+                    password: e.target.value,
+                  }))
+                }
                 placeholder={t("auth.password", "Senha")}
                 className="text-xs pr-9"
               />
@@ -153,7 +198,12 @@ export function UserModalLogin() {
                 rounded="xl"
                 eyeRounded="lg"
                 type="password"
-                onChange={(e) => setRegisterData((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                onChange={(e) =>
+                  setRegisterData((prev) => ({
+                    ...prev,
+                    confirmPassword: e.target.value,
+                  }))
+                }
                 placeholder={t("auth.confirm_password", "Confirmar senha")}
                 className="text-xs pr-9"
               />
@@ -163,11 +213,21 @@ export function UserModalLogin() {
 
         <DialogFooter className="sm:justify-center">
           {mode === "login" ? (
-            <Button className="w-full h-10" variant="primary" rounded="xl" onClick={tryLogin}>
+            <Button
+              className="w-full h-10"
+              variant="primary"
+              rounded="xl"
+              onClick={tryLogin}
+            >
               <Send size={20} /> {t("auth.login", "Login")}
             </Button>
           ) : (
-            <Button className="w-full h-10" variant="primary" rounded="xl" onClick={tryRegister}>
+            <Button
+              className="w-full h-10"
+              variant="primary"
+              rounded="xl"
+              onClick={tryRegister}
+            >
               <Send size={20} /> {t("auth.register", "Registrar")}
             </Button>
           )}

@@ -14,6 +14,8 @@ import { Switch } from "@/components/ui/switch";
 import Theme from '@/components/dashboard/theme';
 import SoundPad from '@/components/dashboard/soundpad';
 import ObsStudio from '@/components/dashboard/obs';
+import Discord from '@/components/dashboard/discord';
+import { DiscordIcon } from "@/components/icons/DiscordIcon";
 import { toast } from "sonner";
 import { useGlobalObserver } from "@/contexts/GlobalObserverContext";
 import UpdatePage from '@/components/dashboard/update';
@@ -35,7 +37,7 @@ interface UserProfileModalProps {
 export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
   const { modalLogin, logout, user } = useUser();
   const { t, locale, locales, setLocale, importLocaleFile, removeLocale } = useI18n();
-  const [currentSection, setCurrentSection] = useState<"theme" | "language" | "obs" | "soundpad" | "overlay" | "updates" | "advanced">("updates");
+  const [currentSection, setCurrentSection] = useState<"theme" | "language" | "obs" | "discord" | "soundpad" | "overlay" | "updates" | "advanced">("updates");
   const [isImportingLocale, setIsImportingLocale] = useState(false);
   const [isExportingLocale, setIsExportingLocale] = useState(false);
   const [removingLocale, setRemovingLocale] = useState<string | null>(null);
@@ -527,6 +529,15 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                     {t("sidebar.obsstudio", "Obs Studio")}
                   </Button>
                   <Button
+                    variant={currentSection === "discord" ? "primary" : "ghost-secondary"}
+                    rounded="xl"
+                    className="w-full text-left flex justify-start"
+                    onClick={() => setCurrentSection("discord")}
+                  >
+                    <DiscordIcon className="size-4" />
+                    {t("sidebar.discord", "Discord")}
+                  </Button>
+                  <Button
                     variant={currentSection === "overlay" ? "primary" : "ghost-secondary"}
                     rounded="xl"
                     className="w-full text-left flex justify-start"
@@ -579,6 +590,9 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
               )}
               {currentSection === "obs" && (
                 <ObsStudio className="border-none" />
+              )}
+              {currentSection === "discord" && (
+                <Discord className="border-none" />
               )}
               {currentSection === "updates" && (
                 <UpdatePage className="border-none" />

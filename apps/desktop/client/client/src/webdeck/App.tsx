@@ -5,14 +5,14 @@ import "../index.css";
 import { BackgroundComp, type BackgroundProps } from "../components/ui/background";
 import { Button } from "@/components/ui/button";
 import { WebDeckGrid } from "../components/webdeck/WebDeckGrid";
-import { I18nProvider } from "@/contexts/I18nContext";
+import { I18nProvider, useI18n } from "@/contexts/I18nContext";
 import { GlobalObserverProvider, useGlobalObserver } from "@/contexts/GlobalObserverContext";
 import { SocketSettings } from "@/const";
 import { Maximize2, Minimize2 } from "lucide-react";
 
 type WebDeckItem = {
   id: string;
-  type: "back" | "page" | "app" | "soundpad" | "obs";
+  type: "back" | "page" | "app" | "soundpad" | "obs" | "discord";
   refId: string;
   label?: string;
   icon?: string | null;
@@ -268,6 +268,7 @@ function ExpressObserverBridge({
 
 function WebDeckRemoteAppContent() {
   const { subscribe } = useGlobalObserver();
+  const { t } = useI18n();
   const [apiBaseUrl, setApiBaseUrl] = useState<string>("");
   const [socketUrl, setSocketUrl] = useState<string>(SocketSettings.url);
   const [config, setConfig] = useState<WebDeckConfig>({
@@ -541,6 +542,15 @@ function WebDeckRemoteAppContent() {
         return;
       }
       await execute("obs-app", item.refId, apiBaseUrl);
+      return;
+    }
+
+    if (item.type === "discord") {
+      if (item.refId.startsWith("discord-action:")) {
+        await execute("discord-action", item.refId.replace("discord-action:", ""), apiBaseUrl);
+        return;
+      }
+      await execute("app", item.refId, apiBaseUrl);
     }
   };
 
@@ -568,6 +578,18 @@ function WebDeckRemoteAppContent() {
     if (item.type === "page" || isAutoPageRef(item.refId)) return pageMap.get(item.refId)?.name || "Página";
     if (item.type === "obs" && item.refId.startsWith("obs-")) {
       return item.refId.replace(/^obs-(scene|audio|action):/, "");
+    }
+    if (item.type === "discord" && item.refId.startsWith("discord-action:")) {
+      const action = item.refId.replace("discord-action:", "");
+      const labels: Record<string, string> = {
+        "toggle-mute": t("webdeck.discord.toggle_mute", "Alternar microfone"),
+        mute: t("webdeck.discord.mute", "Mutar microfone"),
+        unmute: t("webdeck.discord.unmute", "Desmutar microfone"),
+        "toggle-deafen": t("webdeck.discord.toggle_deafen", "Alternar áudio"),
+        deafen: t("webdeck.discord.deafen", "Desativar áudio"),
+        undeafen: t("webdeck.discord.undeafen", "Ativar áudio"),
+      };
+      return labels[action] ?? action;
     }
     if (item.type === "soundpad" && item.refId.startsWith("soundpad-audio:")) {
       return `SoundPad #${item.refId.replace("soundpad-audio:", "")}`;

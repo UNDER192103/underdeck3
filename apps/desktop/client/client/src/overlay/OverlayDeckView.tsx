@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { WebDeckGrid } from "@/components/webdeck/WebDeckGrid";
+import { useI18n } from "@/contexts/I18nContext";
 import type { App } from "@/types/apps";
 import type { ObsAudioInput, ObsScene, SoundPadAudio, WebDeckItem, WebDeckPage } from "@/types/electron";
 
@@ -114,6 +115,7 @@ function buildAutoPagedPages(params: {
 }
 
 export default function OverlayDeckView() {
+  const { t } = useI18n();
   const [pages, setPages] = useState<WebDeckPage[]>([]);
   const [apps, setApps] = useState<App[]>([]);
   const [soundpadAudios, setSoundpadAudios] = useState<SoundPadAudio[]>([]);
@@ -268,6 +270,24 @@ export default function OverlayDeckView() {
         return;
       }
       await window.underdeck.apps.execute(item.refId);
+      return;
+    }
+    if (item.type === "discord") {
+      if (item.refId.startsWith("discord-action:")) {
+        const action = item.refId.replace("discord-action:", "");
+        const map: Record<string, () => Promise<{ ok: boolean; message: string }>> = {
+          "toggle-mute": () => window.underdeck.discord.toggleMute(),
+          mute: () => window.underdeck.discord.setMute(true),
+          unmute: () => window.underdeck.discord.setMute(false),
+          "toggle-deafen": () => window.underdeck.discord.toggleDeafen(),
+          deafen: () => window.underdeck.discord.setDeafen(true),
+          undeafen: () => window.underdeck.discord.setDeafen(false),
+        };
+        const handler = map[action];
+        if (handler) await handler();
+        return;
+      }
+      await window.underdeck.apps.execute(item.refId);
     }
   };
 
@@ -298,6 +318,18 @@ export default function OverlayDeckView() {
     if (item.label) return item.label;
     if (item.type === "back") return "Voltar";
     if (item.type === "page") return pageMap.get(item.refId)?.name || "Página";
+    if (item.type === "discord" && item.refId.startsWith("discord-action:")) {
+      const action = item.refId.replace("discord-action:", "");
+      const labels: Record<string, string> = {
+        "toggle-mute": t("webdeck.discord.toggle_mute", "Alternar microfone"),
+        mute: t("webdeck.discord.mute", "Mutar microfone"),
+        unmute: t("webdeck.discord.unmute", "Desmutar microfone"),
+        "toggle-deafen": t("webdeck.discord.toggle_deafen", "Alternar áudio"),
+        deafen: t("webdeck.discord.deafen", "Desativar áudio"),
+        undeafen: t("webdeck.discord.undeafen", "Ativar áudio"),
+      };
+      return labels[action] ?? action;
+    }
     return appMap.get(item.refId)?.name || "Item";
   };
 

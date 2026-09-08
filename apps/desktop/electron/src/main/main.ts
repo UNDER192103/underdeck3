@@ -42,6 +42,7 @@ import { fileDialogService } from "./services/file-dialog.js";
 import { ThemeService } from "./services/theme.js";
 import { SoundPadService } from "./services/soundpad.js";
 import { ObsService } from "./services/obs.js";
+import { DiscordService } from "./services/discord.js";
 import { WebDeckService } from "./services/webdeck.js";
 import { WebPagesService } from "./services/web-pages.js";
 import { AlternativeShortcut } from "../types/shortcuts.js";
@@ -55,15 +56,17 @@ import { logsService } from "./services/logs.js";
 
 const soundPadService = new SoundPadService();
 const obsService = new ObsService();
+const discordService = new DiscordService();
 const webDeckService = new WebDeckService();
 const webPagesService = new WebPagesService();
-const AppService = new MainAppService(soundPadService, obsService, webPagesService);
+const AppService = new MainAppService(soundPadService, obsService, discordService, webPagesService);
 const expressService = new ExpressServer(
   Settings.get("express").port,
   AppService,
   webDeckService,
   soundPadService,
-  obsService
+  obsService,
+  discordService
 );
 const hortcutService = new Shortcutkey();
 const themeService = new ThemeService(AppService);
@@ -182,6 +185,7 @@ const stopRuntimeServicesForUpdate = async () => {
   logsService.log("app", "runtime.stop.begin");
   try { hortcutService.stop(); } catch { /* ignore */ }
   try { await obsService.disconnect(); } catch { /* ignore */ }
+  try { await discordService.disconnect(); } catch { /* ignore */ }
   try { soundPadService.stop(); } catch { /* ignore */ }
   try { expressService.stop(); } catch { /* ignore */ }
   logsService.log("app", "runtime.stop.done");
@@ -285,6 +289,7 @@ const ipcmainService = new IpcmainService(
   themeService,
   soundPadService,
   obsService,
+  discordService,
   webDeckService,
   webPagesService,
   updaterService,
@@ -690,6 +695,7 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
 
   if (Settings.get("express").enabled) expressService.start(Settings.get("express").port);
   await obsService.connectOnStartupIfNeeded();
+  await discordService.connectOnStartupIfNeeded();
   const shortcutsEnabled = Boolean(Settings.get("shortcuts").enalbed);
   hortcutService.setMacrosEnabled(shortcutsEnabled);
   if (shortcutsEnabled) {

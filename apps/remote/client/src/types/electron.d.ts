@@ -152,7 +152,7 @@ export interface ObsCommandResult {
   message: string;
 }
 
-export type WebDeckItemType = "back" | "page" | "app" | "soundpad" | "obs";
+export type WebDeckItemType = "back" | "page" | "app" | "soundpad" | "obs" | "discord";
 
 export interface WebDeckItem {
   id: string;

@@ -8,7 +8,6 @@ import { defineConfig } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime()];
-
 export default defineConfig({
   plugins,
   base: "/",
@@ -49,9 +48,5 @@ export default defineConfig({
       "localhost",
       "127.0.0.1",
     ],
-    fs: {
-      strict: true,
-      deny: ["**/.*"],
-    },
   },
 });

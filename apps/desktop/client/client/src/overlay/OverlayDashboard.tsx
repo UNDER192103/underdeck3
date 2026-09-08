@@ -3,6 +3,7 @@ import Apps from "@/components/dashboard/apps";
 import Shortcuts from "@/components/dashboard/shortcuts";
 import SoundPad from "@/components/dashboard/soundpad";
 import ObsStudio from "@/components/dashboard/obs";
+import Discord from "@/components/dashboard/discord";
 import WebDeckEditor from "@/components/dashboard/webdeck";
 import WebPages from "@/components/dashboard/webpages";
 import OverlayDeckView from "@/overlay/OverlayDeckView";
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useNavigation } from "@/contexts/NavigationContext";
 import { useI18n } from "@/contexts/I18nContext";
+import { DiscordIcon } from "@/components/icons/DiscordIcon";
 
 export default function OverlayDashboard() {
   const { t } = useI18n();
@@ -70,6 +72,9 @@ export default function OverlayDashboard() {
               </TabsTrigger>
               <TabsTrigger value="obs">
                 <Radio /> {t("sidebar.obsstudio", "Obs Studio")}
+              </TabsTrigger>
+              <TabsTrigger value="discord">
+                <DiscordIcon className="size-4" /> {t("sidebar.discord", "Discord")}
               </TabsTrigger>
               <TabsTrigger value="webpages">
                 <Globe /> {t("sidebar.webpages", "Paginas Webs")}
@@ -121,6 +126,9 @@ export default function OverlayDashboard() {
             </TabsContent>
             <TabsContent value="obs" className="h-[calc(100%-56px)] min-h-0 overflow-y-auto">
               <ObsStudio className="border-none" />
+            </TabsContent>
+            <TabsContent value="discord" className="h-[calc(100%-56px)] min-h-0 overflow-y-auto">
+              <Discord className="border-none" />
             </TabsContent>
             <TabsContent value="webpages" className="h-[calc(100%-56px)] min-h-0 overflow-y-auto">
               <WebPages />

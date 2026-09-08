@@ -16,6 +16,14 @@ const obsStateEventHandler = (_event, state) => {
   });
 };
 
+const discordStateListeners = new Set();
+let discordStateSubscribed = false;
+const discordStateEventHandler = (_event, state) => {
+  discordStateListeners.forEach((listener) => {
+    listener(state);
+  });
+};
+
 const observerListeners = new Set();
 let observerSubscribed = false;
 const observerEventHandler = (_event, payload) => {
@@ -426,6 +434,34 @@ const underdeckApi = {
           ipcRenderer.removeListener("ObsSV-StateChanged", obsStateEventHandler);
           ipcRenderer.send("ObsSV-UnsubscribeStateChanged");
           obsStateSubscribed = false;
+        }
+      };
+    },
+  },
+  discord: {
+    getSettings: () => ipcRenderer.invoke("DiscordSV-GetSettings"),
+    getState: () => ipcRenderer.invoke("DiscordSV-GetState"),
+    refreshState: () => ipcRenderer.invoke("DiscordSV-RefreshState"),
+    updateSettings: (patch) => ipcRenderer.invoke("DiscordSV-UpdateSettings", patch),
+    connect: () => ipcRenderer.invoke("DiscordSV-Connect"),
+    disconnect: () => ipcRenderer.invoke("DiscordSV-Disconnect"),
+    setMute: (mute) => ipcRenderer.invoke("DiscordSV-SetMute", mute),
+    toggleMute: () => ipcRenderer.invoke("DiscordSV-ToggleMute"),
+    setDeafen: (deaf) => ipcRenderer.invoke("DiscordSV-SetDeafen", deaf),
+    toggleDeafen: () => ipcRenderer.invoke("DiscordSV-ToggleDeafen"),
+    onStateChanged: (listener) => {
+      discordStateListeners.add(listener);
+      if (!discordStateSubscribed) {
+        ipcRenderer.on("DiscordSV-StateChanged", discordStateEventHandler);
+        ipcRenderer.send("DiscordSV-SubscribeStateChanged");
+        discordStateSubscribed = true;
+      }
+      return () => {
+        discordStateListeners.delete(listener);
+        if (discordStateListeners.size === 0 && discordStateSubscribed) {
+          ipcRenderer.removeListener("DiscordSV-StateChanged", discordStateEventHandler);
+          ipcRenderer.send("DiscordSV-UnsubscribeStateChanged");
+          discordStateSubscribed = false;
         }
       };
     },

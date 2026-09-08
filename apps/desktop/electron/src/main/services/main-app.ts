@@ -14,6 +14,7 @@ import { exec, spawn } from "node:child_process";
 import rebotjs from "robotjs";
 import { SoundPadService } from "./soundpad.js";
 import { ObsService } from "./obs.js";
+import { DiscordService } from "./discord.js";
 import { WebPagesService } from "./web-pages.js";
 import { logsService } from "./logs.js";
 import { observerService, ObserverChannels } from "./observer.js";
@@ -28,13 +29,15 @@ export class MainAppService extends EventEmitter {
     private robot: any | null = null;
     private soundPadService: SoundPadService;
     private obsService: ObsService;
+    private discordService: DiscordService;
     private webPagesService: WebPagesService;
     private changeCallback: ((type: string, data?: unknown) => void) | null = null;
 
-    constructor(soundPadService: SoundPadService, obsService: ObsService, webPagesService: WebPagesService) {
+    constructor(soundPadService: SoundPadService, obsService: ObsService, discordService: DiscordService, webPagesService: WebPagesService) {
         super();
         this.soundPadService = soundPadService;
         this.obsService = obsService;
+        this.discordService = discordService;
         this.webPagesService = webPagesService;
         try {
             this.robot = rebotjs;
@@ -1106,6 +1109,16 @@ export class MainAppService extends EventEmitter {
                     }
                 );
                 return true;
+            }
+            case 7: {
+                const action = String((app.meta_data as any)?.action ?? "").toLowerCase();
+                if (action === "toggle-mute") return (await this.discordService.toggleMute()).ok;
+                if (action === "mute") return (await this.discordService.setMute(true)).ok;
+                if (action === "unmute") return (await this.discordService.setMute(false)).ok;
+                if (action === "toggle-deafen") return (await this.discordService.toggleDeafen()).ok;
+                if (action === "deafen") return (await this.discordService.setDeafen(true)).ok;
+                if (action === "undeafen") return (await this.discordService.setDeafen(false)).ok;
+                return false;
             }
             default: {
                 logger.log(logger.cli.yellow(`Executar APP (não implementado para o tipo): `), app);

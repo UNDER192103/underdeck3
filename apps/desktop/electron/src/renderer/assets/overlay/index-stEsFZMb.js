@@ -1,0 +1,1 @@
+import{c as e,d as t}from"../http-DgriAV6O.js";import{t as n}from"../App-CaBQLWwe.js";var r=t(),i=e();(0,r.createRoot)(document.getElementById(`root`)).render((0,i.jsx)(n,{"data-loc":`client\\src\\overlay\\main.tsx:6`}));

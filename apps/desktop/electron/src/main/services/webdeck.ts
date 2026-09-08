@@ -10,7 +10,7 @@ import { observerService, ObserverChannels } from "./observer.js";
 
 const { app: electronApp } = electron;
 
-export type WebDeckItemType = "back" | "page" | "app" | "soundpad" | "obs";
+export type WebDeckItemType = "back" | "page" | "app" | "soundpad" | "obs" | "discord";
 
 export type WebDeckItem = {
     id: string;
@@ -348,7 +348,7 @@ export class WebDeckService extends EventEmitter {
             const item = items[i] as Partial<WebDeckItem> | null;
             if (!item || typeof item !== "object") continue;
             const type = String(item.type ?? "").toLowerCase();
-            if (type !== "back" && type !== "page" && type !== "app" && type !== "soundpad" && type !== "obs") continue;
+            if (type !== "back" && type !== "page" && type !== "app" && type !== "soundpad" && type !== "obs" && type !== "discord") continue;
             const refId = String(item.refId ?? "").trim();
             if (type !== "back" && !refId) continue;
             normalized[i] = {
@@ -656,13 +656,17 @@ export class WebDeckService extends EventEmitter {
 
     public upsertItem(pageId: string, index: number, item: Omit<WebDeckItem, "id"> & { id?: string }) {
         const current = this.findPage(pageId);
-        if (!current) return null;
+        if (!current) return this.rejectItemUpsert("page_not_found", { pageId, index, item });
         const safeIndex = Math.trunc(index);
-        if (!Number.isFinite(safeIndex) || safeIndex < 0 || safeIndex >= current.items.length) return null;
+        if (!Number.isFinite(safeIndex) || safeIndex < 0 || safeIndex >= current.items.length) {
+            return this.rejectItemUpsert("invalid_slot", { pageId, index, slots: current.items.length, item });
+        }
         const type = String(item.type ?? "").toLowerCase();
-        if (type !== "back" && type !== "page" && type !== "app" && type !== "soundpad" && type !== "obs") return null;
+        if (type !== "back" && type !== "page" && type !== "app" && type !== "soundpad" && type !== "obs" && type !== "discord") {
+            return this.rejectItemUpsert("unsupported_type", { pageId, index: safeIndex, type, refId: item.refId });
+        }
         const refId = String(item.refId ?? "").trim();
-        if (type !== "back" && !refId) return null;
+        if (type !== "back" && !refId) return this.rejectItemUpsert("missing_destination", { pageId, index: safeIndex, type });
 
         const currentItem = current.items[safeIndex];
         const itemId = item.id ? String(item.id) : (current.items[safeIndex]?.id ?? randomUUID());
@@ -685,6 +689,14 @@ export class WebDeckService extends EventEmitter {
         this.notifyChange("pages-changed")
         logsService.log("webdeck", "item.upsert", { pageId, index: safeIndex, type, refId });
         return this.findPage(pageId);
+    }
+
+    private rejectItemUpsert(reason: string, data: Record<string, unknown>) {
+        const payload = { reason, ...data };
+        // Keep this visible during development even when file logs are disabled.
+        console.error("[underdeck:webdeck] item.upsert.rejected", payload);
+        logsService.log("webdeck", "item.upsert.rejected", payload, "error");
+        return null;
     }
 
     public removeItem(pageId: string, index: number) {

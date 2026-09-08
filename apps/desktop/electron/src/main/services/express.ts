@@ -11,6 +11,7 @@ import { MainAppService } from "./main-app.js";
 import { WebDeckService } from "./webdeck.js";
 import { SoundPadService } from "./soundpad.js";
 import { ObsService } from "./obs.js";
+import { DiscordService } from "./discord.js";
 import { Settings } from "./settings.js";
 import { logsService } from "./logs.js";
 import { getDb } from "./database.js";
@@ -30,6 +31,7 @@ export class ExpressServer {
   private webDeckService: WebDeckService;
   private soundPadService: SoundPadService;
   private obsService: ObsService;
+  private discordService: DiscordService;
   private unsubscribers: Array<() => void> = [];
 
   private isDevMode() {
@@ -98,7 +100,8 @@ export class ExpressServer {
     appService: MainAppService,
     webDeckService: WebDeckService,
     soundPadService: SoundPadService,
-    obsService: ObsService
+    obsService: ObsService,
+    discordService: DiscordService
   ) {
     this.app = express();
     this.port = port;
@@ -106,6 +109,7 @@ export class ExpressServer {
     this.webDeckService = webDeckService;
     this.soundPadService = soundPadService;
     this.obsService = obsService;
+    this.discordService = discordService;
     this.configureMiddleware();
     this.configureRoutes();
   }
@@ -483,6 +487,20 @@ export class ExpressServer {
       return { ok: Boolean(ok), message: ok ? "OBS app executado." : "Falha ao executar app OBS." };
     }
 
+    if (normalizedType === "discord-action") {
+      const action = normalizedId.toLowerCase();
+      const map: Record<string, () => Promise<{ ok: boolean; message: string }>> = {
+        "toggle-mute": () => this.discordService.toggleMute(),
+        mute: () => this.discordService.setMute(true),
+        unmute: () => this.discordService.setMute(false),
+        "toggle-deafen": () => this.discordService.toggleDeafen(),
+        deafen: () => this.discordService.setDeafen(true),
+        undeafen: () => this.discordService.setDeafen(false),
+      };
+      const handler = map[action];
+      return handler ? handler() : { ok: false, message: "Ação Discord inválida." };
+    }
+
     return { ok: false, message: "Tipo não suportado." };
   }
 
@@ -665,6 +683,14 @@ export class ExpressServer {
       }
     );
 
+    const unsubscribeDiscord = observerService.subscribe(
+      ObserverChannels.DISCORD_STATE_CHANGED,
+      (payload) => {
+        const data = payload.data as ObserverEventDataMap["discord:state-changed"];
+        io.emit("discord:state-changed", { state: data.state, at: Date.now() });
+      }
+    );
+
     const unsubscribeSoundPad = observerService.subscribe(
       ObserverChannels.SOUNDPAD_AUDIOS_CHANGED,
       (payload) => {
@@ -697,6 +723,7 @@ export class ExpressServer {
     this.unsubscribers.push(unsubscribeWebDeck);
     this.unsubscribers.push(unsubscribeApps);
     this.unsubscribers.push(unsubscribeObs);
+    this.unsubscribers.push(unsubscribeDiscord);
     this.unsubscribers.push(unsubscribeSoundPad);
     this.unsubscribers.push(unsubscribeTheme);
   }

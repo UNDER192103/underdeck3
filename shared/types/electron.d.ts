@@ -175,7 +175,43 @@ export interface ObsCommandResult {
   message: string;
 }
 
-export type WebDeckItemType = "back" | "page" | "app" | "soundpad" | "obs";
+export interface DiscordSettings {
+  connectOnStartup: boolean;
+  clientId: string;
+  hasClientSecret: boolean;
+  hasAccessToken: boolean;
+}
+
+export interface DiscordProfile {
+  id: string;
+  username: string;
+  globalName: string;
+  avatarUrl: string | null;
+}
+
+export interface DiscordApplication {
+  id: string;
+  name: string;
+  iconUrl: string | null;
+}
+
+export interface DiscordState {
+  connected: boolean;
+  connecting: boolean;
+  reconnecting: boolean;
+  user: DiscordProfile | null;
+  application: DiscordApplication | null;
+  voice: { mute: boolean; deaf: boolean };
+  lastError: string | null;
+  settings: DiscordSettings;
+}
+
+export interface DiscordCommandResult {
+  ok: boolean;
+  message: string;
+}
+
+export type WebDeckItemType = "back" | "page" | "app" | "soundpad" | "obs" | "discord";
 
 export interface WebDeckItem {
   id: string;
@@ -468,6 +504,19 @@ export interface UnderDeckApi {
     pauseRecord: () => Promise<ObsCommandResult>;
     resumeRecord: () => Promise<ObsCommandResult>;
     onStateChanged: (listener: (state: ObsState) => void) => () => void;
+  };
+  discord: {
+    getSettings: () => Promise<DiscordSettings>;
+    getState: () => Promise<DiscordState>;
+    refreshState: () => Promise<DiscordState>;
+    updateSettings: (patch: Partial<{ connectOnStartup: boolean; clientId: string; clientSecret: string; clearClientSecret: boolean }>) => Promise<DiscordCommandResult>;
+    connect: () => Promise<DiscordCommandResult>;
+    disconnect: () => Promise<DiscordCommandResult>;
+    setMute: (mute: boolean) => Promise<DiscordCommandResult>;
+    toggleMute: () => Promise<DiscordCommandResult>;
+    setDeafen: (deaf: boolean) => Promise<DiscordCommandResult>;
+    toggleDeafen: () => Promise<DiscordCommandResult>;
+    onStateChanged: (listener: (state: DiscordState) => void) => () => void;
   };
   webdeck: {
     listPages: () => Promise<WebDeckPage[]>;

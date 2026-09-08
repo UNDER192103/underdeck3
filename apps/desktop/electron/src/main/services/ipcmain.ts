@@ -20,6 +20,7 @@ import { StoredThemeBackground, ThemeDownloadRequest, ThemeEffectBackgrounds } f
 import { Settings } from "./settings.js";
 import { SoundPadService } from "./soundpad.js";
 import { ObsService, ObsState } from "./obs.js";
+import { DiscordService, DiscordState } from "./discord.js";
 import { WebDeckService } from "./webdeck.js";
 import { WebPagesService } from "./web-pages.js";
 import { OverlaySettings } from "../../types/overlay.js";
@@ -55,6 +56,7 @@ export class IpcmainService {
     private themeService: ThemeService;
     private soundPadService: SoundPadService;
     private obsService: ObsService;
+    private discordService: DiscordService;
     private webDeckService: WebDeckService;
     private webPagesService: WebPagesService;
     private updaterService: UpdaterService;
@@ -64,6 +66,7 @@ export class IpcmainService {
     private onUpdateAvailableForHandoff?: () => Promise<void> | void;
     private soundPadSubscriptions = new Map<number, () => void>();
     private obsSubscriptions = new Map<number, () => void>();
+    private discordSubscriptions = new Map<number, () => void>();
     private windowStateSubscriptions = new Map<number, () => void>();
     private devToolsGuards = new Set<number>();
 
@@ -75,6 +78,7 @@ export class IpcmainService {
         themeService: ThemeService,
         soundPadService: SoundPadService,
         obsService: ObsService,
+        discordService: DiscordService,
         webDeckService: WebDeckService,
         webPagesService: WebPagesService,
         updaterService: UpdaterService,
@@ -91,6 +95,7 @@ export class IpcmainService {
         this.themeService = themeService;
         this.soundPadService = soundPadService;
         this.obsService = obsService;
+        this.discordService = discordService;
         this.webDeckService = webDeckService;
         this.webPagesService = webPagesService;
         this.updaterService = updaterService;
@@ -201,6 +206,13 @@ export class IpcmainService {
         this.obsSubscriptions.delete(senderId);
     }
 
+    private unsubscribeDiscordStateChangedBySenderId(senderId: number) {
+        const unsubscribe = this.discordSubscriptions.get(senderId);
+        if (!unsubscribe) return;
+        unsubscribe();
+        this.discordSubscriptions.delete(senderId);
+    }
+
     private unsubscribeWindowStateChangedBySenderId(senderId: number) {
         const unsubscribe = this.windowStateSubscriptions.get(senderId);
         if (!unsubscribe) return;
@@ -235,6 +247,36 @@ export class IpcmainService {
         void this.obsService.getState().then((state) => {
             if (event.sender.isDestroyed()) return;
             event.sender.send("ObsSV-StateChanged", state);
+        });
+    }
+
+    private subscribeDiscordStateChanged(event: Electron.IpcMainEvent) {
+        const senderId = event.sender.id;
+        this.unsubscribeDiscordStateChangedBySenderId(senderId);
+
+        const listener = (state: DiscordState) => {
+            if (event.sender.isDestroyed()) {
+                this.unsubscribeDiscordStateChangedBySenderId(senderId);
+                return;
+            }
+            event.sender.send("DiscordSV-StateChanged", state);
+        };
+
+        this.discordService.on("state-changed", listener);
+        const unsubscribe = () => {
+            this.discordService.off("state-changed", listener);
+            event.sender.removeListener("destroyed", onSenderDestroyed);
+        };
+        this.discordSubscriptions.set(senderId, unsubscribe);
+
+        const onSenderDestroyed = () => {
+            this.unsubscribeDiscordStateChangedBySenderId(senderId);
+        };
+        event.sender.once("destroyed", onSenderDestroyed);
+
+        void this.discordService.getState().then((state) => {
+            if (event.sender.isDestroyed()) return;
+            event.sender.send("DiscordSV-StateChanged", state);
         });
     }
 
@@ -816,6 +858,25 @@ export class IpcmainService {
             this.unsubscribeObsStateChangedBySenderId(event.sender.id);
         });
 
+        ipcMain.handle("DiscordSV-GetSettings", async () => this.discordService.getSettings());
+        ipcMain.handle("DiscordSV-GetState", async () => this.discordService.getState());
+        ipcMain.handle("DiscordSV-RefreshState", async () => this.discordService.refreshState());
+        ipcMain.handle(
+            "DiscordSV-UpdateSettings",
+            async (_event, patch: Partial<{ connectOnStartup: boolean; clientId: string; clientSecret: string; clearClientSecret: boolean }>) =>
+                this.discordService.updateSettings(patch)
+        );
+        ipcMain.handle("DiscordSV-Connect", async () => this.discordService.connect({ allowAuthorization: true }));
+        ipcMain.handle("DiscordSV-Disconnect", async () => this.discordService.disconnect());
+        ipcMain.handle("DiscordSV-SetMute", async (_event, mute: boolean) => this.discordService.setMute(Boolean(mute)));
+        ipcMain.handle("DiscordSV-ToggleMute", async () => this.discordService.toggleMute());
+        ipcMain.handle("DiscordSV-SetDeafen", async (_event, deaf: boolean) => this.discordService.setDeafen(Boolean(deaf)));
+        ipcMain.handle("DiscordSV-ToggleDeafen", async () => this.discordService.toggleDeafen());
+        ipcMain.on("DiscordSV-SubscribeStateChanged", (event) => this.subscribeDiscordStateChanged(event));
+        ipcMain.on("DiscordSV-UnsubscribeStateChanged", (event) => {
+            this.unsubscribeDiscordStateChangedBySenderId(event.sender.id);
+        });
+
         // Handler para comandos do WebDeck remoto
         ipcMain.on("WebDeckSV-Command", async (event, payload: { cmd: string; data?: any }, callback?: any) => {
             try {
@@ -906,10 +967,30 @@ export class IpcmainService {
                 }
                 
                 if (cmd === "webdeck:activateItem") {
-                    const { type, refId } = data || {};
-                    // Aqui iria a lógica para ativar o item (som, cena OBS, etc)
-                    // Por enquanto só retorna sucesso
-                    callback?.({ ok: true });
+                    const type = String(data?.type ?? "").trim();
+                    const refId = String(data?.refId ?? "").trim();
+                    if (type === "discord") {
+                        const action = refId.startsWith("discord-action:")
+                            ? refId.replace("discord-action:", "").toLowerCase()
+                            : "";
+                        const actions: Record<string, () => Promise<{ ok: boolean; message: string }>> = {
+                            "toggle-mute": () => this.discordService.toggleMute(),
+                            mute: () => this.discordService.setMute(true),
+                            unmute: () => this.discordService.setMute(false),
+                            "toggle-deafen": () => this.discordService.toggleDeafen(),
+                            deafen: () => this.discordService.setDeafen(true),
+                            undeafen: () => this.discordService.setDeafen(false),
+                        };
+                        const execute = actions[action];
+                        if (!execute) {
+                            callback?.({ ok: false, error: "Invalid Discord action." });
+                            return;
+                        }
+                        const result = await execute();
+                        callback?.({ ok: result.ok, data: result, error: result.ok ? undefined : result.message });
+                        return;
+                    }
+                    callback?.({ ok: false, error: `Unsupported item type: ${type}` });
                     return;
                 }
                 
@@ -996,14 +1077,26 @@ export class IpcmainService {
             observerService.publish("webdeck:pages-changed", { pages: allPages, autoIcons } as any, sourceId || "IPCMAIN");
             return result;
         });
-        ipcMain.handle("WebDeckSV-UpsertItem", async (_event, pageId: string, index: number, item: { id?: string; type: "back" | "page" | "app" | "soundpad" | "obs"; refId: string; label?: string; icon?: string | null }, sourceId?: string) => {
-            const result = await this.webDeckService.upsertItem(pageId, index, item);
-            this.notifyWebDeckChangedClients(sourceId);
-            // Publica no observer para SocketContext e Express - usa dados completos
-            const allPages = this.webDeckService.listPages();
-            const autoIcons = this.webDeckService.listAutoIcons();
-            observerService.publish("webdeck:pages-changed", { pages: allPages, autoIcons } as any, sourceId || "IPCMAIN");
-            return result;
+        ipcMain.handle("WebDeckSV-UpsertItem", async (_event, pageId: string, index: number, item: { id?: string; type: "back" | "page" | "app" | "soundpad" | "obs" | "discord"; refId: string; label?: string; icon?: string | null }, sourceId?: string) => {
+            try {
+                const result = await this.webDeckService.upsertItem(pageId, index, item);
+                this.notifyWebDeckChangedClients(sourceId);
+                // Publica no observer para SocketContext e Express - usa dados completos
+                const allPages = this.webDeckService.listPages();
+                const autoIcons = this.webDeckService.listAutoIcons();
+                observerService.publish("webdeck:pages-changed", { pages: allPages, autoIcons } as any, sourceId || "IPCMAIN");
+                return result;
+            } catch (error) {
+                const details = {
+                    pageId,
+                    index,
+                    item: { type: item?.type, refId: item?.refId },
+                    error: error instanceof Error ? error.message : String(error),
+                };
+                console.error("[underdeck:webdeck] item.upsert.failed", details);
+                logsService.log("webdeck", "item.upsert.failed", details, "error");
+                return null;
+            }
         });
         ipcMain.handle("WebDeckSV-RemoveItem", async (_event, pageId: string, index: number, sourceId?: string) => {
             const result = await this.webDeckService.removeItem(pageId, index);

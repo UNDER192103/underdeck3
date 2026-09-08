@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,15 +19,32 @@ import { AppUser } from "@/types/user";
 import { DiscordColorPicker } from "@/components/DiscordColorPicker";
 import { Img } from "@/components/ui/img";
 import { Spacer } from "@/components/ui/spacer";
-import { Loader2 } from "lucide-react";
+import { Check, ImageUpIcon, Loader2, Trash2 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface UserProfileEditorModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-export function UserProfileEditorModal({ open, onClose }: UserProfileEditorModalProps) {
-  const { user, getAvatar, getBanner, uploadAvatar, removeAvatar, uploadBanner, removeBanner, updateProfile } = useUser();
+export function UserProfileEditorModal({
+  open,
+  onClose,
+}: UserProfileEditorModalProps) {
+  const {
+    user,
+    getAvatar,
+    getBanner,
+    uploadAvatar,
+    removeAvatar,
+    uploadBanner,
+    removeBanner,
+    updateProfile,
+  } = useUser();
   const { t } = useI18n();
 
   const [showAvatarEditor, setShowAvatarEditor] = useState(false);
@@ -163,38 +186,84 @@ export function UserProfileEditorModal({ open, onClose }: UserProfileEditorModal
       <Dialog open={open} onOpenChange={onClose}>
         <DialogContent className="sm:max-w-[1000px] select-none rounded-xl bg-background/50 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <DialogHeader>
-            <DialogTitle>{t("user.profile.edit_title", "Editar Perfil")}</DialogTitle>
+            <DialogTitle>
+              {t("user.profile.edit_title", "Editar Perfil")}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-[1.3fr_1fr]">
             <div className="space-y-5">
               <div className="space-y-2">
-                <Label>{t("user.profile.banner_section", "Faixa de perfil")}</Label>
+                <Label>
+                  {t("user.profile.banner_section", "Faixa de perfil")}
+                </Label>
                 <div className="h-36 w-full overflow-hidden rounded-xl border border-border bg-muted">
-                  {bannerPreview ? (
-                    <Img src={bannerPreview} alt={t("user.profile.banner_alt", "Banner")} size="banner" draggable={false} className="" />
-                  ) : (
-                    <div className="h-full w-full" style={{ background: bannerColor }} />
-                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {bannerPreview ? (
+                        <Img
+                          src={bannerPreview}
+                          alt={t("user.profile.banner_alt", "Banner")}
+                          size="banner"
+                          draggable={false}
+                          className={user.premium ? "cursor-pointer" : ""}
+                          onClick={user.premium ? openBannerPicker : undefined}
+                        />
+                      ) : (
+                        <div
+                          className={`h-full w-full ${user.premium ? "cursor-pointer" : ""}`}
+                          style={{ background: bannerColor }}
+                          onClick={user.premium ? openBannerPicker : undefined}
+                        />
+                      )}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {t("user.profile.change_banner", "Alterar Banner")}
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
                 <div className="flex items-start justify-between">
-                  <DiscordColorPicker label={t("user.profile.banner", "Banner")} value={bannerColor} onChange={setBannerColor} />
+                  <DiscordColorPicker
+                    label={t("user.profile.banner", "Banner")}
+                    value={bannerColor}
+                    onChange={setBannerColor}
+                  />
                   <div className="flex items-center gap-1">
-                    <Button type="button" variant="primary" rounded="xl" disabled={!user.premium} onClick={openBannerPicker}>
-                      {t("user.profile.change_banner", "Alterar Banner")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost-destructive"
-                      rounded="xl"
-                      disabled={!user.premium}
-                      onClick={() => {
-                        setBannerDraftFile(null);
-                        setBannerMarkedToRemove(true);
-                      }}
-                    >
-                      {t("user.profile.remove_banner", "Remover Banner")}
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="primary"
+                          rounded="xl"
+                          disabled={!user.premium}
+                          onClick={openBannerPicker}
+                        >
+                          <ImageUpIcon className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t("user.profile.change_banner", "Alterar Banner")}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          rounded="xl"
+                          disabled={!user.premium}
+                          onClick={() => {
+                            setBannerDraftFile(null);
+                            setBannerMarkedToRemove(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t("user.profile.remove_banner", "Remover Banner")}
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               </div>
@@ -202,47 +271,104 @@ export function UserProfileEditorModal({ open, onClose }: UserProfileEditorModal
               <div className="space-y-2">
                 <Label>{t("user.profile.avatar", "Avatar")}</Label>
                 <div className="flex items-center gap-3">
-                  <Img src={avatarPreview} alt={t("user.profile.avatar_alt", "Avatar")} size="avatar-sm" rounded="full" draggable={false} className="" />
-                  <div className="flex items-center gap-1">
-                    <Button type="button" variant="primary" rounded="xl" onClick={openAvatarPicker}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Img
+                        src={avatarPreview}
+                        alt={t("user.profile.avatar_alt", "Avatar")}
+                        size="avatar-sm"
+                        rounded="full"
+                        draggable={false}
+                        className="cursor-pointer"
+                        onClick={openAvatarPicker}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>
                       {t("user.profile.change_avatar", "Alterar Avatar")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost-destructive"
-                      rounded="xl"
-                      onClick={() => {
-                        setAvatarDraftFile(null);
-                        setAvatarMarkedToRemove(true);
-                      }}
-                    >
-                      {t("user.profile.remove_avatar", "Remover Avatar")}
-                    </Button>
+                    </TooltipContent>
+                  </Tooltip>
+                  <div className="flex items-center gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="primary"
+                          rounded="xl"
+                          onClick={openAvatarPicker}
+                        >
+                          <ImageUpIcon className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t("user.profile.change_avatar", "Alterar Avatar")}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          rounded="xl"
+                          onClick={() => {
+                            setAvatarDraftFile(null);
+                            setAvatarMarkedToRemove(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t("user.profile.remove_avatar", "Remover Avatar")}
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label>{t("auth.display_name", "Nome de exibicao")}</Label>
-                <Input value={displayName} rounded="xl" onChange={(e) => setDisplayName(e.target.value)} placeholder={t("auth.display_name", "Nome de exibicao")} />
+                <Input
+                  value={displayName}
+                  rounded="xl"
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder={t("auth.display_name", "Nome de exibicao")}
+                />
               </div>
 
               <div className="space-y-2">
-                <Label>{t("user.profile.description_label", "Descrição do usuario")}</Label>
+                <Label>
+                  {t("user.profile.description_label", "Descrição do usuario")}
+                </Label>
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="rounded-xl"
-                  placeholder={t("user.profile.description_placeholder", "Uma descrição curta do perfil")}
+                  placeholder={t(
+                    "user.profile.description_placeholder",
+                    "Uma descrição curta do perfil",
+                  )}
                   maxLength={250}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>{t("user.profile.gradient_label", "Fundo do perfil (degrade vertical)")}</Label>
+                <Label>
+                  {t(
+                    "user.profile.gradient_label",
+                    "Fundo do perfil (degrade vertical)",
+                  )}
+                </Label>
                 <div className="flex flex-wrap items-start gap-3">
-                  <DiscordColorPicker label={t("user.profile.gradient_primary", "Primaria")} value={topColor} onChange={setTopColor} />
-                  <DiscordColorPicker label={t("user.profile.gradient_accent", "Realce")} value={bottomColor} onChange={setBottomColor} />
+                  <DiscordColorPicker
+                    label={t("user.profile.gradient_primary", "Primaria")}
+                    value={topColor}
+                    onChange={setTopColor}
+                  />
+                  <DiscordColorPicker
+                    label={t("user.profile.gradient_accent", "Realce")}
+                    value={bottomColor}
+                    onChange={setBottomColor}
+                  />
                 </div>
               </div>
             </div>
@@ -257,10 +383,23 @@ export function UserProfileEditorModal({ open, onClose }: UserProfileEditorModal
               <div className="flex gap-2 items-center justify-center">
                 <span>{t("user.profile.unsaved.title", "Cuidado")}</span>
                 <Spacer size="sm" />
-                <span>{t("user.profile.unsaved.message", "Voce tem alterações que não foram salvas!")}</span>
+                <span>
+                  {t(
+                    "user.profile.unsaved.message",
+                    "Voce tem alterações que não foram salvas!",
+                  )}
+                </span>
               </div>
               <div className="flex gap-2">
-                <Button type="button" className="w-full sm:w-auto" variant="outline-destructive" rounded="xl" onClick={resetDraft} disabled={saving}>
+                <Button
+                  type="button"
+                  className="w-full sm:w-auto"
+                  variant="destructive"
+                  rounded="xl"
+                  onClick={resetDraft}
+                  disabled={saving}
+                >
+                  <Trash2 className="h-4 w-4" />
                   {t("common.reset", "Redefinir")}
                 </Button>
                 <Button
@@ -309,13 +448,13 @@ export function UserProfileEditorModal({ open, onClose }: UserProfileEditorModal
                   }}
                 >
                   {saving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {t("common.saving", "Salvando...")}
-                    </>
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    t("user.profile.save_changes", "Salvar Alterações")
+                    <Check className="h-4 w-4" />
                   )}
+                  {saving
+                    ? t("common.saving", "Salvando...")
+                    : t("user.profile.save_changes", "Salvar Alterações")}
                 </Button>
               </div>
             </DialogFooter>

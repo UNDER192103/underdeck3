@@ -12,7 +12,7 @@ import LoginPage from "@/pages/Login";
 
 type WebDeckItem = {
   id: string;
-  type: "back" | "page" | "app" | "soundpad" | "obs";
+  type: "back" | "page" | "app" | "soundpad" | "obs" | "discord";
   refId: string;
   label?: string;
   icon?: string | null;
@@ -789,6 +789,18 @@ export default function WebDeckRemotePage() {
     if (item.type === "obs" && item.refId.startsWith("obs-")) {
       return item.refId.replace(/^obs-(scene|audio|action):/, "");
     }
+    if (item.type === "discord" && item.refId.startsWith("discord-action:")) {
+      const action = item.refId.replace("discord-action:", "");
+      const labels: Record<string, string> = {
+        "toggle-mute": t("remote.webdeck.discord.toggle_mute", "Toggle microphone"),
+        mute: t("remote.webdeck.discord.mute", "Mute microphone"),
+        unmute: t("remote.webdeck.discord.unmute", "Unmute microphone"),
+        "toggle-deafen": t("remote.webdeck.discord.toggle_deafen", "Toggle audio"),
+        deafen: t("remote.webdeck.discord.deafen", "Disable audio"),
+        undeafen: t("remote.webdeck.discord.undeafen", "Enable audio"),
+      };
+      return labels[action] ?? action;
+    }
     return appsById.get(item.refId)?.name ?? t("remote.webdeck.item", "Item");
   };
 
@@ -1139,7 +1151,13 @@ export default function WebDeckRemotePage() {
     socket.emit(
       "device:command",
       { hwid, cmd: "webdeck:activateItem", data: { type: item.type, refId: item.refId }, timeoutMs: 15000 },
-      () => { },
+      (result: { ok?: boolean; error?: string }) => {
+        if (result?.ok) {
+          setError("");
+          return;
+        }
+        setError(result?.error || t("remote.webdeck.action_failed", "Could not execute this item."));
+      },
     );
   };
 

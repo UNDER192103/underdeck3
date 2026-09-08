@@ -43,6 +43,7 @@ import { ModalSettings } from "@/components/settings/modalSettings";
 import { UserProfileModal } from "./user/UserProfileModal";
 import { TITLE_BAR_HEIGHT } from "./WindowTitleBar";
 import { Img } from "./ui/img";
+import { DiscordIcon } from "./icons/DiscordIcon";
 
 interface SidebarProps {
   onCollapsedChange?: (isCollapsed: boolean) => void;
@@ -206,6 +207,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCollapsedChange }) => {
               onClick={() => {
                 set("pages", "home");
                 set("homePages", "obs");
+              }}
+            />
+            <BuildSidebarOption
+              icon={<DiscordIcon className="size-4" />}
+              title={t("sidebar.discord", "Discord")}
+              focusing={CurrentTab === "discord"}
+              onClick={() => {
+                set("pages", "home");
+                set("homePages", "discord");
               }}
             />
             <BuildSidebarOption

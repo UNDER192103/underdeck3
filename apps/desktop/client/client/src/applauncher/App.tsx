@@ -114,20 +114,24 @@ export default function AppLauncherApp() {
               />
             </div>
             <p className="text-center text-xs text-slate-300">{progress}%</p>
-            {detailText ? (
-              <p className="w-[80%] max-w-md text-center whitespace-pre-line text-[11px] text-slate-300">
-                {detailText}
-              </p>
-            ) : null}
-            {speedText ? (
-              <p className="text-center text-[11px] text-slate-400">{speedText}</p>
-            ) : null}
-            {remainingText ? (
-              <p className="text-center text-[11px] text-slate-400">{remainingText}</p>
+            {detailText || speedText || remainingText ? (
+              <div className="space-y-1 rounded-md bg-black/25 px-2 py-1.5">
+                {detailText ? (
+                  <p className="w-full text-center whitespace-pre-line text-[11px] text-slate-300">
+                    {detailText}
+                  </p>
+                ) : null}
+                {speedText ? (
+                  <p className="w-full text-center text-[11px] text-slate-300">{speedText}</p>
+                ) : null}
+                {remainingText ? (
+                  <p className="w-full text-center text-[11px] text-slate-300">{remainingText}</p>
+                ) : null}
+              </div>
             ) : null}
           </div>
         ) : detailText ? (
-          <p className="w-[80%] max-w-md text-center whitespace-pre-line text-[11px] text-slate-300">
+          <p className="mx-auto w-[80%] max-w-md text-center whitespace-pre-line text-[11px] text-slate-300">
             {detailText}
           </p>
         ) : null}

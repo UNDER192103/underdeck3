@@ -31,7 +31,7 @@ const AUTO_PAGE = {
   obsAll: "__auto_page_obs_all__",
   apps: "__auto_page_apps_all__",
 } as const;
-type ItemEditorType = "back" | "page" | "app" | "soundpad" | "obs";
+type ItemEditorType = "back" | "page" | "app" | "soundpad" | "obs" | "discord";
 type ItemFormState = { type: ItemEditorType; refId: string; label: string; icon: string };
 type ObsActionType = "audio" | "scene" | "stream" | "record";
 type WebDeckAccessInfo = {
@@ -1140,6 +1140,25 @@ export default function WebDeck({
       }
       return executeApp(item.refId);
     }
+    if (item.type === "discord") {
+      if (item.refId.startsWith("discord-action:")) {
+        const action = item.refId.replace("discord-action:", "");
+        const map: Record<string, () => Promise<{ ok: boolean; message: string }>> = {
+          "toggle-mute": () => window.underdeck.discord.toggleMute(),
+          mute: () => window.underdeck.discord.setMute(true),
+          unmute: () => window.underdeck.discord.setMute(false),
+          "toggle-deafen": () => window.underdeck.discord.toggleDeafen(),
+          deafen: () => window.underdeck.discord.setDeafen(true),
+          undeafen: () => window.underdeck.discord.setDeafen(false),
+        };
+        const handler = map[action];
+        if (!handler) return;
+        const result = await handler();
+        if (!result.ok) toast.error(result.message);
+        return;
+      }
+      return executeApp(item.refId);
+    }
     return executeApp(item.refId);
   };
 
@@ -1188,6 +1207,18 @@ export default function WebDeck({
         }
       }
       return item.refId.replace(/^obs-(scene|audio):/, "");
+    }
+    if (item.type === "discord" && item.refId.startsWith("discord-action:")) {
+      const action = item.refId.replace("discord-action:", "");
+      const labels: Record<string, string> = {
+        "toggle-mute": t("webdeck.discord.toggle_mute", "Alternar microfone"),
+        mute: t("webdeck.discord.mute", "Mutar microfone"),
+        unmute: t("webdeck.discord.unmute", "Desmutar microfone"),
+        "toggle-deafen": t("webdeck.discord.toggle_deafen", "Alternar áudio"),
+        deafen: t("webdeck.discord.deafen", "Desativar áudio"),
+        undeafen: t("webdeck.discord.undeafen", "Ativar áudio"),
+      };
+      return labels[action] ?? action;
     }
     return appById.get(item.refId)?.name ?? t("webdeck.item.unknown", "Item");
   };
@@ -1266,6 +1297,16 @@ export default function WebDeck({
         default:
           return scenes;
       }
+    }
+    if (itemForm.type === "discord") {
+      return [
+        { value: "discord-action:toggle-mute", label: t("webdeck.discord.toggle_mute", "Alternar microfone") },
+        { value: "discord-action:mute", label: t("webdeck.discord.mute", "Mutar microfone") },
+        { value: "discord-action:unmute", label: t("webdeck.discord.unmute", "Desmutar microfone") },
+        { value: "discord-action:toggle-deafen", label: t("webdeck.discord.toggle_deafen", "Alternar áudio") },
+        { value: "discord-action:deafen", label: t("webdeck.discord.deafen", "Desativar áudio") },
+        { value: "discord-action:undeafen", label: t("webdeck.discord.undeafen", "Ativar áudio") },
+      ];
     }
     return [];
   }, [itemForm.type, visiblePages, currentPage?.id, apps, soundpadAudios, obsScenes, obsAudioInputs, t, isFirstPage, obsActionType]);
@@ -1480,6 +1521,7 @@ export default function WebDeck({
                     <SelectItem value="app">{t("webdeck.item.type.app", "App")}</SelectItem>
                     <SelectItem value="soundpad">{t("webdeck.item.type.soundpad", "SoundPad")}</SelectItem>
                     <SelectItem value="obs">{t("webdeck.item.type.obs", "OBS")}</SelectItem>
+                    <SelectItem value="discord">{t("webdeck.item.type.discord", "Discord")}</SelectItem>
                     <SelectItem value="back">{t("webdeck.item.type.back", "Voltar")}</SelectItem>
                   </SelectContent>
                 </Select>

@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 export function createLoadingWindow() {
     const isDev = !app.isPackaged;
     const preloadPath = isDev
-        ? path.join(process.cwd(), "src", "preload", "index.js")
+        ? path.join(process.cwd(), "dist", "preload", "index.js")
         : path.join(__dirname, "..", "..", "preload", "index.js");
 
     const win = new BrowserWindow({
