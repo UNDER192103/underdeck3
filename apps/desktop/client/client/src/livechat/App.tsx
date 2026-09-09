@@ -15,8 +15,8 @@ export default function LiveChatApp() {
   const scope = readScope();
   useEffect(() => {
     document.documentElement.classList.add("black");
-    document.documentElement.style.background = "#000";
-    document.body.style.background = "#000";
+    document.documentElement.style.background = "transparent";
+    document.body.style.background = "transparent";
   }, []);
 
   return (

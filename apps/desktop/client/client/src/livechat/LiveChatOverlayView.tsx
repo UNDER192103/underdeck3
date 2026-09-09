@@ -757,11 +757,13 @@ export default function LiveChatOverlayView({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <main
-          className="relative flex h-screen w-screen flex-col overflow-hidden bg-black text-white"
+          className={`relative flex h-screen w-screen flex-col overflow-hidden rounded-xl text-white bg-transparent`}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
         >
-          <BackgroundComp {...background} />
+          {background.variant === "transparent" ? null : (
+            <BackgroundComp {...background} className="rounded-xl" />
+          )}
           <header
             className="relative z-10 flex h-9 shrink-0 items-center gap-2 border-b border-white/10 bg-black/80 px-2 backdrop-blur-sm"
             style={

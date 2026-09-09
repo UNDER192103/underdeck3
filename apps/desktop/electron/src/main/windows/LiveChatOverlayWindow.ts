@@ -100,8 +100,11 @@ export class LiveChatOverlayWindowService {
             ...bounds,
             show: false,
             frame: false,
-            transparent: false,
-            backgroundColor: "#000000",
+            // Keep the native window transparent for every mode. Opaque
+            // backgrounds are painted by the renderer, which lets users
+            // switch to a transparent overlay without recreating the window.
+            transparent: true,
+            backgroundColor: "#00000000",
             movable: !locked,
             resizable: !locked,
             minimizable: false,
@@ -109,8 +112,8 @@ export class LiveChatOverlayWindowService {
             alwaysOnTop: scopeState.alwaysOnTop,
             skipTaskbar: true,
             autoHideMenuBar: true,
-            minWidth: 200,
-            minHeight: 280,
+            minWidth: 50,
+            minHeight: 50,
             webPreferences: {
                 preload: preloadPath,
                 contextIsolation: true,

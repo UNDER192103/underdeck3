@@ -69,7 +69,11 @@ import type {
 } from "@/types/electron";
 
 type LiveChatBackgroundVariant = StoredThemeBackground["variant"];
-type ConfigurableEffect = Exclude<LiveChatBackgroundVariant, "image" | "video">;
+type ConfigurableEffect = Exclude<
+  LiveChatBackgroundVariant,
+  "transparent" | "image" | "video"
+>;
+type LiveChatColorMode = "fixed" | "gradient" | "loop";
 type ConfigurableEffectBackground =
   | Extract<StoredThemeBackground, { variant: "neural" }>
   | Extract<StoredThemeBackground, { variant: "nebula" }>
@@ -90,7 +94,11 @@ const comparableChannelOverrides = (
   );
 
 const DEFAULT_LIVE_CHAT_BACKGROUNDS: Required<ThemeEffectBackgrounds> = {
-  color: { variant: "color", backgroundColor: "#000000" },
+  color: {
+    variant: "color",
+    colorMode: "fixed",
+    backgroundColor: "#000000",
+  },
   neural: {
     variant: "neural",
     neuralColors: {
@@ -115,6 +123,7 @@ const DEFAULT_LIVE_CHAT_BACKGROUNDS: Required<ThemeEffectBackgrounds> = {
     particleCount: 36,
   },
 };
+
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { TikTokLiveChatCard } from "./TikTokLiveChatCard";
 
@@ -395,11 +404,12 @@ function LiveChatDashboardContent({
   };
 
   const openBackgroundConfig = (variant = overlayBackground.variant) => {
+    if (variant === "transparent") return;
     setBackgroundConfigVariant(variant);
     setEffectConfig(
       variant === "image" || variant === "video"
         ? null
-        : copyEffectBackground(variant),
+        : copyEffectBackground(variant as ConfigurableEffect),
     );
   };
 
@@ -463,6 +473,12 @@ function LiveChatDashboardContent({
       openBackgroundConfig(variant);
       return;
     }
+    if (variant === "transparent") {
+      await patchSettings({
+        overlay: { background: { variant: "transparent" } },
+      });
+      return;
+    }
     await patchSettings({
       overlay: {
         background: copyEffectBackground(variant),
@@ -495,13 +511,33 @@ function LiveChatDashboardContent({
         ]
       : [];
 
+  const setColorMode = (colorMode: LiveChatColorMode) => {
+    if (effectConfig?.variant !== "color") return;
+    const fallbackColor =
+      effectConfig.backgroundColor ?? gradientColors[0] ?? "#000000";
+    setEffectConfig({
+      ...effectConfig,
+      colorMode,
+      backgroundColor: fallbackColor,
+      backgroundColors:
+        colorMode === "fixed"
+          ? effectConfig.backgroundColors
+          : gradientColors.length >= 2
+            ? gradientColors.slice(0, 3)
+            : [fallbackColor, fallbackColor, fallbackColor],
+    });
+  };
+
   const updateGradientColor = (index: number, color: string) => {
     if (effectConfig?.variant !== "color") return;
+    if ((effectConfig.colorMode ?? "fixed") === "fixed") {
+      setEffectConfig({ ...effectConfig, backgroundColor: color });
+      return;
+    }
     const nextColors = [...gradientColors];
     nextColors[index] = color;
     setEffectConfig({
       ...effectConfig,
-      colorMode: "loop",
       backgroundColors: nextColors.slice(0, 3),
     });
   };
@@ -824,7 +860,26 @@ function LiveChatDashboardContent({
                   )}
                 </Label>
 
-                <div className="relative h-30 overflow-hidden rounded-xl border border-border/70 bg-black">
+                <div
+                  className={`relative h-30 overflow-hidden rounded-xl border border-border/70 ${
+                    overlayBackground.variant === "transparent"
+                      ? "bg-zinc-800"
+                      : "bg-black"
+                  }`}
+                  style={
+                    {
+                      ...(overlayBackground.variant === "transparent"
+                        ? {
+                        backgroundImage:
+                          "linear-gradient(45deg, #27272a 25%, transparent 25%), linear-gradient(-45deg, #27272a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #27272a 75%), linear-gradient(-45deg, transparent 75%, #27272a 75%)",
+                        backgroundPosition:
+                          "0 0, 0 8px, 8px -8px, -8px 0px",
+                        backgroundSize: "16px 16px",
+                          }
+                        : {}),
+                    }
+                  }
+                >
                   <BackgroundComp
                     {...overlayBackground}
                     fullScreen={false}
@@ -851,6 +906,12 @@ function LiveChatDashboardContent({
                       <SelectContent>
                         <SelectItem value="color">
                           {t("live_chat.overlay.background.color", "Cor")}
+                        </SelectItem>
+                        <SelectItem value="transparent">
+                          {t(
+                            "live_chat.overlay.background.transparent",
+                            "Transparente",
+                          )}
                         </SelectItem>
                         <SelectItem value="neural">
                           {t("live_chat.overlay.background.neural", "Neural")}
@@ -894,6 +955,7 @@ function LiveChatDashboardContent({
                       rounded="xl"
                       variant="outline-primary"
                       onClick={() => openBackgroundConfig()}
+                      disabled={overlayBackground.variant === "transparent"}
                     >
                       <Cog />
                       {t(
@@ -1534,7 +1596,10 @@ function LiveChatDashboardContent({
                       "Personalizar Partículas",
                     )}
                   {backgroundConfigVariant === "color" &&
-                    t("theme.effects.gradient_title", "Personalizar cores")}
+                    t(
+                      "live_chat.overlay.background.configure_color",
+                      "Personalizar cores",
+                    )}
                   {backgroundConfigVariant === "image" &&
                     t(
                       "live_chat.overlay.background.configure_image",
@@ -1806,23 +1871,145 @@ function LiveChatDashboardContent({
               )}
 
               {effectConfig?.variant === "color" && (
-                <div className="grid grid-cols-3 gap-4">
-                  {[0, 1, 2].map((index) => (
-                    <DiscordColorPicker
-                      key={index}
-                      showAlpha
-                      label={`${t("theme.effects.color", "Cor")} ${index + 1}`}
-                      value={
-                        gradientColors[index] ??
-                        effectConfig.backgroundColor ??
-                        "#000000"
+                <div className="grid gap-5">
+                  <div className="grid gap-2">
+                    <Label>
+                      {t(
+                        "live_chat.overlay.background.color_mode",
+                        "Modo da cor",
+                      )}
+                    </Label>
+                    <Select
+                      value={effectConfig.colorMode ?? "fixed"}
+                      onValueChange={(value) =>
+                        setColorMode(value as LiveChatColorMode)
                       }
-                      onChange={(color) => updateGradientColor(index, color)}
+                    >
+                      <SelectTrigger rounded="xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">
+                          {t(
+                            "live_chat.overlay.background.color_mode_fixed",
+                            "Cor fixa",
+                          )}
+                        </SelectItem>
+                        <SelectItem value="gradient">
+                          {t(
+                            "live_chat.overlay.background.color_mode_gradient",
+                            "Gradiente fixo",
+                          )}
+                        </SelectItem>
+                        <SelectItem value="loop">
+                          {t(
+                            "live_chat.overlay.background.color_mode_loop",
+                            "Cores animadas",
+                          )}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {(effectConfig.colorMode ?? "fixed") === "fixed" ? (
+                    <DiscordColorPicker
+                      showAlpha
+                      label={t(
+                        "live_chat.overlay.background.color_value",
+                        "Cor do fundo",
+                      )}
+                      value={effectConfig.backgroundColor ?? "#000000"}
+                      onChange={(color) => updateGradientColor(0, color)}
                       onChangeWithAlpha={(color) =>
-                        updateGradientColor(index, color)
+                        updateGradientColor(0, color)
                       }
                     />
-                  ))}
+                  ) : (
+                    <div className="grid grid-cols-3 gap-4">
+                      {[0, 1, 2].map((index) => (
+                        <DiscordColorPicker
+                          key={index}
+                          showAlpha
+                          label={`${t("theme.effects.color", "Cor")} ${index + 1}`}
+                          value={
+                            gradientColors[index] ??
+                            effectConfig.backgroundColor ??
+                            "#000000"
+                          }
+                          onChange={(color) =>
+                            updateGradientColor(index, color)
+                          }
+                          onChangeWithAlpha={(color) =>
+                            updateGradientColor(index, color)
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {effectConfig.colorMode === "gradient" ? (
+                    <div className="space-y-3 rounded-xl border border-border/70 bg-background/40 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label>
+                          {t(
+                            "live_chat.overlay.background.gradient_angle",
+                            "Ângulo do gradiente",
+                          )}
+                        </Label>
+                        <span className="text-sm tabular-nums text-muted-foreground">
+                          {effectConfig.gradientAngle ?? 135}°
+                        </span>
+                      </div>
+                      <Slider
+                        value={[effectConfig.gradientAngle ?? 135]}
+                        min={0}
+                        max={360}
+                        step={1}
+                        onValueChange={([gradientAngle]) => {
+                          if (gradientAngle !== undefined)
+                            setEffectConfig({
+                              ...effectConfig,
+                              gradientAngle,
+                            });
+                        }}
+                      />
+                    </div>
+                  ) : null}
+
+                  {effectConfig.colorMode === "loop" ? (
+                    <div className="space-y-3 rounded-xl border border-border/70 bg-background/40 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label>
+                          {t(
+                            "live_chat.overlay.background.loop_duration",
+                            "Tempo por transição",
+                          )}
+                        </Label>
+                        <span className="text-sm tabular-nums text-muted-foreground">
+                          {Math.round(
+                            (effectConfig.loopTransitionDurationMs ?? 5000) /
+                              1000,
+                          )}s
+                        </span>
+                      </div>
+                      <Slider
+                        value={[
+                          (effectConfig.loopTransitionDurationMs ?? 5000) /
+                            1000,
+                        ]}
+                        min={1}
+                        max={30}
+                        step={1}
+                        onValueChange={([seconds]) => {
+                          if (seconds !== undefined)
+                            setEffectConfig({
+                              ...effectConfig,
+                              loopTransitionDurationMs: seconds * 1000,
+                            });
+                        }}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               )}
 

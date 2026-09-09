@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 
 export type BackgroundVariant =
+  | "transparent"
   | "color"
   | "image"
   | "video"
@@ -48,6 +49,10 @@ type BaseBackgroundProps = {
   style?: CSSProperties;
   /** Keeps the base layer transparent while retaining dynamic effects. */
   transparent?: boolean;
+};
+
+type TransparentBackgroundProps = BaseBackgroundProps & {
+  variant: "transparent";
 };
 
 export type ParticleDirection = "up" | "right" | "down" | "left" | "random";
@@ -139,6 +144,7 @@ type ParticlesBackgroundProps = BaseBackgroundProps & {
 };
 
 export type BackgroundProps =
+  | TransparentBackgroundProps
   | ColorBackgroundProps
   | ImageBackgroundProps
   | VideoBackgroundProps
@@ -795,14 +801,15 @@ export function BackgroundComp(props: BackgroundProps) {
     transparent,
   ]);
 
+  if (variant === "transparent") {
+    return null;
+  }
+
   if (variant === "color") {
     const primaryColor = colorMode === "fixed"
       ? (backgroundColor || backgroundColors[0] || "")
       : (backgroundColors[0] ?? backgroundColor);
     const isStaticGradient = colorMode === "gradient" && backgroundColors.length > 1;
-    const useLegacyUtilityClass = colorMode === "fixed"
-      && primaryColor !== ""
-      && !primaryColor.includes("#");
 
     return (
       <div
@@ -818,12 +825,10 @@ export function BackgroundComp(props: BackgroundProps) {
             "h-full w-full",
             transparent || primaryColor === ""
               ? "bg-transparent"
-              : useLegacyUtilityClass
-                ? `bg-${primaryColor}`
-                : ``,
+              : "",
           )}
           style={{
-            ...(!transparent && !useLegacyUtilityClass && !isStaticGradient
+            ...(!transparent && !isStaticGradient
               ? { backgroundColor: primaryColor }
               : {}),
             ...(!transparent && isStaticGradient

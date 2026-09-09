@@ -390,7 +390,15 @@ export class LiveChatService extends EventEmitter {
       return { variant: "color", backgroundColor: "#000000" };
     }
     if (
-      ["color", "image", "video", "neural", "nebula", "particles"].includes(
+      [
+        "transparent",
+        "color",
+        "image",
+        "video",
+        "neural",
+        "nebula",
+        "particles",
+      ].includes(
         candidate.variant,
       )
     ) {

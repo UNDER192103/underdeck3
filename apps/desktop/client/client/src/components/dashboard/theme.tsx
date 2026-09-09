@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/contexts/I18nContext";
 import { Card } from "@/components/ui/card";
-import { Loader2, Layers, Sun, Moon, ImagePlus, Circle, RefreshCw, Search, Download, Check, Play, Trash2, Cog, CheckCheck } from "lucide-react";
+import { Loader2, Layers, Sun, Moon, ImagePlus, Circle, RefreshCw, Search, Download, Check, Play, Trash2, Cog, CheckCheck, RotateCcw } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -27,6 +27,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 type ConfigurableEffect = "neural" | "nebula" | "particles" | "color";
+type ThemeColorMode = "fixed" | "gradient" | "loop";
 type ConfigurableEffectBackground =
   | Extract<BackgroundProps, { variant: "neural" }>
   | Extract<BackgroundProps, { variant: "nebula" }>
@@ -63,8 +64,8 @@ const DEFAULT_EFFECT_BACKGROUNDS: {
   },
   color: {
     variant: "color",
-    colorMode: "loop",
-    backgroundColors: ["#0F172A", "#1D4ED8", "#4C1D95"],
+    colorMode: "fixed",
+    backgroundColor: "#000000",
   },
 };
 
@@ -131,7 +132,15 @@ export default function ThemePage({
   className?: string;
 }) {
   const { t } = useI18n();
-  const { theme, setTheme, background, setBackground, effectBackgrounds, setEffectBackgrounds, listStoreBackgrounds } = useTheme();
+  const {
+    theme,
+    setTheme,
+    background,
+    setBackground,
+    effectBackgrounds,
+    setEffectBackgrounds,
+    listStoreBackgrounds,
+  } = useTheme();
   const { publish, subscribe } = useGlobalObserver();
 
   const [storeBackgrounds, setStoreBackgrounds] = useState<StoreItem[]>([]);
@@ -413,17 +422,47 @@ export default function ThemePage({
   };
 
   const gradientColors = effectConfig?.variant === "color"
-    ? (effectConfig.backgroundColors ?? DEFAULT_EFFECT_BACKGROUNDS.color.backgroundColors ?? [])
-    : (DEFAULT_EFFECT_BACKGROUNDS.color.backgroundColors ?? []);
+    ? effectConfig.backgroundColors?.length
+      ? effectConfig.backgroundColors
+      : [
+          effectConfig.backgroundColor ?? "#000000",
+          effectConfig.backgroundColor ?? "#000000",
+          effectConfig.backgroundColor ?? "#000000",
+        ]
+    : [];
+
+  const setColorMode = (colorMode: ThemeColorMode) => {
+    setEffectConfig((current) => {
+      if (!current || current.variant !== "color") return current;
+      const fallbackColor =
+        current.backgroundColor ?? current.backgroundColors?.[0] ?? "#000000";
+      const currentColors = current.backgroundColors?.length
+        ? current.backgroundColors
+        : [fallbackColor, fallbackColor, fallbackColor];
+      return {
+        ...current,
+        colorMode,
+        backgroundColor: fallbackColor,
+        backgroundColors:
+          colorMode === "fixed" ? current.backgroundColors : currentColors.slice(0, 3),
+      };
+    });
+  };
 
   const updateGradientColor = (index: number, nextColor: string) => {
     setEffectConfig((current) => {
       if (!current || current.variant !== "color") return current;
-      const currentColors = current.backgroundColors ?? DEFAULT_EFFECT_BACKGROUNDS.color.backgroundColors ?? [];
+      if ((current.colorMode ?? "fixed") === "fixed") {
+        return { ...current, backgroundColor: nextColor };
+      }
+      const fallbackColor = current.backgroundColor ?? "#000000";
+      const currentColors = current.backgroundColors?.length
+        ? [...current.backgroundColors]
+        : [fallbackColor, fallbackColor, fallbackColor];
+      currentColors[index] = nextColor;
       return {
         ...current,
-        colorMode: "loop",
-        backgroundColors: currentColors.map((color, colorIndex) => colorIndex === index ? nextColor : color),
+        backgroundColors: currentColors.slice(0, 3),
       };
     });
   };
@@ -633,9 +672,12 @@ export default function ThemePage({
           <Card className="flex min-h-39 flex-col p-4 border-border/70 bg-card/70 more-dark">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="font-semibold truncate">{t("theme.background.source_gradient", "Gradiente")}</p>
+                <p className="font-semibold truncate">{t("theme.background.source_color", "Cor")}</p>
                 <p className="text-xs text-muted-foreground">
-                  {t("theme.background.gradient_desc", "Gradiente azul animado.")}
+                  {t(
+                    "theme.background.color_desc",
+                    "Cor fixa, gradiente ou animação personalizada.",
+                  )}
                 </p>
               </div>
               {background?.variant === "color" && <Check className="h-4 w-4 text-emerald-400 shrink-0" />}
@@ -645,7 +687,7 @@ export default function ThemePage({
                 <TooltipTrigger asChild>
                   <Button type="button" variant="outline-primary" rounded="xl" className="flex-1" onClick={() => {
                     setBackground(copyEffectBackground("color", background, effectBackgrounds));
-                    toast.success(t("theme.background.gradient_applied", "Background gradiente aplicado."));
+                    toast.success(t("theme.background.color_applied", "Background de cor aplicado."));
                   }} disabled={background?.variant === "color"}>
                     <CheckCheck className="h-4 w-4 shrink-0" />
                   </Button>
@@ -654,9 +696,9 @@ export default function ThemePage({
                   <span className="truncate">{t("common.use", "Usar")}</span>
                 </TooltipContent>
               </Tooltip>
-              <Tooltip><TooltipTrigger asChild><Button type="button" variant="outline-secondary" size="icon" rounded="xl" className="shrink-0" aria-label={t("theme.effects.configure_gradient", "Configure Gradient")} onClick={() => openEffectConfig("color")}>
+              <Tooltip><TooltipTrigger asChild><Button type="button" variant="outline-secondary" size="icon" rounded="xl" className="shrink-0" aria-label={t("theme.effects.configure_color", "Configurar cor")} onClick={() => openEffectConfig("color")}>
                 <Cog className="h-4 w-4" />
-              </Button></TooltipTrigger><TooltipContent>{t("theme.effects.configure_gradient", "Configure Gradient")}</TooltipContent></Tooltip>
+              </Button></TooltipTrigger><TooltipContent>{t("theme.effects.configure_color", "Configurar cor")}</TooltipContent></Tooltip>
             </div>
           </Card>
         </div>
@@ -668,7 +710,7 @@ export default function ThemePage({
                 {effectConfig?.variant === "neural" && t("theme.effects.neural_title", "Customize Neural")}
                 {effectConfig?.variant === "nebula" && t("theme.effects.nebula_title", "Customize Nebula")}
                 {effectConfig?.variant === "particles" && t("theme.effects.particles_title", "Customize Particles")}
-                {effectConfig?.variant === "color" && t("theme.effects.gradient_title", "Customize Gradient")}
+                {effectConfig?.variant === "color" && t("theme.effects.color_title", "Personalizar cores")}
               </DialogTitle>
               <p className="text-sm text-muted-foreground">
                 {t("theme.effects.description", "Choose the effect colors. When applied, the setting is saved and used in every window.")}
@@ -717,17 +759,99 @@ export default function ThemePage({
             )}
 
             {effectConfig?.variant === "color" && (
-              <div className="grid grid-cols-3 gap-4">
-                {gradientColors.slice(0, 3).map((color, index) => (
+              <div className="grid gap-5">
+                <div className="grid gap-2">
+                  <Label>{t("theme.effects.color_mode", "Modo da cor")}</Label>
+                  <Select
+                    value={effectConfig.colorMode ?? "fixed"}
+                    onValueChange={(value) => setColorMode(value as ThemeColorMode)}
+                  >
+                    <SelectTrigger rounded="xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fixed">
+                        {t("theme.effects.color_mode_fixed", "Cor fixa")}
+                      </SelectItem>
+                      <SelectItem value="gradient">
+                        {t("theme.effects.color_mode_gradient", "Gradiente fixo")}
+                      </SelectItem>
+                      <SelectItem value="loop">
+                        {t("theme.effects.color_mode_loop", "Cores animadas")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {(effectConfig.colorMode ?? "fixed") === "fixed" ? (
                   <DiscordColorPicker
-                    key={index}
-                    label={`${t("theme.effects.color", "Color")} ${index + 1}`}
-                    value={color}
                     showAlpha
-                    onChange={(nextColor) => updateGradientColor(index, nextColor)}
-                    onChangeWithAlpha={(nextColor) => updateGradientColor(index, nextColor)}
+                    label={t("theme.effects.background_color", "Cor do fundo")}
+                    value={effectConfig.backgroundColor ?? "#000000"}
+                    onChange={(nextColor) => updateGradientColor(0, nextColor)}
+                    onChangeWithAlpha={(nextColor) => updateGradientColor(0, nextColor)}
                   />
-                ))}
+                ) : (
+                  <div className="grid grid-cols-3 gap-4">
+                    {[0, 1, 2].map((index) => (
+                      <DiscordColorPicker
+                        key={index}
+                        label={`${t("theme.effects.color", "Cor")} ${index + 1}`}
+                        value={gradientColors[index] ?? effectConfig.backgroundColor ?? "#000000"}
+                        showAlpha
+                        onChange={(nextColor) => updateGradientColor(index, nextColor)}
+                        onChangeWithAlpha={(nextColor) => updateGradientColor(index, nextColor)}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {effectConfig.colorMode === "gradient" ? (
+                  <div className="space-y-3 rounded-xl border border-border/70 bg-background/40 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label>{t("theme.effects.gradient_angle", "Ângulo do gradiente")}</Label>
+                      <span className="text-sm tabular-nums text-muted-foreground">
+                        {effectConfig.gradientAngle ?? 135}°
+                      </span>
+                    </div>
+                    <Slider
+                      value={[effectConfig.gradientAngle ?? 135]}
+                      min={0}
+                      max={360}
+                      step={1}
+                      onValueChange={([gradientAngle]) => {
+                        if (gradientAngle !== undefined) {
+                          setEffectConfig({ ...effectConfig, gradientAngle });
+                        }
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                {effectConfig.colorMode === "loop" ? (
+                  <div className="space-y-3 rounded-xl border border-border/70 bg-background/40 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label>{t("theme.effects.loop_duration", "Tempo por transição")}</Label>
+                      <span className="text-sm tabular-nums text-muted-foreground">
+                        {Math.round((effectConfig.loopTransitionDurationMs ?? 5000) / 1000)}s
+                      </span>
+                    </div>
+                    <Slider
+                      value={[(effectConfig.loopTransitionDurationMs ?? 5000) / 1000]}
+                      min={1}
+                      max={30}
+                      step={1}
+                      onValueChange={([seconds]) => {
+                        if (seconds !== undefined) {
+                          setEffectConfig({
+                            ...effectConfig,
+                            loopTransitionDurationMs: seconds * 1000,
+                          });
+                        }
+                      }}
+                    />
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -738,9 +862,11 @@ export default function ThemePage({
                 rounded="xl"
                 onClick={() => effectConfig && setEffectConfig(copyEffectBackground(effectConfig.variant, null))}
               >
+                <RotateCcw />
                 {t("theme.effects.restore", "Restore defaults")}
               </Button>
               <Button type="button" rounded="xl" onClick={applyEffectConfig}>
+                <CheckCheck />
                 {t("theme.effects.apply", "Apply effect")}
               </Button>
             </DialogFooter>

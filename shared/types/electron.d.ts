@@ -30,6 +30,7 @@ export interface SaveFileOptions {
 export type SavedThemeSource = "local" | "store";
 export type StoredThemeName = "ligth" | "dark" | "black" | "transparent";
 export type StoredThemeBackground =
+  | { variant: "transparent" }
   | {
       variant: "neural";
       neuralColors?: { center?: string; middle?: string; edge?: string; link?: string; dot?: string };
