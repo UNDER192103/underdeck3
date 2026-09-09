@@ -48,6 +48,8 @@ goto MENU
 call :ENSURE_CURRENT_REPO
 if errorlevel 1 (pause & goto MENU)
 cd /d "%CURRENT_ROOT%"
+call :ENSURE_INDEX_UNLOCKED
+if errorlevel 1 (pause & goto MENU)
 set "COMMIT_MESSAGE="
 set /p "COMMIT_MESSAGE=Mensagem do commit (Enter para usar a versao): "
 if not defined COMMIT_MESSAGE (
@@ -140,4 +142,23 @@ if not defined CURRENT_ROOT (
     echo [ERRO] A pasta atual nao pertence a um repositorio Git.
     exit /b 1
 )
+exit /b 0
+
+:ENSURE_INDEX_UNLOCKED
+set "INDEX_LOCK=%CURRENT_ROOT%\.git\index.lock"
+if not exist "%INDEX_LOCK%" exit /b 0
+
+set "BLOCKING_GIT="
+for /f "delims=" %%P in ('powershell -NoProfile -Command "$busy=$false; foreach($p in Get-CimInstance Win32_Process){ if(($p.Name -in @('git.exe','git-lfs.exe')) -and $p.CommandLine -notmatch 'fsmonitor--daemon'){ $busy=$true; break } }; if($busy){ 'busy' }"') do set "BLOCKING_GIT=%%P"
+if defined BLOCKING_GIT (
+    echo [ERRO] Existe um processo Git ativo. O index.lock nao foi removido.
+    exit /b 1
+)
+
+del /f /q "%INDEX_LOCK%" >nul 2>&1
+if exist "%INDEX_LOCK%" (
+    echo [ERRO] Nao foi possivel remover o index.lock obsoleto.
+    exit /b 1
+)
+echo [AVISO] index.lock obsoleto removido com seguranca.
 exit /b 0

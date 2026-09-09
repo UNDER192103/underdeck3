@@ -539,14 +539,6 @@ function LiveChatDashboardContent({
       return window.underdeck.liveChat.connect("twitch");
     });
 
-  const applyAndReconnectTwitch = () =>
-    run("twitch-reconnect", async () => {
-      const saved = await persistTwitch();
-      if (!saved.ok) return saved;
-      await window.underdeck.liveChat.disconnect("twitch");
-      return window.underdeck.liveChat.connect("twitch");
-    });
-
   const toggleOverlay = async (scope: LiveChatOverlayScope) => {
     const busyKey = `overlay-${scope}`;
     setBusy(busyKey);
@@ -1506,25 +1498,6 @@ function LiveChatDashboardContent({
                   {t(
                     "live_chat.twitch.clear_credentials",
                     "Limpar credenciais",
-                  )}
-                </Button>
-              ) : null}
-              {twitch?.connected && twitchHasChanges ? (
-                <Button
-                  type="button"
-                  rounded="xl"
-                  variant="outline-primary"
-                  disabled={busy === "twitch-reconnect"}
-                  onClick={() => void applyAndReconnectTwitch()}
-                >
-                  {busy === "twitch-reconnect" ? (
-                    <Loader2 className="animate-spin" />
-                  ) : (
-                    <RotateCcw />
-                  )}
-                  {t(
-                    "live_chat.apply_reconnect",
-                    "Aplicar e reconectar",
                   )}
                 </Button>
               ) : null}

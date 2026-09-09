@@ -8,6 +8,10 @@ packages:
 # `pnpm run hasupdate` quando as dependências são alteradas.
 preferFrozenLockfile: true
 trustLockfile: true
+# O pnpm 12 pode iniciar um `pnpm install` implicitamente antes de cada
+# `pnpm run`. Neste workspace isso também dispara rebuilds nativos pesados;
+# as instalações são feitas somente pelos scripts explícitos acima.
+verifyDepsBeforeRun: false
 
 # discord-rpc declares register-scheme as an optional GitHub tarball.
 # Keep this legacy dependency installable with pnpm's exotic-subdependency guard.

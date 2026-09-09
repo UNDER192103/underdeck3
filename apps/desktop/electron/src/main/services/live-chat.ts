@@ -853,6 +853,32 @@ export class LiveChatService extends EventEmitter {
     this.emitSettingsChanged();
 
     const updated = this.getSettings();
+    const twitchWasActive = Boolean(
+      this.twitchClient ||
+      this.twitchState.connected ||
+      this.twitchState.connecting ||
+      this.twitchState.reconnecting,
+    );
+    const twitchPasswordChanged = Boolean(
+      patch.twitch?.clearPassword ||
+      (typeof patch.twitch?.password === "string" &&
+        patch.twitch.password.trim()),
+    );
+    const twitchConnectionSettingsChanged = Boolean(
+      patch.twitch &&
+      (JSON.stringify(updated.twitch.channels) !==
+        JSON.stringify(current.twitch.channels) ||
+        updated.twitch.anonymous !== current.twitch.anonymous ||
+        updated.twitch.username !== current.twitch.username ||
+        updated.twitch.reconnect !== current.twitch.reconnect ||
+        twitchPasswordChanged),
+    );
+    const shouldRestartTwitch = Boolean(
+      twitchWasActive &&
+      updated.enabled &&
+      updated.twitch.enabled &&
+      twitchConnectionSettingsChanged,
+    );
     this.syncChannelEventFilters(updated);
     await this.tiktokProvider.reconcileAccounts(updated.tiktok.accounts);
     this.tiktokProvider.reconcileSettings();
@@ -892,6 +918,14 @@ export class LiveChatService extends EventEmitter {
       if (patch.twitch?.enabled === false) await this.disconnect("twitch");
       if (patch.twitch?.enabled === true && !current.twitch.enabled)
         await this.connect("twitch");
+      else if (shouldRestartTwitch) {
+        logsService.log("liveChat", "live-chat.twitch.restart.settings", {
+          previousChannels: current.twitch.channels,
+          channels: updated.twitch.channels,
+        });
+        await this.disconnect("twitch");
+        await this.connect("twitch");
+      }
       if (patch.tiktok?.enabled === false)
         await this.tiktokProvider.disconnectAutomatically();
       if (shouldConnectAllTiktok)
