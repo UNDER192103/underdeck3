@@ -225,6 +225,22 @@ export interface LiveChatChannelAppearance {
   icon: string | null;
   eventsEnabled: boolean;
 }
+export interface LiveChatProviderDisplaySettings {
+  showTimestamp: boolean;
+  showAvatar: boolean;
+  showBadges: boolean;
+  showProvider: boolean;
+  showChannel: boolean;
+  showJoinEvents: boolean;
+  showFollowEvents: boolean;
+}
+export interface TikTokLiveChatAccountAppearance extends LiveChatChannelAppearance {
+  waitForLive: boolean;
+}
+export interface TikTokLiveChatDisplaySettings extends LiveChatProviderDisplaySettings {
+  showLikeEvents: boolean;
+  showGiftEvents: boolean;
+}
 export interface TwitchLiveChatSettings {
   enabled: boolean;
   anonymous: boolean;
@@ -233,22 +249,27 @@ export interface TwitchLiveChatSettings {
   channels: string[];
   channelOverrides: Record<string, LiveChatChannelAppearance>;
   reconnect: boolean;
+  display: LiveChatProviderDisplaySettings & { showSelfMessages: boolean };
+}
+export interface TikTokLiveChatSettings {
+  enabled: boolean;
+  available: true;
+  accounts: string[];
+  accountOverrides: Record<string, TikTokLiveChatAccountAppearance>;
+  reconnect: boolean;
+  offlineCheckIntervalSeconds: number;
+  display: TikTokLiveChatDisplaySettings;
 }
 export interface LiveChatSettings {
   enabled: boolean;
   twitch: TwitchLiveChatSettings;
-  tiktok: { enabled: boolean; available: false };
+  tiktok: TikTokLiveChatSettings;
   overlay: {
     mode: LiveChatOverlayMode;
     paused: boolean;
     locked: boolean;
     alwaysOnTop: boolean;
     maxMessages: number;
-    showSelfMessages: boolean;
-    showTimestamp: boolean;
-    showBadges: boolean;
-    showProvider: boolean;
-    showChannel: boolean;
     background: StoredThemeBackground;
     backgroundPresets: ThemeEffectBackgrounds;
     openScopes: LiveChatOverlayScope[];
@@ -257,11 +278,14 @@ export interface LiveChatSettings {
 }
 export interface LiveChatSettingsPatch {
   enabled?: boolean;
-  twitch?: Partial<Omit<TwitchLiveChatSettings, "hasPassword">> & {
+  twitch?: Partial<Omit<TwitchLiveChatSettings, "hasPassword" | "display">> & {
+    display?: Partial<LiveChatProviderDisplaySettings & { showSelfMessages: boolean }>;
     password?: string;
     clearPassword?: boolean;
   };
-  tiktok?: { enabled?: boolean };
+  tiktok?: Partial<Omit<TikTokLiveChatSettings, "display">> & {
+    display?: Partial<TikTokLiveChatDisplaySettings>;
+  };
   overlay?: Partial<Omit<LiveChatSettings["overlay"], "bounds">> & {
     bounds?: Partial<Record<LiveChatOverlayScope, LiveChatWindowBounds>>;
   };
@@ -270,6 +294,7 @@ export interface LiveChatProviderState {
   connected: boolean;
   connecting: boolean;
   reconnecting: boolean;
+  waitingForLive: boolean;
   joinedChannels: string[];
   lastError: string | null;
 }
@@ -278,7 +303,7 @@ export interface LiveChatState {
   settings: LiveChatSettings;
   providers: {
     twitch: LiveChatProviderState;
-    tiktok: LiveChatProviderState & { available: false };
+    tiktok: LiveChatProviderState & { available: true; accounts: Record<string, LiveChatProviderState & { account: string }> };
   };
 }
 export type TwitchChatTags = Record<string, unknown> & {
@@ -300,6 +325,15 @@ export interface LiveChatEvent {
   channel?: string;
   message?: string;
   self?: boolean;
+  author?: {
+    id?: string;
+    username: string;
+    displayName: string;
+    color?: string;
+    avatarUrl?: string | null;
+    badges?: unknown[];
+  };
+  channelAvatarUrl?: string | null;
   tags?: TwitchChatTags;
   args?: unknown[];
 }
@@ -629,8 +663,8 @@ export interface UnderDeckApi {
     updateSettings: (
       patch: LiveChatSettingsPatch,
     ) => Promise<LiveChatCommandResult>;
-    connect: (provider?: LiveChatProvider) => Promise<LiveChatCommandResult>;
-    disconnect: (provider?: LiveChatProvider) => Promise<LiveChatCommandResult>;
+    connect: (provider?: LiveChatProvider, source?: string) => Promise<LiveChatCommandResult>;
+    disconnect: (provider?: LiveChatProvider, source?: string) => Promise<LiveChatCommandResult>;
     openOverlay: (
       scope?: LiveChatOverlayScope,
     ) => Promise<LiveChatOverlayWindowState>;

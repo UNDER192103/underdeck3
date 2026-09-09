@@ -98,6 +98,17 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
+if defined UNDERDECK_RELEASE_NOTES (
+    where gh >nul 2>nul
+    if errorlevel 1 (
+        echo [AVISO] GitHub CLI ^(gh^) nao encontrado; notas da release nao foram aplicadas.
+    ) else (
+        echo [INFO] Aplicando notas personalizadas na release...
+        gh release edit "v%APP_VERSION%" --repo "%GH_OWNER%/%GH_REPO%" --notes "%UNDERDECK_RELEASE_NOTES%"
+        if errorlevel 1 echo [AVISO] Nao foi possivel aplicar as notas personalizadas.
+    )
+)
+
 echo [SUCESSO] Release publicada. Arquivos em %CD%\%OUTPUT_DIR%
 exit /b 0
 

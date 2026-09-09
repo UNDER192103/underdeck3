@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions DisableDelayedExpansion
 
 cd /d "%~dp0.."
 
@@ -22,12 +22,14 @@ echo Opcao invalida. Use 1, 2, 3 ou 4.
 exit /b 1
 
 :build_dist
+call :ask_release_notes
 echo.
 echo Running: pnpm run velopack
 call pnpm run velopack
 goto end
 
 :build_prod
+call :ask_release_notes
 echo.
 echo Running: pnpm run velopack:prod
 call pnpm run velopack:prod
@@ -44,6 +46,13 @@ echo.
 echo Executando: pnpm run velopack:local:test
 call pnpm run velopack:local:test
 goto end
+
+:ask_release_notes
+echo.
+echo O texto abaixo sera usado como notas da release no GitHub.
+echo Deixe vazio para manter as notas automaticas do GitHub.
+set /p "UNDERDECK_RELEASE_NOTES=Notas da release (uma linha): "
+exit /b 0
 
 :end
 if errorlevel 1 (

@@ -17,6 +17,29 @@ export type LiveChatChannelAppearance = {
   eventsEnabled: boolean;
 };
 
+export type LiveChatProviderDisplaySettings = {
+  showTimestamp: boolean;
+  showAvatar: boolean;
+  showBadges: boolean;
+  showProvider: boolean;
+  showChannel: boolean;
+  showJoinEvents: boolean;
+  showFollowEvents: boolean;
+};
+
+export type TwitchLiveChatDisplaySettings = LiveChatProviderDisplaySettings & {
+  showSelfMessages: boolean;
+};
+
+export type TikTokLiveChatAccountAppearance = LiveChatChannelAppearance & {
+  waitForLive: boolean;
+};
+
+export type TikTokLiveChatDisplaySettings = LiveChatProviderDisplaySettings & {
+  showLikeEvents: boolean;
+  showGiftEvents: boolean;
+};
+
 export type TwitchLiveChatSettings = {
   enabled: boolean;
   anonymous: boolean;
@@ -25,11 +48,17 @@ export type TwitchLiveChatSettings = {
   channels: string[];
   channelOverrides: Record<string, LiveChatChannelAppearance>;
   reconnect: boolean;
+  display: TwitchLiveChatDisplaySettings;
 };
 
 export type TikTokLiveChatSettings = {
   enabled: boolean;
-  available: false;
+  available: true;
+  accounts: string[];
+  accountOverrides: Record<string, TikTokLiveChatAccountAppearance>;
+  reconnect: boolean;
+  offlineCheckIntervalSeconds: number;
+  display: TikTokLiveChatDisplaySettings;
 };
 
 export type LiveChatOverlaySettings = {
@@ -38,11 +67,6 @@ export type LiveChatOverlaySettings = {
   locked: boolean;
   alwaysOnTop: boolean;
   maxMessages: number;
-  showSelfMessages: boolean;
-  showTimestamp: boolean;
-  showBadges: boolean;
-  showProvider: boolean;
-  showChannel: boolean;
   background: StoredThemeBackground;
   backgroundPresets: ThemeEffectBackgrounds;
   openScopes: LiveChatOverlayScope[];
@@ -58,11 +82,14 @@ export type LiveChatSettings = {
 
 export type LiveChatSettingsPatch = {
   enabled?: boolean;
-  twitch?: Partial<Omit<TwitchLiveChatSettings, "hasPassword">> & {
+  twitch?: Partial<Omit<TwitchLiveChatSettings, "hasPassword" | "display">> & {
+    display?: Partial<TwitchLiveChatDisplaySettings>;
     password?: string;
     clearPassword?: boolean;
   };
-  tiktok?: Partial<TikTokLiveChatSettings>;
+  tiktok?: Partial<Omit<TikTokLiveChatSettings, "display">> & {
+    display?: Partial<TikTokLiveChatDisplaySettings>;
+  };
   overlay?: Partial<Omit<LiveChatOverlaySettings, "bounds">> & {
     bounds?: Partial<Record<LiveChatOverlayScope, LiveChatWindowBounds>>;
   };
@@ -72,8 +99,13 @@ export type LiveChatProviderState = {
   connected: boolean;
   connecting: boolean;
   reconnecting: boolean;
+  waitingForLive: boolean;
   joinedChannels: string[];
   lastError: string | null;
+};
+
+export type TikTokLiveChatAccountState = LiveChatProviderState & {
+  account: string;
 };
 
 export type LiveChatState = {
@@ -81,7 +113,10 @@ export type LiveChatState = {
   settings: LiveChatSettings;
   providers: {
     twitch: LiveChatProviderState;
-    tiktok: LiveChatProviderState & { available: false };
+    tiktok: LiveChatProviderState & {
+      available: true;
+      accounts: Record<string, TikTokLiveChatAccountState>;
+    };
   };
 };
 
@@ -105,6 +140,15 @@ export type LiveChatEvent = {
   channel?: string;
   message?: string;
   self?: boolean;
+  author?: {
+    id?: string;
+    username: string;
+    displayName: string;
+    color?: string;
+    avatarUrl?: string | null;
+    badges?: unknown[];
+  };
+  channelAvatarUrl?: string | null;
   tags?: TwitchChatTags;
   args?: unknown[];
 };

@@ -12,6 +12,8 @@ declare module "tmi.js" {
         connect(): Promise<[string, number]>;
         disconnect(): Promise<[string, number]>;
         getChannels(): string[];
+        join(channel: string): Promise<[string]>;
+        part(channel: string): Promise<[string]>;
     }
 
     const tmi: { Client: typeof Client };

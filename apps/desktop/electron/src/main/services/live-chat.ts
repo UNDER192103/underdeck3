@@ -7,6 +7,7 @@ import tmi from "tmi.js";
 import { Settings } from "./settings.js";
 import { logsService } from "./logs.js";
 import { observerService, ObserverChannels } from "./observer.js";
+import { TikTokLiveChatProvider } from "./live-chat/tiktok-provider.js";
 import type {
   LiveChatCommandResult,
   LiveChatChannelAppearance,
@@ -15,6 +16,9 @@ import type {
   LiveChatProviderState,
   LiveChatSettings,
   LiveChatSettingsPatch,
+  LiveChatProviderDisplaySettings,
+  TikTokLiveChatDisplaySettings,
+  TikTokLiveChatAccountAppearance,
   TwitchChatTags,
 } from "../../types/live-chat.js";
 import type {
@@ -61,9 +65,24 @@ type StoredLiveChatSettings = {
     channels?: string[];
     channelOverrides?: Record<string, Partial<LiveChatChannelAppearance>>;
     reconnect?: boolean;
+    display?: Partial<LiveChatSettings["twitch"]["display"]>;
   };
-  tiktok?: { enabled?: boolean };
-  overlay?: LiveChatSettings["overlay"];
+  tiktok?: {
+    enabled?: boolean;
+    accounts?: string[];
+    accountOverrides?: Record<string, Partial<TikTokLiveChatAccountAppearance>>;
+    reconnect?: boolean;
+    offlineCheckIntervalSeconds?: number;
+    display?: Partial<TikTokLiveChatDisplaySettings>;
+  };
+  overlay?: LiveChatSettings["overlay"] & {
+    showSelfMessages?: boolean;
+    showTimestamp?: boolean;
+    showAvatar?: boolean;
+    showBadges?: boolean;
+    showProvider?: boolean;
+    showChannel?: boolean;
+  };
 };
 
 const TWITCH_EVENTS = [
@@ -84,6 +103,7 @@ const TWITCH_EVENTS = [
   "emotesets",
   "followersonly",
   "followersmode",
+  "follow",
   "giftpaidupgrade",
   "globaluserstate",
   "hosted",
@@ -146,6 +166,7 @@ const defaultProviderState = (): LiveChatProviderState => ({
   connected: false,
   connecting: false,
   reconnecting: false,
+  waitingForLive: false,
   joinedChannels: [],
   lastError: null,
 });
@@ -155,6 +176,22 @@ export class LiveChatService extends EventEmitter {
   private twitchState: LiveChatProviderState = defaultProviderState();
   private manualDisconnect = false;
   private disabledEventChannels = new Set<string>();
+  private readonly tiktokProvider: TikTokLiveChatProvider;
+
+  constructor() {
+    super();
+    this.tiktokProvider = new TikTokLiveChatProvider({
+      getSettings: () => {
+        const settings = this.getSettings();
+        return { enabled: settings.enabled, tiktok: settings.tiktok };
+      },
+      emitEvent: (event, args, extra) =>
+        this.emitProviderEvent("tiktok", event, args, extra),
+      emitStateChanged: () => this.emitStateChanged(),
+      log: (event, data, level = "info") =>
+        logsService.log("app", event, data, level),
+    });
+  }
 
   private readStoredSettings(): StoredLiveChatSettings {
     return (
@@ -193,6 +230,83 @@ export class LiveChatService extends EventEmitter {
           .filter(Boolean),
       ),
     ];
+  }
+
+  private normalizeTikTokAccounts(value: unknown): string[] {
+    const values = Array.isArray(value) ? value : [];
+    return [
+      ...new Set(
+        values
+          .map((item) =>
+            String(item ?? "")
+              .trim()
+              .replace(/^https?:\/\/(?:www\.)?tiktok\.com\/@/i, "")
+              .replace(/\/live\/?$/i, "")
+              .replace(/^@/, "")
+              .toLowerCase(),
+          )
+          .filter(Boolean),
+      ),
+    ];
+  }
+
+  private normalizeTikTokOverrides(
+    value: unknown,
+    accounts: string[],
+  ): Record<string, TikTokLiveChatAccountAppearance> {
+    const source =
+      value && typeof value === "object"
+        ? (value as Record<string, Partial<TikTokLiveChatAccountAppearance>>)
+        : {};
+    return Object.fromEntries(
+      accounts.map((account) => {
+        const current = source[account] ?? {};
+        return [
+          account,
+          {
+            label: String(current.label ?? "").trim().slice(0, 80),
+            icon: String(current.icon ?? "").trim().slice(0, 2048) || null,
+            eventsEnabled: current.eventsEnabled !== false,
+            waitForLive: current.waitForLive !== false,
+          },
+        ];
+      }),
+    );
+  }
+
+  private normalizeDisplay(
+    value: unknown,
+    legacy: StoredLiveChatSettings["overlay"],
+  ): LiveChatProviderDisplaySettings {
+    const current =
+      value && typeof value === "object"
+        ? (value as Partial<LiveChatProviderDisplaySettings>)
+        : {};
+    return {
+      showTimestamp: current.showTimestamp ?? legacy?.showTimestamp !== false,
+      showAvatar: current.showAvatar ?? legacy?.showAvatar !== false,
+      showBadges: current.showBadges ?? legacy?.showBadges !== false,
+      showProvider: current.showProvider ?? legacy?.showProvider !== false,
+      showChannel: current.showChannel ?? legacy?.showChannel !== false,
+      showJoinEvents: current.showJoinEvents ?? true,
+      showFollowEvents: current.showFollowEvents ?? true,
+    };
+  }
+
+  private normalizeTikTokDisplay(
+    value: unknown,
+    legacy: StoredLiveChatSettings["overlay"],
+  ): TikTokLiveChatDisplaySettings {
+    const base = this.normalizeDisplay(value, legacy);
+    const current =
+      value && typeof value === "object"
+        ? (value as Partial<TikTokLiveChatDisplaySettings>)
+        : {};
+    return {
+      ...base,
+      showLikeEvents: current.showLikeEvents ?? true,
+      showGiftEvents: current.showGiftEvents ?? true,
+    };
   }
 
   private normalizeChannelOverrides(
@@ -254,12 +368,7 @@ export class LiveChatService extends EventEmitter {
         ? (value as ThemeEffectBackgrounds)
         : {};
     const presets: ThemeEffectBackgrounds = {};
-    for (const variant of [
-      "color",
-      "neural",
-      "nebula",
-      "particles",
-    ] as const) {
+    for (const variant of ["color", "neural", "nebula", "particles"] as const) {
       const candidate = this.normalizeBackground(
         source[variant] ?? DEFAULT_BACKGROUND_PRESETS[variant],
       );
@@ -317,10 +426,20 @@ export class LiveChatService extends EventEmitter {
 
   private syncChannelEventFilters(settings: LiveChatSettings) {
     this.disabledEventChannels = new Set(
-      settings.twitch.channels.filter(
-        (channel) =>
-          settings.twitch.channelOverrides[channel]?.eventsEnabled === false,
-      ),
+      [
+        ...settings.twitch.channels
+          .filter(
+            (channel) =>
+              settings.twitch.channelOverrides[channel]?.eventsEnabled === false,
+          )
+          .map((channel) => `twitch:${channel}`),
+        ...settings.tiktok.accounts
+          .filter(
+            (account) =>
+              settings.tiktok.accountOverrides[account]?.eventsEnabled === false,
+          )
+          .map((account) => `tiktok:${account}`),
+      ],
     );
   }
 
@@ -336,6 +455,13 @@ export class LiveChatService extends EventEmitter {
     const password = this.decodeSecret(stored.twitch?.passwordEncrypted);
     const storedBounds = stored.overlay?.bounds ?? {};
     const channels = this.normalizeChannels(stored.twitch?.channels);
+    const accounts = this.normalizeTikTokAccounts(stored.tiktok?.accounts);
+    const twitchDisplay = {
+      ...this.normalizeDisplay(stored.twitch?.display, stored.overlay),
+      showSelfMessages:
+        stored.twitch?.display?.showSelfMessages ??
+        Boolean(stored.overlay?.showSelfMessages),
+    };
     return {
       enabled: Boolean(stored.enabled),
       twitch: {
@@ -349,8 +475,23 @@ export class LiveChatService extends EventEmitter {
           channels,
         ),
         reconnect: stored.twitch?.reconnect !== false,
+        display: twitchDisplay,
       },
-      tiktok: { enabled: false, available: false },
+      tiktok: {
+        enabled: Boolean(stored.tiktok?.enabled),
+        available: true,
+        accounts,
+        accountOverrides: this.normalizeTikTokOverrides(
+          stored.tiktok?.accountOverrides,
+          accounts,
+        ),
+        reconnect: stored.tiktok?.reconnect !== false,
+        offlineCheckIntervalSeconds: Math.max(
+          30,
+          Number(stored.tiktok?.offlineCheckIntervalSeconds) || 30,
+        ),
+        display: this.normalizeTikTokDisplay(stored.tiktok?.display, stored.overlay),
+      },
       overlay: {
         mode: stored.overlay?.mode === "separate" ? "separate" : "combined",
         paused: Boolean(stored.overlay?.paused),
@@ -359,11 +500,6 @@ export class LiveChatService extends EventEmitter {
         maxMessages: this.normalizeMaxMessages(
           stored.overlay?.maxMessages ?? 200,
         ),
-        showSelfMessages: Boolean(stored.overlay?.showSelfMessages),
-        showTimestamp: stored.overlay?.showTimestamp !== false,
-        showBadges: stored.overlay?.showBadges !== false,
-        showProvider: stored.overlay?.showProvider !== false,
-        showChannel: stored.overlay?.showChannel !== false,
         background: this.normalizeBackground(stored.overlay?.background),
         backgroundPresets: this.normalizeBackgroundPresets(
           stored.overlay?.backgroundPresets,
@@ -401,7 +537,7 @@ export class LiveChatService extends EventEmitter {
           ...this.twitchState,
           joinedChannels: [...this.twitchState.joinedChannels],
         },
-        tiktok: { ...defaultProviderState(), available: false },
+        tiktok: this.tiktokProvider.getState(),
       },
     };
   }
@@ -466,7 +602,7 @@ export class LiveChatService extends EventEmitter {
       .toLowerCase();
     if (
       !NOISY_OR_ALIAS_EVENTS.has(event) &&
-      !this.disabledEventChannels.has(normalizedChannel)
+      !this.disabledEventChannels.has(`${provider}:${normalizedChannel}`)
     ) {
       this.emit("event", payload);
     }
@@ -490,6 +626,16 @@ export class LiveChatService extends EventEmitter {
             tags: { ...tags },
             message: String(message ?? ""),
             self: Boolean(self),
+            author: {
+              id: String(tags["user-id"] ?? "") || undefined,
+              username: String(tags.username ?? tags["display-name"] ?? "unknown"),
+              displayName: String(tags["display-name"] ?? tags.username ?? "unknown"),
+              color: String(tags.color ?? "") || undefined,
+              badges: Object.entries(tags.badges ?? {}).map(([name, version]) => ({
+                name,
+                version,
+              })),
+            },
           },
         );
       },
@@ -503,6 +649,7 @@ export class LiveChatService extends EventEmitter {
             connected: true,
             connecting: false,
             reconnecting: false,
+            waitingForLive: false,
             joinedChannels: client
               .getChannels()
               .map((channel) => channel.replace(/^#/, "")),
@@ -553,7 +700,7 @@ export class LiveChatService extends EventEmitter {
       ...stored,
       enabled: patch.enabled ?? current.enabled,
       twitch: { ...stored.twitch },
-      tiktok: { ...stored.tiktok, enabled: false },
+      tiktok: { ...stored.tiktok },
       overlay: {
         ...current.overlay,
         ...patch.overlay,
@@ -585,6 +732,10 @@ export class LiveChatService extends EventEmitter {
           channels,
         ),
         reconnect: patch.twitch.reconnect ?? current.twitch.reconnect,
+        display: {
+          ...current.twitch.display,
+          ...patch.twitch.display,
+        },
       };
       if (patch.twitch.clearPassword) next.twitch.passwordEncrypted = "";
       if (
@@ -597,29 +748,58 @@ export class LiveChatService extends EventEmitter {
       }
     }
 
+    if (patch.tiktok) {
+      const accounts = this.normalizeTikTokAccounts(
+        patch.tiktok.accounts ?? current.tiktok.accounts,
+      );
+      next.tiktok = {
+        ...stored.tiktok,
+        enabled: patch.tiktok.enabled ?? current.tiktok.enabled,
+        accounts,
+        accountOverrides: this.normalizeTikTokOverrides(
+          patch.tiktok.accountOverrides ?? current.tiktok.accountOverrides,
+          accounts,
+        ),
+        reconnect: patch.tiktok.reconnect ?? current.tiktok.reconnect,
+        offlineCheckIntervalSeconds: Math.max(
+          30,
+          Number(
+            patch.tiktok.offlineCheckIntervalSeconds ??
+              current.tiktok.offlineCheckIntervalSeconds,
+          ) || 30,
+        ),
+        display: {
+          ...current.tiktok.display,
+          ...patch.tiktok.display,
+        },
+      };
+    }
+
     Settings.set("liveChat", next);
     this.emitSettingsChanged();
 
     const updated = this.getSettings();
     this.syncChannelEventFilters(updated);
+    await this.tiktokProvider.reconcileAccounts(updated.tiktok.accounts);
+    this.tiktokProvider.reconcileSettings();
     this.deleteReplacedBackground(
       current.overlay.background,
       updated.overlay.background,
     );
-    const connectionChanged =
-      updated.twitch.enabled !== current.twitch.enabled ||
-      updated.twitch.anonymous !== current.twitch.anonymous ||
-      updated.twitch.username !== current.twitch.username ||
-      updated.twitch.reconnect !== current.twitch.reconnect ||
-      updated.twitch.channels.join("|") !== current.twitch.channels.join("|") ||
-      Boolean(patch.twitch?.clearPassword) ||
-      Boolean(patch.twitch?.password?.trim());
-    if (!updated.enabled || !updated.twitch.enabled) {
-      await this.disconnect("twitch");
-    } else if (this.twitchClient && connectionChanged) {
-      await this.disconnect("twitch");
-      await this.connect("twitch");
+    if (patch.enabled === false) {
+      await Promise.all([this.disconnect("twitch"), this.disconnect("tiktok")]);
+    } else if (patch.enabled === true && !current.enabled) {
+      await Promise.all([
+        updated.twitch.enabled ? this.connect("twitch") : Promise.resolve(null),
+        updated.tiktok.enabled ? this.connect("tiktok") : Promise.resolve(null),
+      ]);
     } else {
+      if (patch.twitch?.enabled === false) await this.disconnect("twitch");
+      if (patch.twitch?.enabled === true && !current.twitch.enabled)
+        await this.connect("twitch");
+      if (patch.tiktok?.enabled === false) await this.disconnect("tiktok");
+      if (patch.tiktok?.enabled === true && !current.tiktok.enabled)
+        await this.connect("tiktok");
       this.emitStateChanged();
     }
 
@@ -630,15 +810,49 @@ export class LiveChatService extends EventEmitter {
     };
   }
 
+  private async syncConnectedTwitchChannels(channels: string[]) {
+    const client = this.twitchClient;
+    if (!client) return;
+
+    const connected = new Set(
+      client.getChannels().map((channel) => channel.replace(/^#/, "")),
+    );
+    const desired = new Set(channels);
+
+    for (const channel of connected) {
+      if (desired.has(channel)) continue;
+      try {
+        await client.part(channel);
+      } catch (error) {
+        logsService.log(
+          "app",
+          "live-chat.twitch.channel.part.error",
+          { channel, error: this.normalizeError(error) },
+          "error",
+        );
+      }
+    }
+
+    for (const channel of desired) {
+      if (connected.has(channel)) continue;
+      try {
+        await client.join(channel);
+      } catch (error) {
+        logsService.log(
+          "app",
+          "live-chat.twitch.channel.join.error",
+          { channel, error: this.normalizeError(error) },
+          "error",
+        );
+      }
+    }
+  }
+
   public async connect(
     provider: LiveChatProvider = "twitch",
+    source?: string,
   ): Promise<LiveChatCommandResult> {
-    if (provider !== "twitch")
-      return {
-        ok: false,
-        message: "This provider is not available yet.",
-        code: "live_chat.result.provider_unavailable",
-      };
+    if (provider === "tiktok") return this.tiktokProvider.connect(source);
     const settings = this.getSettings();
     this.syncChannelEventFilters(settings);
     if (!settings.enabled)
@@ -729,13 +943,9 @@ export class LiveChatService extends EventEmitter {
 
   public async disconnect(
     provider: LiveChatProvider = "twitch",
+    source?: string,
   ): Promise<LiveChatCommandResult> {
-    if (provider !== "twitch")
-      return {
-        ok: true,
-        message: "Provider disconnected.",
-        code: "live_chat.result.provider_disconnected",
-      };
+    if (provider === "tiktok") return this.tiktokProvider.disconnect(source);
     this.manualDisconnect = true;
     const client = this.twitchClient;
     this.twitchClient = null;
@@ -758,12 +968,23 @@ export class LiveChatService extends EventEmitter {
 
   public async connectOnStartupIfNeeded() {
     const settings = this.getSettings();
-    if (!settings.enabled || !settings.twitch.enabled)
+    if (!settings.enabled)
       return {
         ok: true,
         message: "Live chat is disabled.",
         code: "live_chat.result.service_disabled",
       };
-    return this.connect("twitch");
+    const results = await Promise.all([
+      settings.twitch.enabled ? this.connect("twitch") : Promise.resolve(null),
+      settings.tiktok.enabled ? this.connect("tiktok") : Promise.resolve(null),
+    ]);
+    return (
+      results.find((result) => result && !result.ok) ??
+      results.find((result) => result) ?? {
+        ok: true,
+        message: "Live chat providers are disabled.",
+        code: "live_chat.result.service_disabled",
+      }
+    );
   }
 }

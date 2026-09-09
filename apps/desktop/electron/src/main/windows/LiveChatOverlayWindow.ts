@@ -74,6 +74,7 @@ export class LiveChatOverlayWindowService {
     public async open(rawScope?: LiveChatOverlayScope): Promise<LiveChatOverlayWindowState> {
         const settings = this.liveChatService.getSettings();
         const scope = normalizeScope(rawScope ?? (settings.overlay.mode === "separate" ? "twitch" : "combined"));
+        if (!settings.enabled) return this.getState(scope);
         const existing = this.windows.get(scope);
         if (existing && !existing.isDestroyed()) {
             existing.show();
@@ -100,8 +101,8 @@ export class LiveChatOverlayWindowService {
             alwaysOnTop: settings.overlay.alwaysOnTop,
             skipTaskbar: true,
             autoHideMenuBar: true,
-            minWidth: 280,
-            minHeight: 360,
+            minWidth: 200,
+            minHeight: 280,
             webPreferences: {
                 preload: preloadPath,
                 contextIsolation: true,
@@ -160,20 +161,19 @@ export class LiveChatOverlayWindowService {
 
     public async restoreOnStartupIfNeeded() {
         const settings = this.liveChatService.getSettings();
-        const hasEnabledProvider = settings.twitch.enabled || settings.tiktok.enabled;
-        if (!settings.enabled || !hasEnabledProvider) return;
+        // The global service switch controls whether the overlay may exist. A
+        // provider can be disabled independently; its overlay remains useful
+        // while configuring it and must still restore after an app restart.
+        if (!settings.enabled) return;
         const requested = settings.overlay.openScopes;
         if (requested.length === 0) return;
         const scopes: LiveChatOverlayScope[] = settings.overlay.mode === "combined"
             ? ["combined"]
             : [
-                ...(settings.twitch.enabled && (requested.includes("combined") || requested.includes("twitch")) ? ["twitch" as const] : []),
-                ...(settings.tiktok.enabled && (requested.includes("combined") || requested.includes("tiktok")) ? ["tiktok" as const] : []),
+                ...(requested.includes("combined") || requested.includes("twitch") ? ["twitch" as const] : []),
+                ...(requested.includes("combined") || requested.includes("tiktok") ? ["tiktok" as const] : []),
             ];
         for (const scope of scopes) {
-            if (scope === "tiktok" && !settings.tiktok.enabled) continue;
-            if (scope === "twitch" && !settings.twitch.enabled) continue;
-            if (scope === "combined" && !hasEnabledProvider) continue;
             await this.open(scope);
         }
     }

@@ -1,7 +1,7 @@
 export type RendererSourceMode = "auto" | "local" | "url";
 
 export const RendererTargetConfig = {
-    sourceMode: "auto" as RendererSourceMode,
+    sourceMode: "local" as RendererSourceMode,
     devBaseUrl: "http://localhost:5173",
 };
 
@@ -68,9 +68,34 @@ export const BaseConfig = {
             channels: [] as string[],
             channelOverrides: {} as Record<string, { label: string; icon: string | null; eventsEnabled: boolean }>,
             reconnect: true,
+            display: {
+                showSelfMessages: false,
+                showTimestamp: true,
+                showAvatar: true,
+                showBadges: true,
+                showProvider: true,
+                showChannel: true,
+                showJoinEvents: true,
+                showFollowEvents: true,
+            },
         },
         tiktok: {
             enabled: false,
+            accounts: [] as string[],
+            accountOverrides: {} as Record<string, { label: string; icon: string | null; eventsEnabled: boolean; waitForLive: boolean }>,
+            reconnect: true,
+            offlineCheckIntervalSeconds: 30,
+            display: {
+                showTimestamp: true,
+                showAvatar: true,
+                showBadges: true,
+                showProvider: true,
+                showChannel: true,
+                showJoinEvents: true,
+                showFollowEvents: true,
+                showLikeEvents: true,
+                showGiftEvents: true,
+            },
         },
         overlay: {
             mode: "combined" as "combined" | "separate",
@@ -78,11 +103,6 @@ export const BaseConfig = {
             locked: false,
             alwaysOnTop: true,
             maxMessages: 200,
-            showSelfMessages: false,
-            showTimestamp: true,
-            showBadges: true,
-            showProvider: true,
-            showChannel: true,
             background: { variant: "color", backgroundColor: "#000000" } as const,
             backgroundPresets: {
                 color: { variant: "color", backgroundColor: "#000000" } as const,

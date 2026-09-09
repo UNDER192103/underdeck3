@@ -948,11 +948,11 @@ export class IpcmainService {
         ipcMain.handle("LiveChatSV-UpdateSettings", async (_event, patch: LiveChatSettingsPatch) =>
             this.liveChatService.updateSettings(patch)
         );
-        ipcMain.handle("LiveChatSV-Connect", async (_event, provider: "twitch" | "tiktok" = "twitch") =>
-            this.liveChatService.connect(provider)
+        ipcMain.handle("LiveChatSV-Connect", async (_event, provider: "twitch" | "tiktok" = "twitch", source?: string) =>
+            this.liveChatService.connect(provider, source)
         );
-        ipcMain.handle("LiveChatSV-Disconnect", async (_event, provider: "twitch" | "tiktok" = "twitch") =>
-            this.liveChatService.disconnect(provider)
+        ipcMain.handle("LiveChatSV-Disconnect", async (_event, provider: "twitch" | "tiktok" = "twitch", source?: string) =>
+            this.liveChatService.disconnect(provider, source)
         );
         ipcMain.handle("LiveChatSV-OpenOverlay", async (_event, scope?: LiveChatOverlayScope) =>
             this.liveChatOverlayWindowService.open(scope)

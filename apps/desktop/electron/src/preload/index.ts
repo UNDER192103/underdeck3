@@ -300,8 +300,8 @@ interface UnderDeckApi {
     getSettings: () => Promise<LiveChatSettings>;
     getState: () => Promise<LiveChatState>;
     updateSettings: (patch: LiveChatSettingsPatch) => Promise<LiveChatCommandResult>;
-    connect: (provider?: LiveChatProvider) => Promise<LiveChatCommandResult>;
-    disconnect: (provider?: LiveChatProvider) => Promise<LiveChatCommandResult>;
+    connect: (provider?: LiveChatProvider, source?: string) => Promise<LiveChatCommandResult>;
+    disconnect: (provider?: LiveChatProvider, source?: string) => Promise<LiveChatCommandResult>;
     openOverlay: (scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
     closeOverlay: (scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
     getOverlayState: (scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
@@ -835,8 +835,8 @@ const underdeckApi: UnderDeckApi = {
     getSettings: () => ipcRenderer.invoke("LiveChatSV-GetSettings"),
     getState: () => ipcRenderer.invoke("LiveChatSV-GetState"),
     updateSettings: (patch) => ipcRenderer.invoke("LiveChatSV-UpdateSettings", patch),
-    connect: (provider = "twitch") => ipcRenderer.invoke("LiveChatSV-Connect", provider),
-    disconnect: (provider = "twitch") => ipcRenderer.invoke("LiveChatSV-Disconnect", provider),
+    connect: (provider = "twitch", source) => ipcRenderer.invoke("LiveChatSV-Connect", provider, source),
+    disconnect: (provider = "twitch", source) => ipcRenderer.invoke("LiveChatSV-Disconnect", provider, source),
     openOverlay: (scope) => ipcRenderer.invoke("LiveChatSV-OpenOverlay", scope),
     closeOverlay: (scope) => ipcRenderer.invoke("LiveChatSV-CloseOverlay", scope),
     getOverlayState: (scope) => ipcRenderer.invoke("LiveChatSV-GetOverlayState", scope),

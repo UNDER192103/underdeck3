@@ -254,7 +254,10 @@ const stopRuntimeServicesForUpdate = async () => {
     /* ignore */
   }
   try {
-    await liveChatService.disconnect();
+    await Promise.all([
+      liveChatService.disconnect("twitch"),
+      liveChatService.disconnect("tiktok"),
+    ]);
   } catch {
     /* ignore */
   }

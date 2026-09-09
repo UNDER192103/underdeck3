@@ -1,5 +1,6 @@
 import {
   Fragment,
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -11,8 +12,10 @@ import type { CSSProperties, ReactNode } from "react";
 import {
   Award,
   Clock3,
+  CircleUserRound,
   Gift,
   Hash,
+  Heart,
   Loader2,
   Lock,
   Menu,
@@ -23,6 +26,7 @@ import {
   Radio,
   Trash2,
   Unlock,
+  UserPlus,
   X,
 } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
@@ -72,6 +76,15 @@ const DISPLAY_EVENTS = new Set([
   "notice",
   "cheer",
   "bits",
+  "gift",
+  "member",
+  "like",
+  "social",
+  "join",
+  "follow",
+  "share",
+  "subscribe",
+  "streamEnd",
 ]);
 
 function renderTwitchMessage(message: string, tags?: TwitchChatTags) {
@@ -116,11 +129,13 @@ function formatSystemEvent(
 ) {
   const args = event.args ?? [];
   const actor =
-    typeof args[1] === "string"
+    event.author?.displayName ||
+    event.author?.username ||
+    (typeof args[1] === "string"
       ? args[1]
       : typeof args[0] === "string" && !String(args[0]).startsWith("#")
         ? args[0]
-        : "";
+        : "");
   const detail = actor ? `${actor} · ` : "";
   return `${detail}${t(`live_chat.event.${event.event}`, event.event)}`;
 }
@@ -142,6 +157,44 @@ function objectValue(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function nestedImageUrl(value: unknown): string | null {
+  if (typeof value === "string" && /^https?:\/\//i.test(value)) return value;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = nestedImageUrl(item);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (!value || typeof value !== "object") return null;
+  for (const child of Object.values(value as Record<string, unknown>)) {
+    const found = nestedImageUrl(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+function TikTokBadges({ event, enabled }: { event: LiveChatEvent; enabled: boolean }) {
+  if (!enabled || !event.author?.badges?.length) return null;
+  return (
+    <span className="mr-1 inline-flex items-center gap-0.5 align-middle">
+      {event.author.badges.slice(0, 6).map((badge, index) => {
+        const url = nestedImageUrl(badge);
+        return url ? (
+          <img
+            key={`${url}-${index}`}
+            src={url}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="h-4 w-auto object-contain"
+          />
+        ) : null;
+      })}
+    </span>
+  );
+}
+
 function eventSource(
   event: LiveChatEvent,
   settings: LiveChatSettings | undefined,
@@ -150,12 +203,23 @@ function eventSource(
     .replace(/^#/, "")
     .toLowerCase();
   const appearance: LiveChatChannelAppearance | undefined =
-    settings?.twitch.channelOverrides[channel];
+    event.provider === "tiktok"
+      ? settings?.tiktok.accountOverrides[channel]
+      : settings?.twitch.channelOverrides[channel];
   return {
     channel,
-    label: appearance?.label || (!appearance?.icon ? channel : ""),
-    icon: appearance?.icon ?? null,
+    label: appearance?.label || channel,
+    icon: appearance?.icon ?? event.channelAvatarUrl ?? null,
   };
+}
+
+function providerDisplay(
+  settings: LiveChatSettings | undefined,
+  provider: LiveChatEvent["provider"],
+) {
+  return provider === "tiktok"
+    ? settings?.tiktok.display
+    : settings?.twitch.display;
 }
 
 function EventSource({
@@ -166,8 +230,9 @@ function EventSource({
   settings: LiveChatSettings | undefined;
 }) {
   const source = eventSource(event, settings);
-  const showProvider = settings?.overlay.showProvider !== false;
-  const showChannel = settings?.overlay.showChannel !== false && source.channel;
+  const display = providerDisplay(settings, event.provider);
+  const showProvider = display?.showProvider !== false;
+  const showChannel = display?.showChannel !== false && source.channel;
   if (!showProvider && !showChannel) return null;
 
   return (
@@ -183,9 +248,7 @@ function EventSource({
               alt=""
               className="size-4 shrink-0 rounded-sm object-cover"
             />
-          ) : (
-            <Hash className="size-3" />
-          )}
+          ) : null}
           {source.label ? (
             <span className="max-w-28 truncate">{source.label}</span>
           ) : null}
@@ -252,7 +315,8 @@ function GiftEventCard({
     hour: "2-digit",
     minute: "2-digit",
   }).format(event.timestamp);
-  const showTimestamp = settings?.overlay.showTimestamp !== false;
+  const showTimestamp =
+    providerDisplay(settings, event.provider)?.showTimestamp !== false;
   const message = details.mystery
     ? fillTemplate(
         t(
@@ -286,6 +350,16 @@ function GiftEventCard({
         <EventSource event={event} settings={settings} />
       </div>
       <div className="flex items-start gap-2">
+        {providerDisplay(settings, event.provider)?.showAvatar !== false &&
+        event.author?.avatarUrl ? (
+          <img
+            src={event.author.avatarUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="mt-0.5 size-5 shrink-0 rounded-full object-cover"
+          />
+        ) : null}
         <Gift className="mt-0.5 size-5 shrink-0 text-fuchsia-300" />
         <div className="min-w-0">
           <p className="break-words leading-5">{message}</p>
@@ -306,16 +380,22 @@ function GiftEventCard({
   );
 }
 
-function ChatRow({ event }: { event: LiveChatEvent }) {
+const ChatRow = memo(function ChatRow({
+  event,
+  settings,
+}: {
+  event: LiveChatEvent;
+  settings: LiveChatSettings | undefined;
+}) {
   const { t, locale } = useI18n();
-  const { state } = useLiveChat();
-  const settings = state?.settings;
   const time = new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
   }).format(event.timestamp);
-  const showTimestamp = settings?.overlay.showTimestamp !== false;
-  const showBadges = settings?.overlay.showBadges !== false;
+  const display = providerDisplay(settings, event.provider);
+  const showTimestamp = display?.showTimestamp !== false;
+  const showAvatar = display?.showAvatar !== false;
+  const showBadges = display?.showBadges !== false;
   if (event.event.includes("subgift") || event.event.includes("mysterygift")) {
     return <GiftEventCard event={event} settings={settings} />;
   }
@@ -326,33 +406,59 @@ function ChatRow({ event }: { event: LiveChatEvent }) {
           <span className="mr-2 text-zinc-500">{time}</span>
         ) : null}
         <EventSource event={event} settings={settings} />
+        {showAvatar && event.author?.avatarUrl ? (
+          <img
+            src={event.author.avatarUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="mr-1 inline-block size-5 rounded-full object-cover align-middle"
+          />
+        ) : null}
         {formatSystemEvent(event, t)}
       </div>
     );
   }
 
   const displayName = String(
-    event.tags?.["display-name"] ||
+    event.author?.displayName ||
+      event.author?.username ||
+      event.tags?.["display-name"] ||
       event.tags?.username ||
       t("live_chat.overlay.unknown_user", "Usuário"),
   );
-  const color = String(event.tags?.color || "#a78bfa");
+  const color = String(event.author?.color || event.tags?.color || "#a78bfa");
   return (
     <div className="break-words px-2 py-1 text-[15px] leading-6 text-white">
       {showTimestamp ? (
         <span className="mr-1.5 text-xs text-zinc-500">{time}</span>
       ) : null}
       <EventSource event={event} settings={settings} />
+      {showAvatar && event.author?.avatarUrl ? (
+        <img
+          src={event.author.avatarUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="mr-1 inline-block size-5 rounded-full object-cover align-middle"
+        />
+      ) : null}
       {event.provider === "twitch" ? (
         <TwitchBadges tags={event.tags} enabled={showBadges} />
-      ) : null}
+      ) : (
+        <TikTokBadges event={event} enabled={showBadges} />
+      )}
       <span className="mr-1.5 font-bold" style={{ color }}>
         {displayName}:
       </span>
-      <span>{renderTwitchMessage(event.message ?? "", event.tags)}</span>
+      <span>
+        {event.provider === "twitch"
+          ? renderTwitchMessage(event.message ?? "", event.tags)
+          : event.message ?? ""}
+      </span>
     </div>
   );
-}
+});
 
 function MenuItems({ scope }: { scope: "combined" | "twitch" | "tiktok" }) {
   const { t } = useI18n();
@@ -360,10 +466,27 @@ function MenuItems({ scope }: { scope: "combined" | "twitch" | "tiktok" }) {
   const paused = Boolean(state?.settings.overlay.paused);
   const locked = Boolean(state?.settings.overlay.locked);
   const alwaysOnTop = state?.settings.overlay.alwaysOnTop !== false;
-  const showTimestamp = state?.settings.overlay.showTimestamp !== false;
-  const showBadges = state?.settings.overlay.showBadges !== false;
-  const showProvider = state?.settings.overlay.showProvider !== false;
-  const showChannel = state?.settings.overlay.showChannel !== false;
+  const activeDisplay =
+    scope === "tiktok"
+      ? state?.settings.tiktok.display
+      : state?.settings.twitch.display;
+  const showTimestamp = activeDisplay?.showTimestamp !== false;
+  const showAvatar = activeDisplay?.showAvatar !== false;
+  const showBadges = activeDisplay?.showBadges !== false;
+  const showProvider = activeDisplay?.showProvider !== false;
+  const showChannel = activeDisplay?.showChannel !== false;
+  const showJoinEvents = activeDisplay?.showJoinEvents !== false;
+  const showFollowEvents = activeDisplay?.showFollowEvents !== false;
+  const tiktokDisplay =
+    scope === "tiktok" ? state?.settings.tiktok.display : undefined;
+  const showLikeEvents = tiktokDisplay?.showLikeEvents !== false;
+  const showGiftEvents = tiktokDisplay?.showGiftEvents !== false;
+  const updateDisplay = (patch: Record<string, boolean>) =>
+    window.underdeck.liveChat.updateSettings((
+      scope === "combined"
+        ? { twitch: { display: patch }, tiktok: { display: patch } }
+        : ({ [scope]: { display: patch } } as any)) as any,
+    );
   const close = () => void window.underdeck.liveChat.closeOverlay(scope);
   const pause = () => void window.underdeck.liveChat.setOverlayPaused(!paused);
   const lock = () => void window.underdeck.liveChat.setOverlayLocked(!locked);
@@ -399,9 +522,7 @@ function MenuItems({ scope }: { scope: "combined" | "twitch" | "tiktok" }) {
       </ContextMenuItem>
       <ContextMenuItem
         onSelect={() =>
-          void window.underdeck.liveChat.updateSettings({
-            overlay: { showTimestamp: !showTimestamp },
-          })
+          void updateDisplay({ showTimestamp: !showTimestamp })
         }
       >
         <Clock3 />
@@ -410,10 +531,16 @@ function MenuItems({ scope }: { scope: "combined" | "twitch" | "tiktok" }) {
           : t("live_chat.overlay.show_timestamp", "Mostrar horário")}
       </ContextMenuItem>
       <ContextMenuItem
+        onSelect={() => void updateDisplay({ showAvatar: !showAvatar })}
+      >
+        <CircleUserRound />
+        {showAvatar
+          ? t("live_chat.overlay.hide_avatar", "Ocultar avatar")
+          : t("live_chat.overlay.show_avatar", "Mostrar avatar")}
+      </ContextMenuItem>
+      <ContextMenuItem
         onSelect={() =>
-          void window.underdeck.liveChat.updateSettings({
-            overlay: { showBadges: !showBadges },
-          })
+          void updateDisplay({ showBadges: !showBadges })
         }
       >
         <Award />
@@ -423,9 +550,7 @@ function MenuItems({ scope }: { scope: "combined" | "twitch" | "tiktok" }) {
       </ContextMenuItem>
       <ContextMenuItem
         onSelect={() =>
-          void window.underdeck.liveChat.updateSettings({
-            overlay: { showProvider: !showProvider },
-          })
+          void updateDisplay({ showProvider: !showProvider })
         }
       >
         <Radio />
@@ -435,9 +560,7 @@ function MenuItems({ scope }: { scope: "combined" | "twitch" | "tiktok" }) {
       </ContextMenuItem>
       <ContextMenuItem
         onSelect={() =>
-          void window.underdeck.liveChat.updateSettings({
-            overlay: { showChannel: !showChannel },
-          })
+          void updateDisplay({ showChannel: !showChannel })
         }
       >
         <Hash />
@@ -445,6 +568,50 @@ function MenuItems({ scope }: { scope: "combined" | "twitch" | "tiktok" }) {
           ? t("live_chat.overlay.hide_channel", "Ocultar canal")
           : t("live_chat.overlay.show_channel", "Mostrar canal")}
       </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() =>
+          void updateDisplay({ showJoinEvents: !showJoinEvents })
+        }
+      >
+        <UserPlus />
+        {showJoinEvents
+          ? t("live_chat.overlay.hide_join_events", "Ocultar entradas")
+          : t("live_chat.overlay.show_join_events", "Mostrar entradas")}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() =>
+          void updateDisplay({ showFollowEvents: !showFollowEvents })
+        }
+      >
+        <Heart />
+        {showFollowEvents
+          ? t("live_chat.overlay.hide_follow_events", "Ocultar follows")
+          : t("live_chat.overlay.show_follow_events", "Mostrar follows")}
+      </ContextMenuItem>
+      {scope === "tiktok" ? (
+        <>
+          <ContextMenuItem
+            onSelect={() =>
+              void updateDisplay({ showLikeEvents: !showLikeEvents })
+            }
+          >
+            <Heart />
+            {showLikeEvents
+              ? t("live_chat.overlay.hide_like_events", "Ocultar likes")
+              : t("live_chat.overlay.show_like_events", "Mostrar likes")}
+          </ContextMenuItem>
+          <ContextMenuItem
+            onSelect={() =>
+              void updateDisplay({ showGiftEvents: !showGiftEvents })
+            }
+          >
+            <Gift />
+            {showGiftEvents
+              ? t("live_chat.overlay.hide_gift_events", "Ocultar gifts")
+              : t("live_chat.overlay.show_gift_events", "Mostrar gifts")}
+          </ContextMenuItem>
+        </>
+      ) : null}
       <ContextMenuItem onSelect={() => void clear()}>
         <Trash2 />
         {t("live_chat.overlay.clear", "Limpar")}
@@ -471,10 +638,27 @@ export default function LiveChatOverlayView({
   const paused = Boolean(state?.settings.overlay.paused);
   const locked = Boolean(state?.settings.overlay.locked);
   const alwaysOnTop = state?.settings.overlay.alwaysOnTop !== false;
-  const showTimestamp = state?.settings.overlay.showTimestamp !== false;
-  const showBadges = state?.settings.overlay.showBadges !== false;
-  const showProvider = state?.settings.overlay.showProvider !== false;
-  const showChannel = state?.settings.overlay.showChannel !== false;
+  const activeDisplay =
+    scope === "tiktok"
+      ? state?.settings.tiktok.display
+      : state?.settings.twitch.display;
+  const showTimestamp = activeDisplay?.showTimestamp !== false;
+  const showAvatar = activeDisplay?.showAvatar !== false;
+  const showBadges = activeDisplay?.showBadges !== false;
+  const showProvider = activeDisplay?.showProvider !== false;
+  const showChannel = activeDisplay?.showChannel !== false;
+  const showJoinEvents = activeDisplay?.showJoinEvents !== false;
+  const showFollowEvents = activeDisplay?.showFollowEvents !== false;
+  const tiktokDisplay =
+    scope === "tiktok" ? state?.settings.tiktok.display : undefined;
+  const showLikeEvents = tiktokDisplay?.showLikeEvents !== false;
+  const showGiftEvents = tiktokDisplay?.showGiftEvents !== false;
+  const updateDisplay = (patch: Record<string, boolean>) =>
+    window.underdeck.liveChat.updateSettings(
+      scope === "combined"
+        ? { twitch: { display: patch }, tiktok: { display: patch } }
+        : { [scope]: { display: patch } },
+    );
   const maxMessages = state?.settings.overlay.maxMessages ?? 200;
   const background = state?.settings.overlay.background ?? {
     variant: "color" as const,
@@ -485,17 +669,49 @@ export default function LiveChatOverlayView({
       events
         .filter((event) => DISPLAY_EVENTS.has(event.event))
         .filter((event) => {
-          if (event.provider !== "twitch") return true;
+          const overrides =
+            event.provider === "tiktok"
+              ? state?.settings.tiktok.accountOverrides
+              : state?.settings.twitch.channelOverrides;
           const channel = String(event.channel ?? "")
             .replace(/^#/, "")
             .toLowerCase();
+          const display = providerDisplay(state?.settings, event.provider);
+          // Twitch calls this event `join`; TikTok calls the equivalent
+          // presence event `member`.
+          if ((event.event === "join" || event.event === "member") && display?.showJoinEvents === false) {
+            return false;
+          }
+          if (event.event === "follow" && display?.showFollowEvents === false) {
+            return false;
+          }
+          if (
+            event.provider === "tiktok" &&
+            event.event === "like" &&
+            state?.settings.tiktok.display.showLikeEvents === false
+          ) {
+            return false;
+          }
+          if (
+            event.provider === "tiktok" &&
+            event.event === "gift" &&
+            state?.settings.tiktok.display.showGiftEvents === false
+          ) {
+            return false;
+          }
           return (
-            state?.settings.twitch.channelOverrides[channel]?.eventsEnabled !==
-            false
+            overrides?.[channel]?.eventsEnabled !== false
           );
         })
         .slice(-maxMessages),
-    [events, maxMessages, state?.settings.twitch.channelOverrides],
+    [
+      events,
+      maxMessages,
+      state?.settings.tiktok.accountOverrides,
+      state?.settings.twitch.channelOverrides,
+      state?.settings.twitch.display,
+      state?.settings.tiktok.display,
+    ],
   );
 
   const scrollToLatest = useCallback(() => {
@@ -536,7 +752,9 @@ export default function LiveChatOverlayView({
             <span className="min-w-0 flex-1 truncate text-xs font-semibold text-zinc-300">
               {scope === "combined"
                 ? t("live_chat.title", "Chat ao vivo")
-                : "Twitch"}
+                : scope === "tiktok"
+                  ? "TikTok"
+                  : "Twitch"}
             </span>
             {paused ? (
               <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">
@@ -576,9 +794,7 @@ export default function LiveChatOverlayView({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() =>
-                    void window.underdeck.liveChat.updateSettings({
-                      overlay: { showTimestamp: !showTimestamp },
-                    })
+                    void updateDisplay({ showTimestamp: !showTimestamp })
                   }
                 >
                   <Clock3 />
@@ -588,9 +804,17 @@ export default function LiveChatOverlayView({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() =>
-                    void window.underdeck.liveChat.updateSettings({
-                      overlay: { showBadges: !showBadges },
-                    })
+                    void updateDisplay({ showAvatar: !showAvatar })
+                  }
+                >
+                  <CircleUserRound />
+                  {showAvatar
+                    ? t("live_chat.overlay.hide_avatar", "Ocultar avatar")
+                    : t("live_chat.overlay.show_avatar", "Mostrar avatar")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    void updateDisplay({ showBadges: !showBadges })
                   }
                 >
                   <Award />
@@ -628,9 +852,7 @@ export default function LiveChatOverlayView({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() =>
-                    void window.underdeck.liveChat.updateSettings({
-                      overlay: { showProvider: !showProvider },
-                    })
+                    void updateDisplay({ showProvider: !showProvider })
                   }
                 >
                   <Radio />
@@ -640,9 +862,7 @@ export default function LiveChatOverlayView({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() =>
-                    void window.underdeck.liveChat.updateSettings({
-                      overlay: { showChannel: !showChannel },
-                    })
+                    void updateDisplay({ showChannel: !showChannel })
                   }
                 >
                   <Hash />
@@ -650,6 +870,50 @@ export default function LiveChatOverlayView({
                     ? t("live_chat.overlay.hide_channel", "Ocultar canal")
                     : t("live_chat.overlay.show_channel", "Mostrar canal")}
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    void updateDisplay({ showJoinEvents: !showJoinEvents })
+                  }
+                >
+                  <UserPlus />
+                  {showJoinEvents
+                    ? t("live_chat.overlay.hide_join_events", "Ocultar entradas")
+                    : t("live_chat.overlay.show_join_events", "Mostrar entradas")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    void updateDisplay({ showFollowEvents: !showFollowEvents })
+                  }
+                >
+                  <Heart />
+                  {showFollowEvents
+                    ? t("live_chat.overlay.hide_follow_events", "Ocultar follows")
+                    : t("live_chat.overlay.show_follow_events", "Mostrar follows")}
+                </DropdownMenuItem>
+                {scope === "tiktok" ? (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() =>
+                        void updateDisplay({ showLikeEvents: !showLikeEvents })
+                      }
+                    >
+                      <Heart />
+                      {showLikeEvents
+                        ? t("live_chat.overlay.hide_like_events", "Ocultar likes")
+                        : t("live_chat.overlay.show_like_events", "Mostrar likes")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() =>
+                        void updateDisplay({ showGiftEvents: !showGiftEvents })
+                      }
+                    >
+                      <Gift />
+                      {showGiftEvents
+                        ? t("live_chat.overlay.hide_gift_events", "Ocultar gifts")
+                        : t("live_chat.overlay.show_gift_events", "Mostrar gifts")}
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
                 <DropdownMenuItem onClick={() => void clear()}>
                   <Trash2 />
                   {t("live_chat.overlay.clear", "Limpar")}
@@ -695,6 +959,7 @@ export default function LiveChatOverlayView({
                   <ChatRow
                     key={`${event.id}-${event.timestamp}-${event.event}`}
                     event={event}
+                    settings={state?.settings}
                   />
                 ))
               )}

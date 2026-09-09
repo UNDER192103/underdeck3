@@ -1,0 +1,1 @@
+import"../http-BgcjfAy-.js";import{a as e,c as t}from"../src-D-jb_1hL.js";import{t as n}from"../App-DSxUItPW.js";var r=t(),i=e();(0,r.createRoot)(document.getElementById(`root`)).render((0,i.jsx)(n,{"data-loc":`client\\src\\webdeck\\main.tsx:5`}));
