@@ -426,7 +426,11 @@ export function TikTokLiveChatCard() {
                     <Tooltip><TooltipTrigger asChild><Button type="button" rounded="xl" variant="outline-destructive" onClick={() => removeAccount(account)}><Trash2 /></Button></TooltipTrigger><TooltipContent>{t("live_chat.tiktok.remove_account", "Remover conta")}</TooltipContent></Tooltip>
                   </div>
                 </div>
-                {accountState?.lastError ? <p className="text-xs text-destructive">{accountState.lastError}</p> : null}
+                {accountState?.lastError ? (
+                  <p className="text-xs text-destructive">
+                    {t(accountState.lastError, accountState.lastError)}
+                  </p>
+                ) : null}
               </div>
             );
           })}

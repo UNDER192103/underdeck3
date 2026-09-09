@@ -1033,15 +1033,32 @@ export const enUSMessages: Record<string, string> = {
     "This provider is not available yet.",
   "live_chat.result.enable_service": "Enable Live Chat before connecting.",
   "live_chat.result.enable_twitch": "Enable Twitch before connecting.",
+  "live_chat.result.enable_tiktok": "Enable TikTok before connecting.",
   "live_chat.result.add_channel": "Add at least one Twitch channel.",
+  "live_chat.result.add_tiktok_account": "Add at least one TikTok account.",
   "live_chat.result.already_connected": "Twitch is already connected.",
+  "live_chat.result.tiktok_already_active":
+    "This TikTok account is already active.",
   "live_chat.result.connection_in_progress":
     "The Twitch connection is already in progress.",
+  "live_chat.result.connection_cancelled": "Connection cancelled.",
   "live_chat.result.credentials_required":
     "Username and password are required when anonymous mode is disabled.",
   "live_chat.result.connected": "Connected to Twitch chat.",
+  "live_chat.result.tiktok_connected": "Connected to TikTok LIVE.",
+  "live_chat.result.tiktok_connected_all":
+    "TikTok account connections have started.",
+  "live_chat.result.waiting_for_live":
+    "Waiting for the TikTok account to go live.",
+  "live_chat.result.account_offline": "The TikTok account is offline.",
+  "live_chat.result.account_not_configured":
+    "The TikTok account is not configured.",
   "live_chat.result.provider_disconnected": "Provider disconnected.",
   "live_chat.result.disconnected": "Disconnected from Twitch chat.",
+  "live_chat.result.tiktok_account_disconnected":
+    "TikTok account disconnected.",
+  "live_chat.result.tiktok_disconnected_all":
+    "TikTok accounts disconnected.",
   "live_chat.result.service_disabled": "Live Chat is disabled.",
   "live_chat.result.manual_disconnect_skipped":
     "The account was disconnected manually and is waiting for a manual connection.",
@@ -1071,6 +1088,7 @@ export const enUSMessages: Record<string, string> = {
   "live_chat.disconnect_all": "Disconnect all",
   "live_chat.status.waiting_live": "Waiting for live",
   "live_chat.result.reconnect_disabled": "Automatic TikTok reconnection is disabled.",
+  "live_chat.error.tiktok_connection": "TikTok connection failed.",
   "live_chat.event.action": "chat action",
   "live_chat.event.ban": "user banned",
   "live_chat.event.timeout": "user timed out",

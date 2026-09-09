@@ -193,7 +193,7 @@ export class TikTokLiveChatProvider {
       const message =
         exception instanceof Error
           ? exception.message
-          : String(payload.info ?? exception ?? "TikTok connection error.");
+          : String(payload.info ?? exception ?? "live_chat.error.tiktok_connection");
       this.updateState(entry, { lastError: message });
       this.callbacks.log(
         "live-chat.tiktok.error",
@@ -356,7 +356,7 @@ export class TikTokLiveChatProvider {
       return {
         ok: true,
         message: "TikTok account is already active.",
-        code: "live_chat.result.already_connected",
+        code: "live_chat.result.tiktok_already_active",
       };
     }
 
@@ -383,7 +383,11 @@ export class TikTokLiveChatProvider {
     try {
       const isLive = await connection.fetchIsLive();
       if (entry.generation !== generation) {
-        return { ok: false, message: "Connection cancelled." };
+        return {
+          ok: false,
+          message: "Connection cancelled.",
+          code: "live_chat.result.connection_cancelled",
+        };
       }
       if (!isLive) {
         connection.removeAllListeners();
@@ -399,7 +403,7 @@ export class TikTokLiveChatProvider {
         }
         this.updateState(entry, {
           ...defaultState(account),
-          lastError: "Account is offline.",
+          lastError: "live_chat.result.account_offline",
         });
         return {
           ok: false,
@@ -420,7 +424,11 @@ export class TikTokLiveChatProvider {
       };
     } catch (error) {
       if (entry.generation !== generation) {
-        return { ok: false, message: "Connection cancelled." };
+        return {
+          ok: false,
+          message: "Connection cancelled.",
+          code: "live_chat.result.connection_cancelled",
+        };
       }
       connection.removeAllListeners();
       entry.connection = null;

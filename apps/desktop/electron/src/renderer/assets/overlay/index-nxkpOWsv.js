@@ -1,0 +1,1 @@
+import"../http-BgcjfAy-.js";import{a as e,c as t}from"../src-nt0KfbEz.js";import{t as n}from"../App-lr5obm4L.js";var r=t(),i=e();(0,r.createRoot)(document.getElementById(`root`)).render((0,i.jsx)(n,{"data-loc":`client\\src\\overlay\\main.tsx:6`}));

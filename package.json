@@ -1,6 +1,6 @@
 {
   "name": "underdeck3",
-  "version": "5.0.0",
+  "version": "5.1.2",
   "description": "Under Deck workspace",
   "productName": "Under Deck",
   "type": "module",
@@ -13,11 +13,12 @@
     }
   },
   "scripts": {
-    "install:all": "pnpm install",
-    "bootstrap": "pnpm install && pnpm run build:all",
+    "install:all": "pnpm install --frozen-lockfile",
+    "install:verify": "pnpm install --frozen-lockfile --no-trust-lockfile",
+    "bootstrap": "pnpm install --frozen-lockfile && pnpm run build:all",
     "generate:structure": "npx tree-node-cli > readmes/STRUCTURE.md",
     "test:velopack:feed": "node scripts/test-velopack-feed.mjs",
-    "hasupdate": "pnpm up -r -i -L",
+    "hasupdate": "pnpm up -r -i -L --no-frozen-lockfile --no-trust-lockfile",
     "build:all": "pnpm run build:desktop && pnpm run build:remote",
     "build:desktop": "pnpm run build:desktop:client && pnpm run build:desktop:electron",
     "build:desktop:client": "pnpm --filter underdeck-desktop-client run build",

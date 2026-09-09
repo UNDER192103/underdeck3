@@ -1067,15 +1067,33 @@
     "Este provedor ainda não está disponível.",
   "live_chat.result.enable_service": "Ative o Chat ao vivo antes de conectar.",
   "live_chat.result.enable_twitch": "Ative a Twitch antes de conectar.",
+  "live_chat.result.enable_tiktok": "Ative o TikTok antes de conectar.",
   "live_chat.result.add_channel": "Adicione ao menos um canal da Twitch.",
+  "live_chat.result.add_tiktok_account":
+    "Adicione ao menos uma conta do TikTok.",
   "live_chat.result.already_connected": "A Twitch já está conectada.",
+  "live_chat.result.tiktok_already_active":
+    "Esta conta do TikTok já está ativa.",
   "live_chat.result.connection_in_progress":
     "A conexão com a Twitch já está em andamento.",
+  "live_chat.result.connection_cancelled": "Conexão cancelada.",
   "live_chat.result.credentials_required":
     "Usuário e senha são obrigatórios quando o modo anônimo está desativado.",
   "live_chat.result.connected": "Conectado ao chat da Twitch.",
+  "live_chat.result.tiktok_connected": "Conectado à LIVE do TikTok.",
+  "live_chat.result.tiktok_connected_all":
+    "As conexões das contas do TikTok foram iniciadas.",
+  "live_chat.result.waiting_for_live":
+    "Aguardando a conta do TikTok iniciar a live.",
+  "live_chat.result.account_offline": "A conta do TikTok está offline.",
+  "live_chat.result.account_not_configured":
+    "A conta do TikTok não está configurada.",
   "live_chat.result.provider_disconnected": "Provedor desconectado.",
   "live_chat.result.disconnected": "Desconectado do chat da Twitch.",
+  "live_chat.result.tiktok_account_disconnected":
+    "Conta do TikTok desconectada.",
+  "live_chat.result.tiktok_disconnected_all":
+    "Contas do TikTok desconectadas.",
   "live_chat.result.service_disabled": "O Chat ao vivo está desativado.",
   "live_chat.result.manual_disconnect_skipped":
     "A conta foi desconectada manualmente e aguarda uma conexão manual.",
@@ -1139,5 +1157,6 @@
   "live_chat.disconnect_all": "Desconectar todos",
   "live_chat.status.waiting_live": "Aguardando live",
   "live_chat.result.reconnect_disabled": "A reconexão automática do TikTok está desativada.",
+  "live_chat.error.tiktok_connection": "Falha na conexão do TikTok.",
   x: "x",
 };

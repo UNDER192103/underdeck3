@@ -68,7 +68,7 @@ export class IpcmainService {
     private onOverlaySettingsChanged?: () => Promise<void> | void;
     private onLocaleChanged?: () => Promise<void> | void;
     private onWindowsSettingsChanged?: (settings: WindowsSettingsPayload) => Promise<void> | void;
-    private onUpdateAvailableForHandoff?: () => Promise<void> | void;
+    private onUpdateAvailableForHandoff?: () => Promise<boolean | void> | boolean | void;
     private soundPadSubscriptions = new Map<number, () => void>();
     private obsSubscriptions = new Map<number, () => void>();
     private discordSubscriptions = new Map<number, () => void>();
@@ -94,7 +94,7 @@ export class IpcmainService {
         onOverlaySettingsChanged?: () => Promise<void> | void,
         onLocaleChanged?: () => Promise<void> | void,
         onWindowsSettingsChanged?: (settings: WindowsSettingsPayload) => Promise<void> | void,
-        onUpdateAvailableForHandoff?: () => Promise<void> | void
+        onUpdateAvailableForHandoff?: () => Promise<boolean | void> | boolean | void
     ) {
         this.AppService = AppService;
         this.express = express;
@@ -1277,12 +1277,19 @@ export class IpcmainService {
         });
         ipcMain.handle("UpdateSV-Check", async () => {
             const result = await this.updaterService.checkForUpdatesOnly();
-            if (result.updateAvailable && this.onUpdateAvailableForHandoff) {
+            if (
+                result.updateAvailable &&
+                this.updaterService.getState().autoDownloadEnabled &&
+                this.onUpdateAvailableForHandoff
+            ) {
                 await this.onUpdateAvailableForHandoff();
             }
             return this.updaterService.getState();
         });
         ipcMain.handle("UpdateSV-DownloadInstall", async () => {
+            if (this.onUpdateAvailableForHandoff) {
+                return Boolean(await this.onUpdateAvailableForHandoff());
+            }
             return this.updaterService.downloadAndInstall();
         });
 

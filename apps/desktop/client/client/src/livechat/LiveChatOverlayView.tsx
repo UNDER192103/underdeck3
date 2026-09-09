@@ -219,10 +219,14 @@ function eventSource(
     event.provider === "tiktok"
       ? settings?.tiktok.accountOverrides[channel]
       : settings?.twitch.channelOverrides[channel];
+  const customIcon = appearance?.icon || null;
+  const customLabel = String(appearance?.label ?? "").trim();
   return {
     channel,
-    label: appearance?.label || channel,
-    icon: appearance?.icon ?? event.channelAvatarUrl ?? null,
+    // A custom channel avatar replaces the original channel identity. In that
+    // mode, text is only rendered when the user also configured a label.
+    label: customLabel || (customIcon ? "" : channel),
+    icon: customIcon ?? event.channelAvatarUrl ?? null,
   };
 }
 

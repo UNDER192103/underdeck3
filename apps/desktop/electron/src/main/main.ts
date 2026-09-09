@@ -409,7 +409,7 @@ const ipcmainService = new IpcmainService(
   async () => {
     ensureLoadingWindow();
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
-    await updaterService.downloadAndInstall();
+    return updaterService.downloadAndInstall();
   },
 );
 

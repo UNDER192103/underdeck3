@@ -72,19 +72,19 @@ call :run "pnpm run install:all" "."
 goto pause_and_main
 
 :install_desktop_all
-call :run "pnpm install --filter underdeck-desktop-client --filter underdeck" "."
+call :run "pnpm install --frozen-lockfile --filter underdeck-desktop-client --filter underdeck" "."
 goto pause_and_main
 
 :install_desktop_client
-call :run "pnpm install --filter underdeck-desktop-client" "."
+call :run "pnpm install --frozen-lockfile --filter underdeck-desktop-client" "."
 goto pause_and_main
 
 :install_electron
-call :run "pnpm install --filter underdeck" "."
+call :run "pnpm install --frozen-lockfile --filter underdeck" "."
 goto pause_and_main
 
 :install_remote
-call :run "pnpm install --filter underdeck-remote" "."
+call :run "pnpm install --frozen-lockfile --filter underdeck-remote" "."
 goto pause_and_main
 
 :compile_all

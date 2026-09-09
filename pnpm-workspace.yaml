@@ -3,6 +3,12 @@ packages:
   - "apps/desktop/electron"
   - "apps/remote"
 
+# Instalações comuns usam o lockfile já versionado como fonte confiável. A
+# verificação completa continua sendo executada explicitamente pelo comando
+# `pnpm run hasupdate` quando as dependências são alteradas.
+preferFrozenLockfile: true
+trustLockfile: true
+
 # discord-rpc declares register-scheme as an optional GitHub tarball.
 # Keep this legacy dependency installable with pnpm's exotic-subdependency guard.
 blockExoticSubdeps: false
