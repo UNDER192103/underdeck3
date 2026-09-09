@@ -83,6 +83,9 @@ const imageUrl = (value: unknown, seen = new Set<object>()): string | null => {
 
 export class TikTokLiveChatProvider {
   private readonly entries = new Map<string, TikTokProviderEntry>();
+  // Accounts disconnected explicitly by the user stay opted out of automatic
+  // provider/startup connections until that account is connected manually.
+  private readonly manualDisconnects = new Set<string>();
 
   constructor(private readonly callbacks: TikTokProviderCallbacks) {}
 
@@ -308,6 +311,7 @@ export class TikTokLiveChatProvider {
   public async connectAccount(
     rawAccount: string,
     recovering = false,
+    manual = false,
   ): Promise<LiveChatCommandResult> {
     const account = normalizeAccount(rawAccount);
     const { enabled, tiktok } = this.callbacks.getSettings();
@@ -340,6 +344,14 @@ export class TikTokLiveChatProvider {
     }
 
     const entry = this.ensureEntry(account);
+    if (manual) this.manualDisconnects.delete(account);
+    if (!manual && !recovering && this.manualDisconnects.has(account)) {
+      return {
+        ok: true,
+        message: "TikTok account was disconnected manually; waiting for a manual connection.",
+        code: "live_chat.result.manual_disconnect_skipped",
+      };
+    }
     if (entry.state.connected || entry.state.connecting || entry.state.waitingForLive) {
       return {
         ok: true,
@@ -436,7 +448,10 @@ export class TikTokLiveChatProvider {
     }
   }
 
-  public async connect(account?: string): Promise<LiveChatCommandResult> {
+  private async connectTargets(
+    account: string | undefined,
+    manual: boolean,
+  ): Promise<LiveChatCommandResult> {
     const settings = this.callbacks.getSettings();
     const targets = account
       ? [normalizeAccount(account)]
@@ -448,8 +463,18 @@ export class TikTokLiveChatProvider {
         code: "live_chat.result.add_tiktok_account",
       };
     }
+    const eligibleTargets = manual
+      ? targets
+      : targets.filter((target) => !this.manualDisconnects.has(target));
+    if (eligibleTargets.length === 0) {
+      return {
+        ok: true,
+        message: "No TikTok accounts are eligible for automatic connection.",
+        code: "live_chat.result.manual_disconnect_skipped",
+      };
+    }
     const results = await Promise.all(
-      targets.map((target) => this.connectAccount(target)),
+      eligibleTargets.map((target) => this.connectAccount(target, false, manual)),
     );
     return results.find((result) => !result.ok) ?? {
       ok: true,
@@ -458,10 +483,18 @@ export class TikTokLiveChatProvider {
     };
   }
 
-  public async disconnectAccount(rawAccount: string) {
+  public async connect(account?: string): Promise<LiveChatCommandResult> {
+    return this.connectTargets(account, true);
+  }
+
+  public async connectAutomatically(account?: string): Promise<LiveChatCommandResult> {
+    return this.connectTargets(account, false);
+  }
+
+  public async disconnectAccount(rawAccount: string, manual = true) {
     const account = normalizeAccount(rawAccount);
     const entry = this.ensureEntry(account);
-    entry.manualDisconnect = true;
+    if (manual) this.manualDisconnects.add(account);
     entry.streamEnded = false;
     entry.generation += 1;
     this.clearPending(entry);
@@ -475,15 +508,26 @@ export class TikTokLiveChatProvider {
         // The WebSocket may already be closed.
       }
     }
+    entry.manualDisconnect = manual || this.manualDisconnects.has(account);
     entry.state = defaultState(account);
     this.callbacks.emitStateChanged();
   }
 
-  public async disconnect(account?: string): Promise<LiveChatCommandResult> {
+  public async disconnect(
+    account?: string,
+    manual = true,
+  ): Promise<LiveChatCommandResult> {
     const targets = account
       ? [normalizeAccount(account)]
-      : [...this.entries.keys()];
-    await Promise.all(targets.map((target) => this.disconnectAccount(target)));
+      : [
+          ...new Set([
+            ...this.entries.keys(),
+            ...this.callbacks.getSettings().tiktok.accounts,
+          ]),
+        ];
+    await Promise.all(
+      targets.map((target) => this.disconnectAccount(target, manual)),
+    );
     return {
       ok: true,
       message: account
@@ -491,8 +535,12 @@ export class TikTokLiveChatProvider {
         : "TikTok accounts disconnected.",
       code: account
         ? "live_chat.result.tiktok_account_disconnected"
-        : "live_chat.result.tiktok_disconnected_all",
+      : "live_chat.result.tiktok_disconnected_all",
     };
+  }
+
+  public async disconnectAutomatically(account?: string) {
+    return this.disconnect(account, false);
   }
 
   public async reconcileAccounts(accounts: string[]) {
@@ -501,6 +549,7 @@ export class TikTokLiveChatProvider {
       if (desired.has(account)) continue;
       await this.disconnectAccount(account);
       this.entries.delete(account);
+      this.manualDisconnects.delete(account);
     }
     desired.forEach((account) => this.ensureEntry(account));
   }

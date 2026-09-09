@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Award,
   CheckCheck,
@@ -62,6 +62,8 @@ import {
 import { Slider } from "@/components/ui/slider";
 import type {
   LiveChatChannelAppearance,
+  LiveChatOverlayScope,
+  LiveChatOverlayWindowState,
   StoredThemeBackground,
   ThemeEffectBackgrounds,
 } from "@/types/electron";
@@ -73,6 +75,19 @@ type ConfigurableEffectBackground =
   | Extract<StoredThemeBackground, { variant: "nebula" }>
   | Extract<StoredThemeBackground, { variant: "particles" }>
   | Extract<StoredThemeBackground, { variant: "color" }>;
+
+// The Events switch is persisted immediately, so it must not make the
+// provider's manual-save form appear dirty. Keep only fields that are saved
+// by the regular Twitch Save button in this comparison.
+const comparableChannelOverrides = (
+  value: Record<string, LiveChatChannelAppearance> | undefined,
+) =>
+  Object.fromEntries(
+    Object.entries(value ?? {}).map(([channel, appearance]) => [channel, {
+      label: appearance?.label ?? "",
+      icon: appearance?.icon ?? null,
+    }]),
+  );
 
 const DEFAULT_LIVE_CHAT_BACKGROUNDS: Required<ThemeEffectBackgrounds> = {
   color: { variant: "color", backgroundColor: "#000000" },
@@ -110,7 +125,7 @@ function LiveChatDashboardContent({
 }) {
   const { t } = useI18n();
   const { subscribe } = useGlobalObserver();
-  const { state, messages, loading, refresh, clear } = useLiveChat();
+  const { state, messages, loading, refresh } = useLiveChat();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [anonymous, setAnonymous] = useState(true);
@@ -129,7 +144,32 @@ function LiveChatDashboardContent({
   const [effectConfig, setEffectConfig] =
     useState<ConfigurableEffectBackground | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [overlayOpen, setOverlayOpen] = useState(false);
+  const [overlayStates, setOverlayStates] = useState<
+    Record<LiveChatOverlayScope, LiveChatOverlayWindowState>
+  >({
+    combined: {
+      open: false,
+      scope: "combined",
+      paused: false,
+      locked: false,
+      alwaysOnTop: true,
+    },
+    twitch: {
+      open: false,
+      scope: "twitch",
+      paused: false,
+      locked: false,
+      alwaysOnTop: true,
+    },
+    tiktok: {
+      open: false,
+      scope: "tiktok",
+      paused: false,
+      locked: false,
+      alwaysOnTop: true,
+    },
+  });
+  const autoPersistEventsRef = useRef(false);
   const settings = state?.settings;
   const twitch = state?.providers.twitch;
   // The overlay is useful even before a provider is connected (for example
@@ -143,22 +183,36 @@ function LiveChatDashboardContent({
     setUsername(settings.twitch.username);
     setAnonymous(settings.twitch.anonymous);
     setTwitchReconnect(settings.twitch.reconnect);
-    setChannels(settings.twitch.channels);
-    setChannelOverrides(settings.twitch.channelOverrides);
     setMaxMessages(String(settings.overlay.maxMessages));
   }, [
     settings?.twitch.username,
     settings?.twitch.anonymous,
     settings?.twitch.reconnect,
-    settings?.twitch.channels.join("|"),
-    settings?.twitch.channelOverrides,
     settings?.overlay.maxMessages,
   ]);
 
   useEffect(() => {
+    if (!settings) return;
+    setChannels(settings.twitch.channels);
+  }, [settings?.twitch.channels.join("|")]);
+
+  useEffect(() => {
+    if (!settings) return;
+    if (autoPersistEventsRef.current) {
+      autoPersistEventsRef.current = false;
+      return;
+    }
+    setChannelOverrides(settings.twitch.channelOverrides);
+  }, [settings?.twitch.channelOverrides]);
+
+  useEffect(() => {
     const refreshOverlay = async () => {
-      const next = await window.underdeck.liveChat.getOverlayState();
-      setOverlayOpen(next.open);
+      const [combined, twitch, tiktok] = await Promise.all([
+        window.underdeck.liveChat.getOverlayState("combined"),
+        window.underdeck.liveChat.getOverlayState("twitch"),
+        window.underdeck.liveChat.getOverlayState("tiktok"),
+      ]);
+      setOverlayStates({ combined, twitch, tiktok });
     };
     void refreshOverlay();
     return subscribe(
@@ -264,10 +318,11 @@ function LiveChatDashboardContent({
     }));
   };
 
-  const setChannelEventsEnabled = (
+  const setChannelEventsEnabled = async (
     channelName: string,
     eventsEnabled: boolean,
   ) => {
+    const previous = channelOverrides;
     const next = {
       ...channelOverrides,
       [channelName]: {
@@ -277,6 +332,17 @@ function LiveChatDashboardContent({
       },
     };
     setChannelOverrides(next);
+    autoPersistEventsRef.current = true;
+    const result = await window.underdeck.liveChat.updateSettings({
+      twitch: { channelOverrides: next },
+    });
+    if (!result.ok) {
+      autoPersistEventsRef.current = false;
+      setChannelOverrides(previous);
+      toast.error(t("live_chat.settings.save_failed", "Não foi possível salvar."), {
+        description: result.code ? t(result.code, result.message) : result.message,
+      });
+    }
   };
 
   const removeChannel = (channelName: string) => {
@@ -481,26 +547,152 @@ function LiveChatDashboardContent({
       return window.underdeck.liveChat.connect("twitch");
     });
 
-  const toggleOverlay = async () => {
-    setBusy("overlay");
+  const toggleOverlay = async (scope: LiveChatOverlayScope) => {
+    const busyKey = `overlay-${scope}`;
+    setBusy(busyKey);
     try {
-      const current = await window.underdeck.liveChat.getOverlayState();
+      const current =
+        overlayStates[scope] ??
+        (await window.underdeck.liveChat.getOverlayState(scope));
       const next = current.open
-        ? await window.underdeck.liveChat.closeOverlay(current.scope)
-        : await window.underdeck.liveChat.openOverlay();
-      setOverlayOpen(next.open);
+        ? await window.underdeck.liveChat.closeOverlay(scope)
+        : await window.underdeck.liveChat.openOverlay(scope);
+      setOverlayStates((states) => ({ ...states, [scope]: next }));
     } finally {
       setBusy(null);
     }
   };
 
+  const updateOverlayWindow = async (
+    scope: LiveChatOverlayScope,
+    busyKey: string,
+    action: () => Promise<LiveChatOverlayWindowState>,
+  ) => {
+    setBusy(busyKey);
+    try {
+      const next = await action();
+      setOverlayStates((states) => ({ ...states, [scope]: next }));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const renderOverlayControls = (scope: LiveChatOverlayScope) => {
+    const overlayState = overlayStates[scope];
+    const scopeLabel =
+      scope === "combined"
+        ? t("live_chat.overlay.combined", "Todos juntos")
+        : scope === "twitch"
+          ? "Twitch"
+          : "TikTok";
+    const pauseKey = `overlay-pause-${scope}`;
+    const lockKey = `overlay-lock-${scope}`;
+    const topKey = `overlay-top-${scope}`;
+    const openKey = `overlay-${scope}`;
+    return (
+      <div className="grid gap-2 rounded-xl border border-border/70 bg-background/20 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <MonitorUp className="size-4" />
+            <Label>{scopeLabel}</Label>
+          </div>
+          <Badge variant={overlayState.open ? "default" : "secondary"}>
+            {overlayState.open
+              ? t("live_chat.overlay.opened", "Aberto")
+              : t("live_chat.overlay.closed", "Fechado")}
+          </Badge>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            rounded="xl"
+            variant={overlayState.paused ? "default" : "secondary"}
+            disabled={busy === pauseKey}
+            onClick={() =>
+              void updateOverlayWindow(scope, pauseKey, () =>
+                window.underdeck.liveChat.setOverlayPaused(
+                  !overlayState.paused,
+                  scope,
+                ),
+              )
+            }
+          >
+            {busy === pauseKey ? <Loader2 className="animate-spin" /> : overlayState.paused ? <Play /> : <Pause />}
+            {overlayState.paused
+              ? t("live_chat.overlay.resume", "Retomar")
+              : t("live_chat.overlay.pause", "Pausar")}
+          </Button>
+          <Button
+            rounded="xl"
+            variant={overlayState.locked ? "secondary" : "default"}
+            disabled={busy === lockKey}
+            onClick={() =>
+              void updateOverlayWindow(scope, lockKey, () =>
+                window.underdeck.liveChat.setOverlayLocked(
+                  !overlayState.locked,
+                  scope,
+                ),
+              )
+            }
+          >
+            {busy === lockKey ? <Loader2 className="animate-spin" /> : overlayState.locked ? <Unlock /> : <Lock />}
+            {overlayState.locked
+              ? t("live_chat.overlay.unlock", "Desfixar")
+              : t("live_chat.overlay.lock", "Fixar")}
+          </Button>
+          <Button
+            rounded="xl"
+            variant={overlayState.alwaysOnTop ? "secondary" : "default"}
+            disabled={busy === topKey}
+            onClick={() =>
+              void updateOverlayWindow(scope, topKey, () =>
+                window.underdeck.liveChat.setOverlayAlwaysOnTop(
+                  !overlayState.alwaysOnTop,
+                  scope,
+                ),
+              )
+            }
+          >
+            {busy === topKey ? <Loader2 className="animate-spin" /> : overlayState.alwaysOnTop ? <PinOff /> : <Pin />}
+            {overlayState.alwaysOnTop
+              ? t("live_chat.overlay.disable_always_on_top", "Desativar sempre no topo")
+              : t("live_chat.overlay.enable_always_on_top", "Ativar sempre no topo")}
+          </Button>
+          <Button
+            rounded="xl"
+            variant="destructive"
+            onClick={() => void window.underdeck.liveChat.clear(scope)}
+          >
+            <Trash2 /> {t("live_chat.overlay.clear", "Limpar")}
+          </Button>
+          <Button
+            rounded="xl"
+            variant={overlayState.open ? "destructive" : "default"}
+            disabled={loading || busy === openKey || (!overlayState.open && !canOpenOverlay)}
+            onClick={() => void toggleOverlay(scope)}
+          >
+            {busy === openKey ? <Loader2 className="animate-spin" /> : overlayState.open ? <X /> : <MonitorUp />}
+            {overlayState.open
+              ? t("live_chat.overlay.close", "Fechar overlay")
+              : t("live_chat.overlay.open", "Abrir overlay")}
+          </Button>
+          {scope === "combined" ? (
+            <Button
+              rounded="xl"
+              variant="secondary"
+              disabled
+              className="cursor-not-allowed text-muted-foreground"
+            >
+              {t("live_chat.overlay.buffer", "Mensagens nesta tela")}: {messages.length}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
   const changeOverlayMode = async (mode: "combined" | "separate") => {
-    await Promise.all([
-      window.underdeck.liveChat.closeOverlay("combined"),
-      window.underdeck.liveChat.closeOverlay("twitch"),
-      window.underdeck.liveChat.closeOverlay("tiktok"),
-    ]);
-    setOverlayOpen(false);
+    for (const scope of ["combined", "twitch", "tiktok"] as const)
+      await window.underdeck.liveChat.closeOverlay(scope);
     await patchSettings({ overlay: { mode } });
   };
 
@@ -523,8 +715,8 @@ function LiveChatDashboardContent({
       username.trim() !== settings.twitch.username.trim() ||
       password.trim().length > 0 ||
       JSON.stringify(channels) !== JSON.stringify(settings.twitch.channels) ||
-      JSON.stringify(channelOverrides) !==
-      JSON.stringify(settings.twitch.channelOverrides)),
+      JSON.stringify(comparableChannelOverrides(channelOverrides)) !==
+      JSON.stringify(comparableChannelOverrides(settings.twitch.channelOverrides))),
   );
 
   return (
@@ -718,98 +910,16 @@ function LiveChatDashboardContent({
                       )}
                     </Button>
 
-                    <Button
-                      rounded="xl"
-                      variant={settings?.overlay.paused ? "default" : "secondary"}
-                      onClick={() =>
-                        void window.underdeck.liveChat.setOverlayPaused(
-                          !settings?.overlay.paused,
-                        )
-                      }
-                    >
-                      {settings?.overlay.paused ? <Play /> : <Pause />}
-                      {settings?.overlay.paused
-                        ? t("live_chat.overlay.resume", "Retomar")
-                        : t("live_chat.overlay.pause", "Pausar")}
-                    </Button>
-
-                    <Button
-                      rounded="xl"
-                      variant={settings?.overlay.locked ? "secondary" : "default"}
-                      onClick={() =>
-                        void window.underdeck.liveChat.setOverlayLocked(
-                          !settings?.overlay.locked,
-                        )
-                      }
-                    >
-                      {settings?.overlay.locked ? <Unlock /> : <Lock />}
-                      {settings?.overlay.locked
-                        ? t("live_chat.overlay.unlock", "Desfixar")
-                        : t("live_chat.overlay.lock", "Fixar")}
-                    </Button>
-
-                    <Button
-                      rounded="xl"
-                      variant={
-                        settings?.overlay.alwaysOnTop ? "secondary" : "default"
-                      }
-                      onClick={() =>
-                        void window.underdeck.liveChat.setOverlayAlwaysOnTop(
-                          !settings?.overlay.alwaysOnTop,
-                        )
-                      }
-                    >
-                      {settings?.overlay.alwaysOnTop ? <PinOff /> : <Pin />}
-                      {settings?.overlay.alwaysOnTop
-                        ? t(
-                          "live_chat.overlay.disable_always_on_top",
-                          "Desativar sempre no topo",
-                        )
-                        : t(
-                          "live_chat.overlay.enable_always_on_top",
-                          "Ativar sempre no topo",
-                        )}
-                    </Button>
-
-                    <Button
-                      rounded="xl"
-                      variant="destructive"
-                      onClick={() => void clear()}
-                    >
-                      <Trash2 /> {t("live_chat.overlay.clear", "Limpar")}
-                    </Button>
-
-                    <Button
-                      rounded="xl"
-                      variant={overlayOpen ? "destructive" : "default"}
-                      disabled={
-                        loading ||
-                        busy === "overlay" ||
-                        (!overlayOpen && !canOpenOverlay)
-                      }
-                      onClick={() => void toggleOverlay()}
-                    >
-                      {busy === "overlay" ? (
-                        <Loader2 className="animate-spin" />
-                      ) : overlayOpen ? (
-                        <X />
-                      ) : (
-                        <MonitorUp />
-                      )}
-                      {overlayOpen
-                        ? t("live_chat.overlay.close", "Fechar overlay")
-                        : t("live_chat.overlay.open", "Abrir overlay")}
-                    </Button>
-
-                    <Button
-                      rounded="xl"
-                      variant="secondary"
-                      disabled={true}
-                      className="cursor-not-allowed text-muted-foreground"
-                    >
-                      {t("live_chat.overlay.buffer", "Mensagens nesta tela")}:{" "}
-                      {messages.length}
-                    </Button>
+                    {settings?.overlay.mode === "separate" ? (
+                      <div className="grid gap-3 lg:col-span-3 lg:grid-cols-2">
+                        {renderOverlayControls("twitch")}
+                        {renderOverlayControls("tiktok")}
+                      </div>
+                    ) : (
+                      <div className="lg:col-span-3">
+                        {renderOverlayControls("combined")}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import electron from "electron";
 import { Settings } from "./settings.js";
+import { observerService, ObserverChannels } from "./observer.js";
 
 const { app, shell } = electron;
 
@@ -13,6 +14,8 @@ export type LogsSettings = {
     soundpad: boolean;
     webdeck: boolean;
     webpages: boolean;
+    discord: boolean;
+    liveChat: boolean;
     socket: boolean;
     updates: boolean;
 };
@@ -28,6 +31,8 @@ const DEFAULT_SETTINGS: LogsSettings = {
     soundpad: false,
     webdeck: false,
     webpages: false,
+    discord: false,
+    liveChat: false,
     socket: false,
     updates: false,
 };
@@ -43,6 +48,8 @@ const resolveSettings = (value: unknown): LogsSettings => {
         soundpad: Boolean(source.soundpad),
         webdeck: Boolean(source.webdeck),
         webpages: Boolean(source.webpages),
+        discord: Boolean(source.discord),
+        liveChat: Boolean(source.liveChat),
         socket: Boolean(source.socket),
         updates: Boolean(source.updates),
     };
@@ -70,6 +77,11 @@ export class LogsService {
         const current = this.getSettings();
         const next = resolveSettings({ ...current, ...patch });
         Settings.set("logs", next);
+        observerService.publish(
+            ObserverChannels.LOGS_SETTINGS_CHANGED,
+            { settings: next },
+            "LOGS_SERVICE",
+        );
         return next;
     }
 
@@ -84,7 +96,8 @@ export class LogsService {
     }
 
     getLogFilePath(category: LogCategory) {
-        return path.join(this.getLogsRoot(), `${category}.log`);
+        const fileName = category === "liveChat" ? "live-chat" : category;
+        return path.join(this.getLogsRoot(), `${fileName}.log`);
     }
 
     log(category: LogCategory, message: string, data?: unknown, level: LogLevel = "info") {

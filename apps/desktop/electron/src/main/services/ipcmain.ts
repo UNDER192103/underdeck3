@@ -963,14 +963,14 @@ export class IpcmainService {
         ipcMain.handle("LiveChatSV-GetOverlayState", async (_event, scope?: LiveChatOverlayScope) =>
             this.liveChatOverlayWindowService.getState(scope)
         );
-        ipcMain.handle("LiveChatSV-SetOverlayPaused", async (_event, paused: boolean) =>
-            this.liveChatOverlayWindowService.setPaused(Boolean(paused))
+        ipcMain.handle("LiveChatSV-SetOverlayPaused", async (_event, paused: boolean, scope?: LiveChatOverlayScope) =>
+            this.liveChatOverlayWindowService.setPaused(Boolean(paused), scope)
         );
-        ipcMain.handle("LiveChatSV-SetOverlayLocked", async (_event, locked: boolean) =>
-            this.liveChatOverlayWindowService.setLocked(Boolean(locked))
+        ipcMain.handle("LiveChatSV-SetOverlayLocked", async (_event, locked: boolean, scope?: LiveChatOverlayScope) =>
+            this.liveChatOverlayWindowService.setLocked(Boolean(locked), scope)
         );
-        ipcMain.handle("LiveChatSV-SetOverlayAlwaysOnTop", async (_event, alwaysOnTop: boolean) =>
-            this.liveChatOverlayWindowService.setAlwaysOnTop(Boolean(alwaysOnTop))
+        ipcMain.handle("LiveChatSV-SetOverlayAlwaysOnTop", async (_event, alwaysOnTop: boolean, scope?: LiveChatOverlayScope) =>
+            this.liveChatOverlayWindowService.setAlwaysOnTop(Boolean(alwaysOnTop), scope)
         );
         ipcMain.handle("LiveChatSV-Clear", async (_event, scope?: LiveChatOverlayScope) =>
             this.liveChatOverlayWindowService.clear(scope)

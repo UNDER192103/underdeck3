@@ -13,6 +13,8 @@ import type {
   LiveChatChannelAppearance,
   LiveChatEvent,
   LiveChatProvider,
+  LiveChatOverlayScope,
+  LiveChatOverlayScopeState,
   LiveChatProviderState,
   LiveChatSettings,
   LiveChatSettingsPatch,
@@ -71,6 +73,7 @@ type StoredLiveChatSettings = {
     enabled?: boolean;
     accounts?: string[];
     accountOverrides?: Record<string, Partial<TikTokLiveChatAccountAppearance>>;
+    autoConnectAccounts?: boolean;
     reconnect?: boolean;
     offlineCheckIntervalSeconds?: number;
     display?: Partial<TikTokLiveChatDisplaySettings>;
@@ -84,6 +87,8 @@ type StoredLiveChatSettings = {
     showChannel?: boolean;
   };
 };
+
+const OVERLAY_SCOPES: LiveChatOverlayScope[] = ["combined", "twitch", "tiktok"];
 
 const TWITCH_EVENTS = [
   "action",
@@ -189,7 +194,7 @@ export class LiveChatService extends EventEmitter {
         this.emitProviderEvent("tiktok", event, args, extra),
       emitStateChanged: () => this.emitStateChanged(),
       log: (event, data, level = "info") =>
-        logsService.log("app", event, data, level),
+        logsService.log("liveChat", event, data, level),
     });
   }
 
@@ -291,6 +296,38 @@ export class LiveChatService extends EventEmitter {
       showJoinEvents: current.showJoinEvents ?? true,
       showFollowEvents: current.showFollowEvents ?? true,
     };
+  }
+
+  private normalizeOverlayScopeStates(
+    value: unknown,
+    legacy?: {
+      paused?: boolean;
+      locked?: boolean;
+      alwaysOnTop?: boolean;
+    },
+  ): Record<LiveChatOverlayScope, LiveChatOverlayScopeState> {
+    const source =
+      value && typeof value === "object"
+        ? (value as Record<string, Partial<LiveChatOverlayScopeState>>)
+        : {};
+    const fallback = {
+      paused: Boolean(legacy?.paused),
+      locked: Boolean(legacy?.locked),
+      alwaysOnTop: legacy?.alwaysOnTop !== false,
+    };
+    return Object.fromEntries(
+      OVERLAY_SCOPES.map((scope) => {
+        const current = source[scope] ?? {};
+        return [
+          scope,
+          {
+            paused: current.paused ?? fallback.paused,
+            locked: current.locked ?? fallback.locked,
+            alwaysOnTop: current.alwaysOnTop ?? fallback.alwaysOnTop,
+          },
+        ];
+      }),
+    ) as Record<LiveChatOverlayScope, LiveChatOverlayScopeState>;
   }
 
   private normalizeTikTokDisplay(
@@ -416,7 +453,7 @@ export class LiveChatService extends EventEmitter {
       if (fs.existsSync(absolutePath)) fs.unlinkSync(absolutePath);
     } catch (error) {
       logsService.log(
-        "app",
+        "liveChat",
         "live-chat.background.cleanup.error",
         { error: this.normalizeError(error), previousUrl },
         "warn",
@@ -462,6 +499,10 @@ export class LiveChatService extends EventEmitter {
         stored.twitch?.display?.showSelfMessages ??
         Boolean(stored.overlay?.showSelfMessages),
     };
+    const scopeStates = this.normalizeOverlayScopeStates(
+      stored.overlay?.scopeStates,
+      stored.overlay,
+    );
     return {
       enabled: Boolean(stored.enabled),
       twitch: {
@@ -485,6 +526,7 @@ export class LiveChatService extends EventEmitter {
           stored.tiktok?.accountOverrides,
           accounts,
         ),
+        autoConnectAccounts: stored.tiktok?.autoConnectAccounts !== false,
         reconnect: stored.tiktok?.reconnect !== false,
         offlineCheckIntervalSeconds: Math.max(
           30,
@@ -494,9 +536,10 @@ export class LiveChatService extends EventEmitter {
       },
       overlay: {
         mode: stored.overlay?.mode === "separate" ? "separate" : "combined",
-        paused: Boolean(stored.overlay?.paused),
-        locked: Boolean(stored.overlay?.locked),
-        alwaysOnTop: stored.overlay?.alwaysOnTop !== false,
+        paused: scopeStates.combined.paused,
+        locked: scopeStates.combined.locked,
+        alwaysOnTop: scopeStates.combined.alwaysOnTop,
+        scopeStates,
         maxMessages: this.normalizeMaxMessages(
           stored.overlay?.maxMessages ?? 200,
         ),
@@ -696,6 +739,31 @@ export class LiveChatService extends EventEmitter {
   ): Promise<LiveChatCommandResult> {
     const stored = this.readStoredSettings();
     const current = this.getSettings();
+    const legacyOverlay = {
+      paused: patch.overlay?.paused ?? current.overlay.paused,
+      locked: patch.overlay?.locked ?? current.overlay.locked,
+      alwaysOnTop:
+        patch.overlay?.alwaysOnTop ?? current.overlay.alwaysOnTop,
+    };
+    const patchedScopeStates = Object.fromEntries(
+      OVERLAY_SCOPES.map((scope) => [
+        scope,
+        {
+          ...current.overlay.scopeStates[scope],
+          ...(patch.overlay?.scopeStates?.[scope] ?? {}),
+        },
+      ]),
+    ) as Record<LiveChatOverlayScope, Partial<LiveChatOverlayScopeState>>;
+    if (patch.overlay?.paused !== undefined)
+      patchedScopeStates.combined.paused = patch.overlay.paused;
+    if (patch.overlay?.locked !== undefined)
+      patchedScopeStates.combined.locked = patch.overlay.locked;
+    if (patch.overlay?.alwaysOnTop !== undefined)
+      patchedScopeStates.combined.alwaysOnTop = patch.overlay.alwaysOnTop;
+    const scopeStates = this.normalizeOverlayScopeStates(
+      patchedScopeStates,
+      legacyOverlay,
+    );
     const next: StoredLiveChatSettings = {
       ...stored,
       enabled: patch.enabled ?? current.enabled,
@@ -704,6 +772,10 @@ export class LiveChatService extends EventEmitter {
       overlay: {
         ...current.overlay,
         ...patch.overlay,
+        paused: scopeStates.combined.paused,
+        locked: scopeStates.combined.locked,
+        alwaysOnTop: scopeStates.combined.alwaysOnTop,
+        scopeStates,
         backgroundPresets: this.normalizeBackgroundPresets({
           ...current.overlay.backgroundPresets,
           ...patch.overlay?.backgroundPresets,
@@ -760,6 +832,8 @@ export class LiveChatService extends EventEmitter {
           patch.tiktok.accountOverrides ?? current.tiktok.accountOverrides,
           accounts,
         ),
+        autoConnectAccounts:
+          patch.tiktok.autoConnectAccounts ?? current.tiktok.autoConnectAccounts,
         reconnect: patch.tiktok.reconnect ?? current.tiktok.reconnect,
         offlineCheckIntervalSeconds: Math.max(
           30,
@@ -782,24 +856,57 @@ export class LiveChatService extends EventEmitter {
     this.syncChannelEventFilters(updated);
     await this.tiktokProvider.reconcileAccounts(updated.tiktok.accounts);
     this.tiktokProvider.reconcileSettings();
+    const serviceBecameEnabled = patch.enabled === true && !current.enabled;
+    const providerBecameEnabled =
+      patch.tiktok?.enabled === true && !current.tiktok.enabled;
+    const autoConnectBecameEnabled =
+      patch.tiktok?.autoConnectAccounts === true &&
+      !current.tiktok.autoConnectAccounts;
+    const shouldAutoConnectTiktok =
+      updated.enabled &&
+      updated.tiktok.enabled &&
+      updated.tiktok.autoConnectAccounts;
+    const shouldConnectAllTiktok =
+      shouldAutoConnectTiktok &&
+      (serviceBecameEnabled || providerBecameEnabled || autoConnectBecameEnabled);
+    const addedTiktokAccounts = updated.tiktok.accounts.filter(
+      (account) => !current.tiktok.accounts.includes(account),
+    );
     this.deleteReplacedBackground(
       current.overlay.background,
       updated.overlay.background,
     );
     if (patch.enabled === false) {
-      await Promise.all([this.disconnect("twitch"), this.disconnect("tiktok")]);
+      await Promise.all([
+        this.disconnect("twitch"),
+        this.tiktokProvider.disconnectAutomatically(),
+      ]);
     } else if (patch.enabled === true && !current.enabled) {
       await Promise.all([
         updated.twitch.enabled ? this.connect("twitch") : Promise.resolve(null),
-        updated.tiktok.enabled ? this.connect("tiktok") : Promise.resolve(null),
+        shouldAutoConnectTiktok
+          ? this.tiktokProvider.connectAutomatically()
+          : Promise.resolve(null),
       ]);
     } else {
       if (patch.twitch?.enabled === false) await this.disconnect("twitch");
       if (patch.twitch?.enabled === true && !current.twitch.enabled)
         await this.connect("twitch");
-      if (patch.tiktok?.enabled === false) await this.disconnect("tiktok");
-      if (patch.tiktok?.enabled === true && !current.tiktok.enabled)
-        await this.connect("tiktok");
+      if (patch.tiktok?.enabled === false)
+        await this.tiktokProvider.disconnectAutomatically();
+      if (shouldConnectAllTiktok)
+        await this.tiktokProvider.connectAutomatically();
+      else if (
+        shouldAutoConnectTiktok &&
+        patch.tiktok?.accounts !== undefined &&
+        addedTiktokAccounts.length > 0
+      ) {
+        await Promise.all(
+          addedTiktokAccounts.map((account) =>
+            this.tiktokProvider.connectAutomatically(account),
+          ),
+        );
+      }
       this.emitStateChanged();
     }
 
@@ -825,7 +932,7 @@ export class LiveChatService extends EventEmitter {
         await client.part(channel);
       } catch (error) {
         logsService.log(
-          "app",
+          "liveChat",
           "live-chat.twitch.channel.part.error",
           { channel, error: this.normalizeError(error) },
           "error",
@@ -839,7 +946,7 @@ export class LiveChatService extends EventEmitter {
         await client.join(channel);
       } catch (error) {
         logsService.log(
-          "app",
+          "liveChat",
           "live-chat.twitch.channel.join.error",
           { channel, error: this.normalizeError(error) },
           "error",
@@ -917,7 +1024,7 @@ export class LiveChatService extends EventEmitter {
 
     try {
       await client.connect();
-      logsService.log("app", "live-chat.twitch.connect.success", {
+      logsService.log("liveChat", "live-chat.twitch.connect.success", {
         channels: settings.twitch.channels,
       });
       return {
@@ -932,7 +1039,7 @@ export class LiveChatService extends EventEmitter {
       this.twitchState = { ...defaultProviderState(), lastError: message };
       this.emitStateChanged();
       logsService.log(
-        "app",
+        "liveChat",
         "live-chat.twitch.connect.error",
         { error: message },
         "error",
@@ -976,7 +1083,9 @@ export class LiveChatService extends EventEmitter {
       };
     const results = await Promise.all([
       settings.twitch.enabled ? this.connect("twitch") : Promise.resolve(null),
-      settings.tiktok.enabled ? this.connect("tiktok") : Promise.resolve(null),
+      settings.tiktok.enabled && settings.tiktok.autoConnectAccounts
+        ? this.tiktokProvider.connectAutomatically()
+        : Promise.resolve(null),
     ]);
     return (
       results.find((result) => result && !result.ok) ??

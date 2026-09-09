@@ -40,6 +40,16 @@ export const enUSMessages: Record<string, string> = {
   "settings.advanced.save_error": "Failed to save settings.",
   "settings.advanced.service_obs": "OBS",
   "settings.advanced.service_obs_desc": "Start OBS connection automatically",
+  "settings.advanced.service_discord": "Discord",
+  "settings.advanced.service_discord_desc":
+    "Connect or disconnect the Discord RPC integration.",
+  "settings.advanced.service_discord_error":
+    "Failed to change the Discord connection.",
+  "settings.advanced.service_live_chat": "Live chat",
+  "settings.advanced.service_live_chat_desc":
+    "Globally enable or disable the Live chat service.",
+  "settings.advanced.service_live_chat_error":
+    "Failed to change the Live chat service.",
   "settings.advanced.service_shortcuts": "Shortcut keys",
   "settings.advanced.service_shortcuts_desc":
     "Enable global shortcut capture and execution",
@@ -54,6 +64,10 @@ export const enUSMessages: Record<string, string> = {
   "settings.advanced.auto_start": "Start with operating system",
   "settings.advanced.notifications": "Notifications",
   "settings.advanced.auto_download_updates": "Download updates automatically",
+  "settings.advanced.service_discord_tooltip":
+    "Connect or disconnect the local Discord integration now.",
+  "settings.advanced.service_live_chat_tooltip":
+    "Globally control Live chat and all of its providers.",
   "apps.loading": "Loading apps...",
   "apps.search_placeholder": "Search apps...",
   "apps.empty.filtered": "No apps found.",
@@ -441,6 +455,8 @@ export const enUSMessages: Record<string, string> = {
   "settings.logs.disabled_state": "Logs disabled",
   "settings.logs.shortcuts": "Shortcuts",
   "settings.logs.obs": "OBS",
+  "settings.logs.discord": "Discord",
+  "settings.logs.live_chat": "Live chat",
   "settings.logs.soundpad": "SoundPad",
   "settings.logs.webdeck": "WebDeck",
   "settings.logs.webpages": "Web Pages",
@@ -944,6 +960,8 @@ export const enUSMessages: Record<string, string> = {
     "A black, borderless window with saved position and size.",
   "live_chat.overlay.open": "Open overlay",
   "live_chat.overlay.close": "Close overlay",
+  "live_chat.overlay.opened": "Open",
+  "live_chat.overlay.closed": "Closed",
   "live_chat.overlay.mode": "Layout",
   "live_chat.overlay.combined": "All together",
   "live_chat.overlay.separate": "Separate by provider",
@@ -1025,8 +1043,13 @@ export const enUSMessages: Record<string, string> = {
   "live_chat.result.provider_disconnected": "Provider disconnected.",
   "live_chat.result.disconnected": "Disconnected from Twitch chat.",
   "live_chat.result.service_disabled": "Live Chat is disabled.",
+  "live_chat.result.manual_disconnect_skipped":
+    "The account was disconnected manually and is waiting for a manual connection.",
   "live_chat.tiktok.soon": "Coming soon — provider currently unavailable.",
   "live_chat.tiktok.description": "An independent connection for each monitored account.",
+  "live_chat.tiktok.auto_connect": "Connect accounts automatically",
+  "live_chat.tiktok.auto_connect_desc":
+    "Connects accounts when the provider is enabled or a new one is added, except manually disconnected accounts.",
   "live_chat.tiktok.reconnect": "Reconnect automatically",
   "live_chat.tiktok.reconnect_desc": "Attempts recovery 5 seconds after a drop.",
   "live_chat.tiktok.offline_interval": "Check offline accounts every (seconds)",

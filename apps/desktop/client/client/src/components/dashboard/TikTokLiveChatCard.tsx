@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Award,
   CircleUserRound,
@@ -52,6 +52,20 @@ const normalizeAccount = (value: string) =>
     .replace(/^@/, "")
     .toLowerCase();
 
+// The Events switch is persisted immediately, so it must not make the
+// provider's manual-save form appear dirty. Keep the remaining account
+// settings in this comparison (including the per-account live check).
+const comparableAccountOverrides = (
+  value: Record<string, TikTokLiveChatAccountAppearance> | undefined,
+) =>
+  Object.fromEntries(
+    Object.entries(value ?? {}).map(([account, appearance]) => [account, {
+      label: appearance?.label ?? "",
+      icon: appearance?.icon ?? null,
+      waitForLive: appearance?.waitForLive !== false,
+    }]),
+  );
+
 export function TikTokLiveChatCard() {
   const { t } = useI18n();
   const { state, refresh } = useLiveChat();
@@ -61,6 +75,7 @@ export function TikTokLiveChatCard() {
   const [overrides, setOverrides] = useState<
     Record<string, TikTokLiveChatAccountAppearance>
   >({});
+  const [autoConnectAccounts, setAutoConnectAccounts] = useState(true);
   const [reconnect, setReconnect] = useState(true);
   const [offlineInterval, setOfflineInterval] = useState("30");
   const [search, setSearch] = useState("");
@@ -68,19 +83,29 @@ export function TikTokLiveChatCard() {
   const [candidateTouched, setCandidateTouched] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const autoPersistEventsRef = useRef(false);
 
   useEffect(() => {
     if (!settings) return;
     setAccounts(settings.tiktok.accounts);
-    setOverrides(settings.tiktok.accountOverrides);
+    setAutoConnectAccounts(settings.tiktok.autoConnectAccounts);
     setReconnect(settings.tiktok.reconnect);
     setOfflineInterval(String(settings.tiktok.offlineCheckIntervalSeconds));
   }, [
     settings?.tiktok.accounts.join("|"),
-    settings?.tiktok.accountOverrides,
+    settings?.tiktok.autoConnectAccounts,
     settings?.tiktok.reconnect,
     settings?.tiktok.offlineCheckIntervalSeconds,
   ]);
+
+  useEffect(() => {
+    if (!settings) return;
+    if (autoPersistEventsRef.current) {
+      autoPersistEventsRef.current = false;
+      return;
+    }
+    setOverrides(settings.tiktok.accountOverrides);
+  }, [settings?.tiktok.accountOverrides]);
 
   const run = async (
     key: string,
@@ -162,6 +187,31 @@ export function TikTokLiveChatCard() {
       },
     }));
 
+  const setAccountEventsEnabled = async (account: string, eventsEnabled: boolean) => {
+    const previous = overrides;
+    const next = {
+      ...overrides,
+      [account]: {
+        label: overrides[account]?.label ?? "",
+        icon: overrides[account]?.icon ?? null,
+        eventsEnabled,
+        waitForLive: overrides[account]?.waitForLive !== false,
+      },
+    };
+    setOverrides(next);
+    autoPersistEventsRef.current = true;
+    const result = await window.underdeck.liveChat.updateSettings({
+      tiktok: { accountOverrides: next },
+    });
+    if (!result.ok) {
+      autoPersistEventsRef.current = false;
+      setOverrides(previous);
+      toast.error(t("live_chat.settings.save_failed", "Não foi possível salvar."), {
+        description: result.code ? t(result.code, result.message) : result.message,
+      });
+    }
+  };
+
   const removeAccount = (account: string) => {
     setAccounts((current) => current.filter((item) => item !== account));
     setOverrides((current) => {
@@ -190,6 +240,7 @@ export function TikTokLiveChatCard() {
       tiktok: {
         accounts,
         accountOverrides: overrides,
+        autoConnectAccounts,
         reconnect,
         offlineCheckIntervalSeconds: Math.max(30, Number(offlineInterval) || 30),
       },
@@ -198,7 +249,9 @@ export function TikTokLiveChatCard() {
   const hasChanges = Boolean(
     settings &&
       (JSON.stringify(accounts) !== JSON.stringify(settings.tiktok.accounts) ||
-        JSON.stringify(overrides) !== JSON.stringify(settings.tiktok.accountOverrides) ||
+        JSON.stringify(comparableAccountOverrides(overrides)) !==
+          JSON.stringify(comparableAccountOverrides(settings.tiktok.accountOverrides)) ||
+        autoConnectAccounts !== settings.tiktok.autoConnectAccounts ||
         reconnect !== settings.tiktok.reconnect ||
         Math.max(30, Number(offlineInterval) || 30) !==
           settings.tiktok.offlineCheckIntervalSeconds),
@@ -277,7 +330,14 @@ export function TikTokLiveChatCard() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="flex items-center justify-between gap-3 rounded-xl border p-3">
+          <div>
+            <Label>{t("live_chat.tiktok.auto_connect", "Conectar contas automaticamente")}</Label>
+            <p className="text-xs text-muted-foreground">{t("live_chat.tiktok.auto_connect_desc", "Conecta as contas ao ativar o provedor ou adicionar uma nova conta.")}</p>
+          </div>
+          <Switch checked={autoConnectAccounts} onCheckedChange={setAutoConnectAccounts} />
+        </div>
         <div className="flex items-center justify-between gap-3 rounded-xl border p-3">
           <div>
             <Label>{t("live_chat.tiktok.reconnect", "Reconectar automaticamente")}</Label>
@@ -327,16 +387,33 @@ export function TikTokLiveChatCard() {
             const appearance = overrides[account] ?? { label: "", icon: null, eventsEnabled: true, waitForLive: true };
             const accountState = provider?.accounts[account];
             const active = accountState?.connected || accountState?.connecting || accountState?.waitingForLive || accountState?.reconnecting;
+            const accountStatusText = accountState?.connecting
+              ? t("live_chat.status.connecting", "Conectando")
+              : accountState?.waitingForLive
+                ? t("live_chat.status.waiting_live", "Aguardando live")
+                : accountState?.reconnecting
+                  ? t("live_chat.status.reconnecting", "Reconectando")
+                  : accountState?.connected
+                    ? t("live_chat.status.connected", "Conectado")
+                    : t("live_chat.status.disconnected", "Desconectado");
+            const accountStatusBusy = Boolean(
+              accountState?.connecting ||
+                accountState?.waitingForLive ||
+                accountState?.reconnecting,
+            );
             return (
               <div key={account} className="grid gap-3 rounded-xl border border-border/70 bg-background/35 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
                     {appearance.icon ? <img src={appearance.icon} alt="" className="size-10 shrink-0 rounded-lg object-cover" /> : <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><Hash /></span>}
                     <Badge variant={accountState?.connected ? "default" : "secondary"}>@{account}</Badge>
-                    {accountState?.waitingForLive ? <span className="text-xs text-amber-500">{t("live_chat.status.waiting_live", "Aguardando live")}</span> : null}
+                    <Badge variant={accountState?.connected ? "default" : "secondary"}>
+                      {accountStatusBusy ? <Loader2 className="animate-spin" /> : <Radio />}
+                      {accountStatusText}
+                    </Badge>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-2 rounded-xl border px-2 py-1.5">{appearance.eventsEnabled ? <Eye /> : <EyeOff />}<Label className="text-xs">{t("live_chat.twitch.channel_events", "Eventos")}</Label><Switch checked={appearance.eventsEnabled !== false} onCheckedChange={(eventsEnabled) => updateAppearance(account, { eventsEnabled })} /></div>
+                    <div className="flex items-center gap-2 rounded-xl border px-2 py-1.5">{appearance.eventsEnabled ? <Eye /> : <EyeOff />}<Label className="text-xs">{t("live_chat.twitch.channel_events", "Eventos")}</Label><Switch checked={appearance.eventsEnabled !== false} onCheckedChange={(eventsEnabled) => void setAccountEventsEnabled(account, eventsEnabled)} /></div>
                     <div className="flex items-center gap-2 rounded-xl border px-2 py-1.5"><Clock3 /><Label className="text-xs">{t("live_chat.tiktok.wait_live", "Aguardar live")}</Label><Switch checked={appearance.waitForLive !== false} onCheckedChange={(waitForLive) => updateAppearance(account, { waitForLive })} /></div>
                   </div>
                 </div>

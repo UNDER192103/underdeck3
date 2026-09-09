@@ -256,6 +256,7 @@ export interface TikTokLiveChatSettings {
   available: true;
   accounts: string[];
   accountOverrides: Record<string, TikTokLiveChatAccountAppearance>;
+  autoConnectAccounts: boolean;
   reconnect: boolean;
   offlineCheckIntervalSeconds: number;
   display: TikTokLiveChatDisplaySettings;
@@ -269,6 +270,7 @@ export interface LiveChatSettings {
     paused: boolean;
     locked: boolean;
     alwaysOnTop: boolean;
+    scopeStates: Record<LiveChatOverlayScope, LiveChatOverlayScopeState>;
     maxMessages: number;
     background: StoredThemeBackground;
     backgroundPresets: ThemeEffectBackgrounds;
@@ -286,7 +288,8 @@ export interface LiveChatSettingsPatch {
   tiktok?: Partial<Omit<TikTokLiveChatSettings, "display">> & {
     display?: Partial<TikTokLiveChatDisplaySettings>;
   };
-  overlay?: Partial<Omit<LiveChatSettings["overlay"], "bounds">> & {
+  overlay?: Partial<Omit<LiveChatSettings["overlay"], "bounds" | "scopeStates">> & {
+    scopeStates?: Partial<Record<LiveChatOverlayScope, Partial<LiveChatOverlayScopeState>>>;
     bounds?: Partial<Record<LiveChatOverlayScope, LiveChatWindowBounds>>;
   };
 }
@@ -345,6 +348,12 @@ export interface LiveChatCommandResult {
 export interface LiveChatOverlayWindowState {
   open: boolean;
   scope: LiveChatOverlayScope;
+  paused: boolean;
+  locked: boolean;
+  alwaysOnTop: boolean;
+}
+
+export interface LiveChatOverlayScopeState {
   paused: boolean;
   locked: boolean;
   alwaysOnTop: boolean;
@@ -447,6 +456,8 @@ export interface LogsSettings {
   soundpad: boolean;
   webdeck: boolean;
   webpages: boolean;
+  discord: boolean;
+  liveChat: boolean;
   socket: boolean;
   updates: boolean;
 }
@@ -674,10 +685,11 @@ export interface UnderDeckApi {
     getOverlayState: (
       scope?: LiveChatOverlayScope,
     ) => Promise<LiveChatOverlayWindowState>;
-    setOverlayPaused: (paused: boolean) => Promise<LiveChatOverlayWindowState>;
-    setOverlayLocked: (locked: boolean) => Promise<LiveChatOverlayWindowState>;
+    setOverlayPaused: (paused: boolean, scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
+    setOverlayLocked: (locked: boolean, scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
     setOverlayAlwaysOnTop: (
       alwaysOnTop: boolean,
+      scope?: LiveChatOverlayScope,
     ) => Promise<LiveChatOverlayWindowState>;
     clear: (scope?: LiveChatOverlayScope) => Promise<boolean>;
     onStateChanged: (listener: (state: LiveChatState) => void) => () => void;

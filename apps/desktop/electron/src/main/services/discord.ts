@@ -203,6 +203,7 @@ export class DiscordService extends EventEmitter {
             };
         } catch (error) {
             this.lastError = this.normalizeError(error);
+            logsService.log("discord", "discord.voice_settings.read.error", { error: this.lastError }, "error");
         }
     }
 
@@ -218,20 +219,20 @@ export class DiscordService extends EventEmitter {
             this.application = this.applicationFrom((client as any).application);
             await this.readVoiceSettings();
             this.emitStateChanged();
-            logsService.log("app", "discord.connect.success", { clientId: this.getSettings().clientId });
+            logsService.log("discord", "discord.connect.success", { clientId: this.getSettings().clientId });
         });
         client.on("disconnected", () => {
             if (client !== this.client) return;
             this.resetConnectionState();
             this.emitStateChanged();
-            logsService.log("app", "discord.disconnected");
+            logsService.log("discord", "discord.disconnected");
             this.scheduleReconnect();
         });
         client.on("error", (error: unknown) => {
             if (client !== this.client) return;
             this.lastError = this.normalizeError(error);
             this.emitStateChanged();
-            logsService.log("app", "discord.error", { error: this.lastError }, "error");
+            logsService.log("discord", "discord.error", { error: this.lastError }, "error");
         });
         return client;
     }
@@ -353,7 +354,7 @@ export class DiscordService extends EventEmitter {
             if (this.client === activeClient) this.client = null;
             try { await activeClient.destroy(); } catch { /* ignore */ }
             this.emitStateChanged();
-            logsService.log("app", "discord.connect.error", { error: this.lastError }, "error");
+            logsService.log("discord", "discord.connect.error", { error: this.lastError }, "error");
             this.scheduleReconnect();
             return { ok: false, message: this.lastError };
         }
@@ -372,7 +373,7 @@ export class DiscordService extends EventEmitter {
         this.reconnecting = false;
         this.lastError = null;
         this.emitStateChanged();
-        logsService.log("app", "discord.disconnect");
+        logsService.log("discord", "discord.disconnect");
         return { ok: true, message: "Desconectado do Discord." };
     }
 
@@ -393,6 +394,7 @@ export class DiscordService extends EventEmitter {
         } catch (error) {
             this.lastError = this.normalizeError(error);
             this.emitStateChanged();
+            logsService.log("discord", "discord.voice_action.error", { error: this.lastError }, "error");
             return { ok: false, message: this.lastError };
         }
     }

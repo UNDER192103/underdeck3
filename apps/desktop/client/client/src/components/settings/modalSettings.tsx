@@ -21,6 +21,7 @@ import { useGlobalObserver } from "@/contexts/GlobalObserverContext";
 import UpdatePage from '@/components/dashboard/update';
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import type { ShortcutKey } from "@/types/shortcuts";
+import type { DiscordState, LiveChatState, LogsSettings } from "@/types/electron";
 import { builtinByLocale } from "@/i18n/builtin";
 
 const getKeyLabel = (key: ShortcutKey | string) => (typeof key === "string" ? key : key.key);
@@ -28,6 +29,22 @@ const toShortcutKey = (key: ShortcutKey | string): ShortcutKey =>
   typeof key === "string" ? { keyCode: 0, key } : key;
 const formatKeyCombo = (keys: Array<ShortcutKey | string>) =>
   keys.map(getKeyLabel).filter(Boolean).join(" + ");
+
+type LogCategory = keyof Omit<LogsSettings, "enabled">;
+
+const normalizeLogsSettings = (logs?: Partial<LogsSettings> | null): LogsSettings => ({
+  enabled: Boolean(logs?.enabled),
+  app: Boolean(logs?.app),
+  shortcuts: Boolean(logs?.shortcuts),
+  obs: Boolean(logs?.obs),
+  soundpad: Boolean(logs?.soundpad),
+  webdeck: Boolean(logs?.webdeck),
+  webpages: Boolean(logs?.webpages),
+  discord: Boolean(logs?.discord),
+  liveChat: Boolean(logs?.liveChat),
+  socket: Boolean(logs?.socket),
+  updates: Boolean(logs?.updates),
+});
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -66,21 +83,15 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
   });
   const [updatesAutoDownload, setUpdatesAutoDownload] = useState(true);
   const [obsStartOnStartup, setObsStartOnStartup] = useState(false);
+  const [discordServiceState, setDiscordServiceState] = useState<DiscordState | null>(null);
+  const [discordServiceBusy, setDiscordServiceBusy] = useState(false);
+  const [liveChatServiceEnabled, setLiveChatServiceEnabled] = useState(false);
+  const [liveChatServiceBusy, setLiveChatServiceBusy] = useState(false);
   const [webPagesSettings, setWebPagesSettings] = useState({
     useAdblock: true,
     blockNewWindows: true,
   });
-  const [logsSettings, setLogsSettings] = useState({
-    enabled: false,
-    app: false,
-    shortcuts: false,
-    obs: false,
-    soundpad: false,
-    webdeck: false,
-    webpages: false,
-    socket: false,
-    updates: false,
-  });
+  const [logsSettings, setLogsSettings] = useState<LogsSettings>(() => normalizeLogsSettings());
 
   const modalLogout = () => {
     setModalConfirm({
@@ -207,13 +218,15 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
 
   const refreshAdvancedSettings = async () => {
     try {
-      const [windows, electron, updatesState, obsSettings, logs, webPages] = await Promise.all([
+      const [windows, electron, updatesState, obsSettings, logs, webPages, discordState, liveChatState] = await Promise.all([
         window.underdeck.appSettings.getWindows(),
         window.underdeck.appSettings.getElectron(),
         window.underdeck.updates.getState(),
         window.underdeck.obs.getSettings(),
         window.underdeck.logs.getSettings(),
         window.underdeck.webPages.getSettings(),
+        window.underdeck.discord.getState(),
+        window.underdeck.liveChat.getState(),
       ]);
 
       setWindowsSettings({
@@ -230,21 +243,13 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
 
       setUpdatesAutoDownload(Boolean(updatesState?.autoDownloadEnabled));
       setObsStartOnStartup(Boolean(obsSettings?.connectOnStartup));
+      setDiscordServiceState(discordState ?? null);
+      setLiveChatServiceEnabled(Boolean(liveChatState?.settings?.enabled));
       setWebPagesSettings({
         useAdblock: typeof webPages?.useAdblock === "boolean" ? webPages.useAdblock : true,
         blockNewWindows: typeof webPages?.blockNewWindows === "boolean" ? webPages.blockNewWindows : true,
       });
-      setLogsSettings({
-        enabled: Boolean(logs?.enabled),
-        app: Boolean(logs?.app),
-        shortcuts: Boolean(logs?.shortcuts),
-        obs: Boolean(logs?.obs),
-        soundpad: Boolean(logs?.soundpad),
-        webdeck: Boolean(logs?.webdeck),
-        webpages: Boolean(logs?.webpages),
-        socket: Boolean(logs?.socket),
-        updates: Boolean(logs?.updates),
-      });
+      setLogsSettings(normalizeLogsSettings(logs));
     } catch {
       // ignore refresh errors and keep current UI state
     }
@@ -264,6 +269,44 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
     return () => {
       unsubscribe();
     };
+  }, [isOpen, subscribe]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const unsubscribe = subscribe(
+      [
+        "discord:state-changed",
+        "live-chat:state-changed",
+        "live-chat:settings-changed",
+        "logs:settings-changed",
+      ],
+      (payload) => {
+        if (payload.channel === "discord:state-changed") {
+          const state = (payload.data as { state?: DiscordState } | undefined)?.state;
+          if (state) setDiscordServiceState(state);
+          return;
+        }
+
+        if (payload.channel === "live-chat:state-changed") {
+          const state = (payload.data as { state?: LiveChatState } | undefined)?.state;
+          if (state) setLiveChatServiceEnabled(Boolean(state.settings.enabled));
+          return;
+        }
+
+        if (payload.channel === "live-chat:settings-changed") {
+          const settings = (payload.data as { settings?: LiveChatState["settings"] } | undefined)?.settings;
+          if (settings) setLiveChatServiceEnabled(Boolean(settings.enabled));
+          return;
+        }
+
+        if (payload.channel === "logs:settings-changed") {
+          const settings = (payload.data as { settings?: LogsSettings } | undefined)?.settings;
+          if (settings) setLogsSettings(normalizeLogsSettings(settings));
+        }
+      },
+      false,
+    );
+    return unsubscribe;
   }, [isOpen, subscribe]);
 
   const handleOverlayEnabled = async (enabled: boolean) => {
@@ -382,24 +425,54 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
     }
   };
 
-  const handleLogsSettings = async (patch: Partial<typeof logsSettings>) => {
+  const handleDiscordService = async (enabled: boolean) => {
+    setDiscordServiceBusy(true);
+    try {
+      const result = enabled
+        ? await window.underdeck.discord.connect()
+        : await window.underdeck.discord.disconnect();
+      if (!result?.ok) throw new Error(result?.message || "Discord service failed");
+      setDiscordServiceState(await window.underdeck.discord.getState());
+    } catch (error) {
+      try {
+        setDiscordServiceState(await window.underdeck.discord.getState());
+      } catch {
+        // Keep the last observer snapshot when refreshing the service state fails.
+      }
+      toast.error(t("settings.advanced.service_discord_error", "Falha ao alterar a conexão do Discord."), {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setDiscordServiceBusy(false);
+    }
+  };
+
+  const handleLiveChatService = async (enabled: boolean) => {
+    const previous = liveChatServiceEnabled;
+    setLiveChatServiceEnabled(enabled);
+    setLiveChatServiceBusy(true);
+    try {
+      const result = await window.underdeck.liveChat.updateSettings({ enabled });
+      if (!result?.ok) throw new Error(result?.message || "Live chat service failed");
+      const state = await window.underdeck.liveChat.getState();
+      setLiveChatServiceEnabled(Boolean(state.settings.enabled));
+    } catch (error) {
+      setLiveChatServiceEnabled(previous);
+      toast.error(t("settings.advanced.service_live_chat_error", "Falha ao alterar o Chat ao vivo."), {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setLiveChatServiceBusy(false);
+    }
+  };
+
+  const handleLogsSettings = async (patch: Partial<LogsSettings>) => {
     const previous = logsSettings;
     const nextLocal = { ...logsSettings, ...patch };
     setLogsSettings(nextLocal);
     try {
       const updated = await window.underdeck.logs.setSettings(patch);
-      setLogsSettings({
-        enabled: Boolean(updated?.enabled),
-        app: Boolean(updated?.app),
-        shortcuts: Boolean(updated?.shortcuts),
-        obs: Boolean(updated?.obs),
-        soundpad: Boolean(updated?.soundpad),
-        webdeck: Boolean(updated?.webdeck),
-        webpages: Boolean(updated?.webpages),
-        socket: Boolean(updated?.socket),
-        updates: Boolean(updated?.updates),
-      });
-      publish({ id: "logs.settings", channel: "logs", sourceId: "MODAL_SETTINGS", data: updated });
+      setLogsSettings(normalizeLogsSettings(updated));
     } catch (error: any) {
       console.log(error);
       setLogsSettings(previous);
@@ -407,7 +480,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
     }
   };
 
-  const openLogFile = async (category: keyof Omit<typeof logsSettings, "enabled">) => {
+  const openLogFile = async (category: LogCategory) => {
     try {
       await window.underdeck.logs.openLogFile(category);
     } catch {
@@ -424,7 +497,7 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
     }
   };
 
-  const handleClearLogFile = async (category: keyof Omit<typeof logsSettings, "enabled">) => {
+  const handleClearLogFile = async (category: LogCategory) => {
     try {
       await window.underdeck.logs.clearLogFile(category);
       toast.success(t("settings.logs.clear_category_success"));
@@ -449,6 +522,24 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
       toast.error(t("settings.advanced.save_error", "Falha ao salvar configuracao."));
     }
   };
+
+  const discordServiceActive = Boolean(
+    discordServiceState?.connected ||
+    discordServiceState?.connecting ||
+    discordServiceState?.reconnecting,
+  );
+  const logCategories: Array<{ key: LogCategory; label: string }> = [
+    { key: "app", label: t("settings.logs.app", "Aplicativo") },
+    { key: "discord", label: t("settings.logs.discord", "Discord") },
+    { key: "liveChat", label: t("settings.logs.live_chat", "Chat ao vivo") },
+    { key: "obs", label: t("settings.logs.obs", "OBS") },
+    { key: "shortcuts", label: t("settings.logs.shortcuts", "Teclas de atalho") },
+    { key: "soundpad", label: t("settings.logs.soundpad", "SoundPad") },
+    { key: "webdeck", label: t("settings.logs.webdeck", "WebDeck") },
+    { key: "webpages", label: t("settings.logs.webpages", "Páginas Web") },
+    { key: "socket", label: t("settings.logs.socket", "Socket") },
+    { key: "updates", label: t("settings.logs.updates", "Atualizações") },
+  ];
 
   return (
     <>
@@ -803,6 +894,68 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
 
                     <div className="flex items-center justify-between gap-3">
                       <div>
+                        <Label htmlFor="advanced-service-discord">
+                          {t("settings.advanced.service_discord", "Discord")}
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          {t(
+                            "settings.advanced.service_discord_desc",
+                            "Conecta ou desconecta a integração Discord RPC.",
+                          )}
+                        </p>
+                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Switch
+                              id="advanced-service-discord"
+                              checked={discordServiceActive}
+                              disabled={discordServiceBusy}
+                              onCheckedChange={(checked) => {
+                                void handleDiscordService(Boolean(checked));
+                              }}
+                            />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {t("settings.advanced.service_discord_tooltip")}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label htmlFor="advanced-service-live-chat">
+                          {t("settings.advanced.service_live_chat", "Chat ao vivo")}
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          {t(
+                            "settings.advanced.service_live_chat_desc",
+                            "Ativa ou desativa globalmente o serviço de Chat ao vivo.",
+                          )}
+                        </p>
+                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Switch
+                              id="advanced-service-live-chat"
+                              checked={liveChatServiceEnabled}
+                              disabled={liveChatServiceBusy}
+                              onCheckedChange={(checked) => {
+                                void handleLiveChatService(Boolean(checked));
+                              }}
+                            />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {t("settings.advanced.service_live_chat_tooltip")}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
                         <Label htmlFor="advanced-service-shortcuts">{t("settings.advanced.service_shortcuts", "Teclas de atalho")}</Label>
                         <p className="text-xs text-muted-foreground">
                           {t("settings.advanced.service_shortcuts_desc", "Habilita captura e execução de atalhos globais")}
@@ -1084,445 +1237,62 @@ export function ModalSettings({ isOpen, onClose }: UserProfileModalProps) {
                       </div>
                     </div>
 
-                    {logsSettings.enabled && (<div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="advanced-logs-shortcuts">{t("settings.logs.shortcuts")}</Label>
-                      <div className="flex items-center gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              rounded="xl"
-                              size="icon-sm"
-                              onClick={() => void openLogFile("shortcuts")}
-                              disabled={!logsSettings.shortcuts}
-                            >
-                              <FolderOpen className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.open_file_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon-sm"
-                              rounded="xl"
-                              onClick={() => void handleClearLogFile("obs")}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.clear_shortcuts")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex">
-                              <Switch
-                                id="advanced-logs-shortcuts"
-                                checked={logsSettings.shortcuts}
-                                onCheckedChange={(checked) => {
-                                  void handleLogsSettings({ shortcuts: Boolean(checked) });
-                                }}
-                              />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.enable_category_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
+                    {logsSettings.enabled && logCategories.map(({ key, label }) => (
+                      <div key={key} className="flex items-center justify-between gap-3">
+                        <Label htmlFor={`advanced-logs-${key}`}>{label}</Label>
+                        <div className="flex items-center gap-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                rounded="xl"
+                                size="icon-sm"
+                                onClick={() => void openLogFile(key)}
+                                disabled={!logsSettings[key]}
+                              >
+                                <FolderOpen className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t("settings.logs.open_file_tooltip")}
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="icon-sm"
+                                rounded="xl"
+                                onClick={() => void handleClearLogFile(key)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t("settings.logs.clear_category_tooltip")}
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex">
+                                <Switch
+                                  id={`advanced-logs-${key}`}
+                                  checked={logsSettings[key]}
+                                  onCheckedChange={(checked) => {
+                                    void handleLogsSettings({ [key]: Boolean(checked) });
+                                  }}
+                                />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t("settings.logs.enable_category_tooltip")}
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                       </div>
-                    </div>)}
-
-                    {logsSettings.enabled && (<div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="advanced-logs-obs">{t("settings.logs.obs")}</Label>
-                      <div className="flex items-center gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              rounded="xl"
-                              size="icon-sm"
-                              onClick={() => void openLogFile("obs")}
-                              disabled={!logsSettings.obs}
-                            >
-                              <FolderOpen className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.open_file_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon-sm"
-                              rounded="xl"
-                              onClick={() => void handleClearLogFile("soundpad")}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.clear_obs")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex">
-                              <Switch
-                                id="advanced-logs-obs"
-                                checked={logsSettings.obs}
-                                onCheckedChange={(checked) => {
-                                  void handleLogsSettings({ obs: Boolean(checked) });
-                                }}
-                              />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.enable_category_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>)}
-
-                    {logsSettings.enabled && (<div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="advanced-logs-soundpad">{t("settings.logs.soundpad")}</Label>
-                      <div className="flex items-center gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              rounded="xl"
-                              size="icon-sm"
-                              onClick={() => void openLogFile("soundpad")}
-                              disabled={!logsSettings.soundpad}
-                            >
-                              <FolderOpen className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.open_file_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon-sm"
-                              rounded="xl"
-                              onClick={() => void handleClearLogFile("webdeck")}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.clear_soundpad")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex">
-                              <Switch
-                                id="advanced-logs-soundpad"
-                                checked={logsSettings.soundpad}
-                                onCheckedChange={(checked) => {
-                                  void handleLogsSettings({ soundpad: Boolean(checked) });
-                                }}
-                              />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.enable_category_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>)}
-
-                    {logsSettings.enabled && (<div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="advanced-logs-webdeck">{t("settings.logs.webdeck")}</Label>
-                      <div className="flex items-center gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              rounded="xl"
-                              size="icon-sm"
-                              onClick={() => void openLogFile("webdeck")}
-                              disabled={!logsSettings.webdeck}
-                            >
-                              <FolderOpen className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.open_file_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon-sm"
-                              rounded="xl"
-                              onClick={() => void handleClearLogFile("socket")}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.clear_webdeck")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex">
-                              <Switch
-                                id="advanced-logs-webdeck"
-                                checked={logsSettings.webdeck}
-                                onCheckedChange={(checked) => {
-                                  void handleLogsSettings({ webdeck: Boolean(checked) });
-                                }}
-                              />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.enable_category_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>)}
-
-                    {logsSettings.enabled && (<div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="advanced-logs-webpages">{t("settings.logs.webpages", "Paginas Webs")}</Label>
-                      <div className="flex items-center gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              rounded="xl"
-                              size="icon-sm"
-                              onClick={() => void openLogFile("webpages")}
-                              disabled={!logsSettings.webpages}
-                            >
-                              <FolderOpen className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.open_file_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon-sm"
-                              rounded="xl"
-                              onClick={() => void handleClearLogFile("webpages")}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.clear_webpages", "Limpar logs de paginas webs")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex">
-                              <Switch
-                                id="advanced-logs-webpages"
-                                checked={logsSettings.webpages}
-                                onCheckedChange={(checked) => {
-                                  void handleLogsSettings({ webpages: Boolean(checked) });
-                                }}
-                              />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.enable_category_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>)}
-
-                    {logsSettings.enabled && (<div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="advanced-logs-socket">{t("settings.logs.socket")}</Label>
-                      <div className="flex items-center gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              rounded="xl"
-                              size="icon-sm"
-                              onClick={() => void openLogFile("socket")}
-                              disabled={!logsSettings.socket}
-                            >
-                              <FolderOpen className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.open_file_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon-sm"
-                              rounded="xl"
-                              onClick={() => void handleClearLogFile("updates")}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.clear_socket")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex">
-                              <Switch
-                                id="advanced-logs-socket"
-                                checked={logsSettings.socket}
-                                onCheckedChange={(checked) => {
-                                  void handleLogsSettings({ socket: Boolean(checked) });
-                                }}
-                              />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.enable_category_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>)}
-
-                    {logsSettings.enabled && (<div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="advanced-logs-updates">{t("settings.logs.updates")}</Label>
-                      <div className="flex items-center gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              rounded="xl"
-                              size="icon-sm"
-                              onClick={() => void openLogFile("updates")}
-                              disabled={!logsSettings.updates}
-                            >
-                              <FolderOpen className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.open_file_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon-sm"
-                              rounded="xl"
-                              onClick={() => void handleClearLogFile("app")}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.clear_updates")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex">
-                              <Switch
-                                id="advanced-logs-updates"
-                                checked={logsSettings.updates}
-                                onCheckedChange={(checked) => {
-                                  void handleLogsSettings({ updates: Boolean(checked) });
-                                }}
-                              />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.enable_category_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>)}
-
-                    {logsSettings.enabled && (<div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="advanced-logs-app">{t("settings.logs.app")}</Label>
-                      <div className="flex items-center gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              rounded="xl"
-                              size="icon-sm"
-                              onClick={() => void openLogFile("app")}
-                              disabled={!logsSettings.app}
-                            >
-                              <FolderOpen className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.open_file_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon-sm"
-                              rounded="xl"
-                              onClick={() => void handleClearLogFile("shortcuts")}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.clear_app")}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex">
-                              <Switch
-                                id="advanced-logs-app"
-                                checked={logsSettings.app}
-                                onCheckedChange={(checked) => {
-                                  void handleLogsSettings({ app: Boolean(checked) });
-                                }}
-                              />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.logs.enable_category_tooltip")}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>)}
+                    ))}
                   </div>
                 </div>
               )}

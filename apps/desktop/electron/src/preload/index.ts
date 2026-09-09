@@ -90,6 +90,9 @@ type LogsSettings = {
   obs: boolean;
   soundpad: boolean;
   webdeck: boolean;
+  webpages: boolean;
+  discord: boolean;
+  liveChat: boolean;
   socket: boolean;
   updates: boolean;
 };
@@ -305,9 +308,9 @@ interface UnderDeckApi {
     openOverlay: (scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
     closeOverlay: (scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
     getOverlayState: (scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
-    setOverlayPaused: (paused: boolean) => Promise<LiveChatOverlayWindowState>;
-    setOverlayLocked: (locked: boolean) => Promise<LiveChatOverlayWindowState>;
-    setOverlayAlwaysOnTop: (alwaysOnTop: boolean) => Promise<LiveChatOverlayWindowState>;
+    setOverlayPaused: (paused: boolean, scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
+    setOverlayLocked: (locked: boolean, scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
+    setOverlayAlwaysOnTop: (alwaysOnTop: boolean, scope?: LiveChatOverlayScope) => Promise<LiveChatOverlayWindowState>;
     clear: (scope?: LiveChatOverlayScope) => Promise<boolean>;
     onStateChanged: (listener: (state: LiveChatState) => void) => () => void;
     onEvent: (listener: (event: LiveChatEvent) => void) => () => void;
@@ -840,9 +843,9 @@ const underdeckApi: UnderDeckApi = {
     openOverlay: (scope) => ipcRenderer.invoke("LiveChatSV-OpenOverlay", scope),
     closeOverlay: (scope) => ipcRenderer.invoke("LiveChatSV-CloseOverlay", scope),
     getOverlayState: (scope) => ipcRenderer.invoke("LiveChatSV-GetOverlayState", scope),
-    setOverlayPaused: (paused) => ipcRenderer.invoke("LiveChatSV-SetOverlayPaused", paused),
-    setOverlayLocked: (locked) => ipcRenderer.invoke("LiveChatSV-SetOverlayLocked", locked),
-    setOverlayAlwaysOnTop: (alwaysOnTop) => ipcRenderer.invoke("LiveChatSV-SetOverlayAlwaysOnTop", alwaysOnTop),
+    setOverlayPaused: (paused, scope) => ipcRenderer.invoke("LiveChatSV-SetOverlayPaused", paused, scope),
+    setOverlayLocked: (locked, scope) => ipcRenderer.invoke("LiveChatSV-SetOverlayLocked", locked, scope),
+    setOverlayAlwaysOnTop: (alwaysOnTop, scope) => ipcRenderer.invoke("LiveChatSV-SetOverlayAlwaysOnTop", alwaysOnTop, scope),
     clear: (scope) => ipcRenderer.invoke("LiveChatSV-Clear", scope),
     onStateChanged: (listener) => {
       liveChatStateListeners.add(listener);

@@ -87,6 +87,19 @@ const DISPLAY_EVENTS = new Set([
   "streamEnd",
 ]);
 
+function getOverlayScopeState(
+  settings: LiveChatSettings | null | undefined,
+  scope: "combined" | "twitch" | "tiktok",
+) {
+  return (
+    settings?.overlay.scopeStates?.[scope] ?? {
+      paused: Boolean(settings?.overlay.paused),
+      locked: Boolean(settings?.overlay.locked),
+      alwaysOnTop: settings?.overlay.alwaysOnTop !== false,
+    }
+  );
+}
+
 function renderTwitchMessage(message: string, tags?: TwitchChatTags) {
   const replacements = Object.entries(tags?.emotes ?? {})
     .flatMap(([id, positions]) =>
@@ -463,9 +476,10 @@ const ChatRow = memo(function ChatRow({
 function MenuItems({ scope }: { scope: "combined" | "twitch" | "tiktok" }) {
   const { t } = useI18n();
   const { state, clear } = useLiveChat();
-  const paused = Boolean(state?.settings.overlay.paused);
-  const locked = Boolean(state?.settings.overlay.locked);
-  const alwaysOnTop = state?.settings.overlay.alwaysOnTop !== false;
+  const scopeState = getOverlayScopeState(state?.settings, scope);
+  const paused = scopeState.paused;
+  const locked = scopeState.locked;
+  const alwaysOnTop = scopeState.alwaysOnTop;
   const activeDisplay =
     scope === "tiktok"
       ? state?.settings.tiktok.display
@@ -488,8 +502,8 @@ function MenuItems({ scope }: { scope: "combined" | "twitch" | "tiktok" }) {
         : ({ [scope]: { display: patch } } as any)) as any,
     );
   const close = () => void window.underdeck.liveChat.closeOverlay(scope);
-  const pause = () => void window.underdeck.liveChat.setOverlayPaused(!paused);
-  const lock = () => void window.underdeck.liveChat.setOverlayLocked(!locked);
+  const pause = () => void window.underdeck.liveChat.setOverlayPaused(!paused, scope);
+  const lock = () => void window.underdeck.liveChat.setOverlayLocked(!locked, scope);
   return (
     <>
       <ContextMenuItem onSelect={pause}>
@@ -506,7 +520,7 @@ function MenuItems({ scope }: { scope: "combined" | "twitch" | "tiktok" }) {
       </ContextMenuItem>
       <ContextMenuItem
         onSelect={() =>
-          void window.underdeck.liveChat.setOverlayAlwaysOnTop(!alwaysOnTop)
+          void window.underdeck.liveChat.setOverlayAlwaysOnTop(!alwaysOnTop, scope)
         }
       >
         {alwaysOnTop ? <PinOff /> : <Pin />}
@@ -635,9 +649,10 @@ export default function LiveChatOverlayView({
   const [hovered, setHovered] = useState(false);
   const scrollViewportRef = useRef<HTMLElement>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
-  const paused = Boolean(state?.settings.overlay.paused);
-  const locked = Boolean(state?.settings.overlay.locked);
-  const alwaysOnTop = state?.settings.overlay.alwaysOnTop !== false;
+  const scopeState = getOverlayScopeState(state?.settings, scope);
+  const paused = scopeState.paused;
+  const locked = scopeState.locked;
+  const alwaysOnTop = scopeState.alwaysOnTop;
   const activeDisplay =
     scope === "tiktok"
       ? state?.settings.tiktok.display
@@ -784,7 +799,7 @@ export default function LiveChatOverlayView({
               >
                 <DropdownMenuItem
                   onClick={() =>
-                    void window.underdeck.liveChat.setOverlayPaused(!paused)
+                    void window.underdeck.liveChat.setOverlayPaused(!paused, scope)
                   }
                 >
                   {paused ? <Play /> : <Pause />}
@@ -824,7 +839,7 @@ export default function LiveChatOverlayView({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() =>
-                    void window.underdeck.liveChat.setOverlayLocked(!locked)
+                    void window.underdeck.liveChat.setOverlayLocked(!locked, scope)
                   }
                 >
                   {locked ? <Unlock /> : <Lock />}
@@ -835,8 +850,9 @@ export default function LiveChatOverlayView({
                 <DropdownMenuItem
                   onClick={() =>
                     void window.underdeck.liveChat.setOverlayAlwaysOnTop(
-                      !alwaysOnTop,
-                    )
+                       !alwaysOnTop,
+                       scope,
+                     )
                   }
                 >
                   {alwaysOnTop ? <PinOff /> : <Pin />}

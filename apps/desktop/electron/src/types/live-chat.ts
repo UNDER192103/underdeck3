@@ -56,6 +56,7 @@ export type TikTokLiveChatSettings = {
   available: true;
   accounts: string[];
   accountOverrides: Record<string, TikTokLiveChatAccountAppearance>;
+  autoConnectAccounts: boolean;
   reconnect: boolean;
   offlineCheckIntervalSeconds: number;
   display: TikTokLiveChatDisplaySettings;
@@ -66,11 +67,18 @@ export type LiveChatOverlaySettings = {
   paused: boolean;
   locked: boolean;
   alwaysOnTop: boolean;
+  scopeStates: Record<LiveChatOverlayScope, LiveChatOverlayScopeState>;
   maxMessages: number;
   background: StoredThemeBackground;
   backgroundPresets: ThemeEffectBackgrounds;
   openScopes: LiveChatOverlayScope[];
   bounds: Partial<Record<LiveChatOverlayScope, LiveChatWindowBounds>>;
+};
+
+export type LiveChatOverlayScopeState = {
+  paused: boolean;
+  locked: boolean;
+  alwaysOnTop: boolean;
 };
 
 export type LiveChatSettings = {
@@ -90,7 +98,10 @@ export type LiveChatSettingsPatch = {
   tiktok?: Partial<Omit<TikTokLiveChatSettings, "display">> & {
     display?: Partial<TikTokLiveChatDisplaySettings>;
   };
-  overlay?: Partial<Omit<LiveChatOverlaySettings, "bounds">> & {
+  overlay?: Partial<Omit<LiveChatOverlaySettings, "bounds" | "scopeStates">> & {
+    scopeStates?: Partial<
+      Record<LiveChatOverlayScope, Partial<LiveChatOverlayScopeState>>
+    >;
     bounds?: Partial<Record<LiveChatOverlayScope, LiveChatWindowBounds>>;
   };
 };

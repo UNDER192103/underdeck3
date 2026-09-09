@@ -83,6 +83,7 @@ export const BaseConfig = {
             enabled: false,
             accounts: [] as string[],
             accountOverrides: {} as Record<string, { label: string; icon: string | null; eventsEnabled: boolean; waitForLive: boolean }>,
+            autoConnectAccounts: true,
             reconnect: true,
             offlineCheckIntervalSeconds: 30,
             display: {
@@ -102,6 +103,11 @@ export const BaseConfig = {
             paused: false,
             locked: false,
             alwaysOnTop: true,
+            scopeStates: {
+                combined: { paused: false, locked: false, alwaysOnTop: true },
+                twitch: { paused: false, locked: false, alwaysOnTop: true },
+                tiktok: { paused: false, locked: false, alwaysOnTop: true },
+            },
             maxMessages: 200,
             background: { variant: "color", backgroundColor: "#000000" } as const,
             backgroundPresets: {
@@ -142,6 +148,8 @@ export const BaseConfig = {
         soundpad: false,
         webdeck: false,
         webpages: false,
+        discord: false,
+        liveChat: false,
         socket: false,
         updates: false,
     },

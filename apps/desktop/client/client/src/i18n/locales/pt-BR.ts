@@ -42,6 +42,16 @@
   "settings.advanced.service_obs": "OBS",
   "settings.advanced.service_obs_desc":
     "Inicia conexão com OBS automaticamente",
+  "settings.advanced.service_discord": "Discord",
+  "settings.advanced.service_discord_desc":
+    "Conecta ou desconecta a integração Discord RPC.",
+  "settings.advanced.service_discord_error":
+    "Falha ao alterar a conexão do Discord.",
+  "settings.advanced.service_live_chat": "Chat ao vivo",
+  "settings.advanced.service_live_chat_desc":
+    "Ativa ou desativa globalmente o serviço de Chat ao vivo.",
+  "settings.advanced.service_live_chat_error":
+    "Falha ao alterar o Chat ao vivo.",
   "settings.advanced.service_shortcuts": "Teclas de atalho",
   "settings.advanced.service_shortcuts_desc":
     "Habilita captura e execução de atalhos globais",
@@ -59,6 +69,10 @@
     "Baixar atualizações automaticamente",
   "settings.advanced.service_obs_tooltip":
     "Se ativado, o UnderDeck tentará se conectar ao OBS Studio na inicialização.",
+  "settings.advanced.service_discord_tooltip":
+    "Conecta ou desconecta agora a integração local com o Discord.",
+  "settings.advanced.service_live_chat_tooltip":
+    "Controla globalmente o Chat ao vivo e todos os seus provedores.",
   "settings.advanced.service_shortcuts_tooltip":
     "Habilita o serviço que escuta por teclas de atalho globais para executar ações.",
   "settings.advanced.service_overlay_tooltip":
@@ -469,6 +483,8 @@
   "settings.logs.disabled_state": "Logs desativados",
   "settings.logs.shortcuts": "Teclas de atalho",
   "settings.logs.obs": "OBS",
+  "settings.logs.discord": "Discord",
+  "settings.logs.live_chat": "Chat ao vivo",
   "settings.logs.soundpad": "SoundPad",
   "settings.logs.webdeck": "WebDeck",
   "settings.logs.webpages": "Paginas Webs",
@@ -977,6 +993,8 @@
     "Janela preta e sem bordas, com posição e tamanho salvos.",
   "live_chat.overlay.open": "Abrir overlay",
   "live_chat.overlay.close": "Fechar overlay",
+  "live_chat.overlay.opened": "Aberto",
+  "live_chat.overlay.closed": "Fechado",
   "live_chat.overlay.mode": "Organização",
   "live_chat.overlay.combined": "Todos juntos",
   "live_chat.overlay.separate": "Separado por provedor",
@@ -1059,8 +1077,13 @@
   "live_chat.result.provider_disconnected": "Provedor desconectado.",
   "live_chat.result.disconnected": "Desconectado do chat da Twitch.",
   "live_chat.result.service_disabled": "O Chat ao vivo está desativado.",
+  "live_chat.result.manual_disconnect_skipped":
+    "A conta foi desconectada manualmente e aguarda uma conexão manual.",
   "live_chat.tiktok.soon": "Em breve — provedor ainda indisponível.",
   "live_chat.tiktok.description": "Uma conexão independente para cada conta monitorada.",
+  "live_chat.tiktok.auto_connect": "Conectar contas automaticamente",
+  "live_chat.tiktok.auto_connect_desc":
+    "Conecta as contas ao ativar o provedor ou adicionar uma nova, exceto as desconectadas manualmente.",
   "live_chat.tiktok.reconnect": "Reconectar automaticamente",
   "live_chat.tiktok.reconnect_desc": "Tenta recuperar em 5 segundos após uma queda.",
   "live_chat.tiktok.offline_interval": "Verificar contas offline a cada (segundos)",

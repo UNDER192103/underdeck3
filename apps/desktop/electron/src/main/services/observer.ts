@@ -52,6 +52,7 @@ export const ObserverChannels = {
     SETTINGS_WINDOWS_CHANGED: "settings:windows-changed",
     SETTINGS_ELECTRON_CHANGED: "settings:electron-changed",
     SETTINGS_OVERLAY_CHANGED: "settings:overlay-changed",
+    LOGS_SETTINGS_CHANGED: "logs:settings-changed",
 
     // Express/WebDeck server related
     EXPRESS_STATUS_CHANGED: "express:status-changed",
@@ -119,6 +120,7 @@ export interface ObserverEventDataMap {
     "settings:windows-changed": { autoStart?: boolean; enableNotifications?: boolean };
     "settings:electron-changed": { startMinimized?: boolean; closeToTray?: boolean; devTools?: boolean };
     "settings:overlay-changed": { enabled?: boolean; keys?: ShortcutKey[]; closeOnBlur?: boolean };
+    "logs:settings-changed": { settings: unknown };
 
     // Express events
     "express:status-changed": { enabled: boolean; port: number };

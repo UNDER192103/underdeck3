@@ -69,7 +69,8 @@ export function LiveChatProvider({
     );
   }, [scope, subscribe]);
 
-  const paused = Boolean(state?.settings.overlay.paused);
+  const overlayScopeState = state?.settings.overlay.scopeStates?.[scope];
+  const paused = overlayScopeState?.paused ?? Boolean(state?.settings.overlay.paused);
   const enabled = Boolean(state?.settings.enabled);
   const maxMessages = state?.settings.overlay.maxMessages ?? 200;
   const showSelf = Boolean(state?.settings.twitch.display.showSelfMessages);

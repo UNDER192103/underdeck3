@@ -485,9 +485,9 @@ const underdeckApi = {
     openOverlay: (scope) => ipcRenderer.invoke("LiveChatSV-OpenOverlay", scope),
     closeOverlay: (scope) => ipcRenderer.invoke("LiveChatSV-CloseOverlay", scope),
     getOverlayState: (scope) => ipcRenderer.invoke("LiveChatSV-GetOverlayState", scope),
-    setOverlayPaused: (paused) => ipcRenderer.invoke("LiveChatSV-SetOverlayPaused", paused),
-    setOverlayLocked: (locked) => ipcRenderer.invoke("LiveChatSV-SetOverlayLocked", locked),
-    setOverlayAlwaysOnTop: (alwaysOnTop) => ipcRenderer.invoke("LiveChatSV-SetOverlayAlwaysOnTop", alwaysOnTop),
+    setOverlayPaused: (paused, scope) => ipcRenderer.invoke("LiveChatSV-SetOverlayPaused", paused, scope),
+    setOverlayLocked: (locked, scope) => ipcRenderer.invoke("LiveChatSV-SetOverlayLocked", locked, scope),
+    setOverlayAlwaysOnTop: (alwaysOnTop, scope) => ipcRenderer.invoke("LiveChatSV-SetOverlayAlwaysOnTop", alwaysOnTop, scope),
     clear: (scope) => ipcRenderer.invoke("LiveChatSV-Clear", scope),
     onStateChanged: (listener) => {
       liveChatStateListeners.add(listener);

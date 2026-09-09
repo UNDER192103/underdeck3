@@ -71,9 +71,16 @@ export class LiveChatOverlayWindowService {
         await this.liveChatService.updateSettings({ overlay: { openScopes: next } });
     }
 
+    private resolveScope(rawScope?: LiveChatOverlayScope): LiveChatOverlayScope {
+        const settings = this.liveChatService.getSettings();
+        return normalizeScope(
+            rawScope ?? (settings.overlay.mode === "separate" ? "twitch" : "combined"),
+        );
+    }
+
     public async open(rawScope?: LiveChatOverlayScope): Promise<LiveChatOverlayWindowState> {
         const settings = this.liveChatService.getSettings();
-        const scope = normalizeScope(rawScope ?? (settings.overlay.mode === "separate" ? "twitch" : "combined"));
+        const scope = this.resolveScope(rawScope);
         if (!settings.enabled) return this.getState(scope);
         const existing = this.windows.get(scope);
         if (existing && !existing.isDestroyed()) {
@@ -87,7 +94,8 @@ export class LiveChatOverlayWindowService {
             ? path.join(process.cwd(), "dist", "preload", "index.js")
             : path.join(__dirname, "..", "..", "preload", "index.js");
         const bounds = this.getSavedBounds(scope);
-        const locked = settings.overlay.locked;
+        const scopeState = settings.overlay.scopeStates[scope];
+        const locked = scopeState.locked;
         const win = new BrowserWindow({
             ...bounds,
             show: false,
@@ -98,7 +106,7 @@ export class LiveChatOverlayWindowService {
             resizable: !locked,
             minimizable: false,
             maximizable: false,
-            alwaysOnTop: settings.overlay.alwaysOnTop,
+            alwaysOnTop: scopeState.alwaysOnTop,
             skipTaskbar: true,
             autoHideMenuBar: true,
             minWidth: 200,
@@ -113,7 +121,7 @@ export class LiveChatOverlayWindowService {
 
         this.windows.set(scope, win);
         await this.persistOpenState(scope, true);
-        if (settings.overlay.alwaysOnTop) {
+        if (scopeState.alwaysOnTop) {
             win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
             win.setAlwaysOnTop(true, "screen-saver");
         }
@@ -178,32 +186,50 @@ export class LiveChatOverlayWindowService {
         }
     }
 
-    public async setLocked(locked: boolean) {
-        await this.liveChatService.updateSettings({ overlay: { locked } });
-        this.windows.forEach((win) => {
-            if (win.isDestroyed()) return;
+    public async setLocked(
+        locked: boolean,
+        rawScope?: LiveChatOverlayScope,
+    ) {
+        const scope = this.resolveScope(rawScope);
+        await this.liveChatService.updateSettings({
+            overlay: { scopeStates: { [scope]: { locked } } },
+        });
+        const win = this.windows.get(scope);
+        if (win && !win.isDestroyed()) {
             win.setMovable(!locked);
             win.setResizable(!locked);
+        }
+        this.emitState(scope);
+        return this.getState(scope);
+    }
+
+    public async setPaused(
+        paused: boolean,
+        rawScope?: LiveChatOverlayScope,
+    ) {
+        const scope = this.resolveScope(rawScope);
+        await this.liveChatService.updateSettings({
+            overlay: { scopeStates: { [scope]: { paused } } },
         });
-        this.emitState();
-        return this.getState();
+        this.emitState(scope);
+        return this.getState(scope);
     }
 
-    public async setPaused(paused: boolean) {
-        await this.liveChatService.updateSettings({ overlay: { paused } });
-        this.emitState();
-        return this.getState();
-    }
-
-    public async setAlwaysOnTop(alwaysOnTop: boolean) {
-        await this.liveChatService.updateSettings({ overlay: { alwaysOnTop } });
-        this.windows.forEach((win) => {
-            if (win.isDestroyed()) return;
+    public async setAlwaysOnTop(
+        alwaysOnTop: boolean,
+        rawScope?: LiveChatOverlayScope,
+    ) {
+        const scope = this.resolveScope(rawScope);
+        await this.liveChatService.updateSettings({
+            overlay: { scopeStates: { [scope]: { alwaysOnTop } } },
+        });
+        const win = this.windows.get(scope);
+        if (win && !win.isDestroyed()) {
             win.setAlwaysOnTop(alwaysOnTop, alwaysOnTop ? "screen-saver" : "normal");
             win.setVisibleOnAllWorkspaces(alwaysOnTop, { visibleOnFullScreen: alwaysOnTop });
-        });
-        this.emitState();
-        return this.getState();
+        }
+        this.emitState(scope);
+        return this.getState(scope);
     }
 
     public clear(scope?: LiveChatOverlayScope) {
@@ -215,12 +241,13 @@ export class LiveChatOverlayWindowService {
         const settings = this.liveChatService.getSettings();
         const scope = normalizeScope(rawScope ?? (settings.overlay.mode === "separate" ? "twitch" : "combined"));
         const win = this.windows.get(scope);
+        const scopeState = settings.overlay.scopeStates[scope];
         return {
             open: Boolean(win && !win.isDestroyed()),
             scope,
-            paused: settings.overlay.paused,
-            locked: settings.overlay.locked,
-            alwaysOnTop: settings.overlay.alwaysOnTop,
+            paused: scopeState.paused,
+            locked: scopeState.locked,
+            alwaysOnTop: scopeState.alwaysOnTop,
         };
     }
 }
